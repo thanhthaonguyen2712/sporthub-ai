@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 
 interface Sport {
   id: number;
@@ -50,22 +51,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       {/* Navbar */}
-      <nav className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-sm">⚡</div>
-            <span className="font-bold text-lg">Sport<span className="text-emerald-400">Hub</span></span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-slate-400 hover:text-white text-sm transition-colors">
-              Đăng nhập
-            </Link>
-            <Link href="/register" className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-4 py-2 rounded-lg transition-colors">
-              Đăng ký
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar/>
 
       {/* Hero */}
       <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900/40 py-16 px-6">
