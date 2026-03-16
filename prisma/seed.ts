@@ -141,7 +141,126 @@ async function main() {
     },
   });
 
-  console.log("✅ Tạo 2 cơ sở sân");
+  const facility3 = await prisma.facility.upsert({
+    where: { id: 3 },
+    update: {},
+    create: {
+      name: "Arena Sport Liên Chiểu",
+      address: "789 Nguyễn Lương Bằng, Liên Chiểu, Đà Nẵng",
+      description: "Cụm sân bóng đá và bóng rổ chuẩn thi đấu tại Liên Chiểu",
+      latitude: 16.0820,
+      longitude: 108.1503,
+      isActive: true,
+      ownerId: owner.id,
+      facilitySports: {
+        create: [
+          { sportCategoryId: sports[0].id }, // Bóng đá
+          { sportCategoryId: sports[3].id }, // Bóng rổ
+        ],
+      },
+    },
+  });
+
+  const facility4 = await prisma.facility.upsert({
+    where: { id: 4 },
+    update: {},
+    create: {
+      name: "Cầu lông Thanh Khê",
+      address: "45 Điện Biên Phủ, Thanh Khê, Đà Nẵng",
+      description: "Hệ thống 8 sân cầu lông trong nhà, đầy đủ ánh sáng và điều hòa",
+      latitude: 16.0678,
+      longitude: 108.2012,
+      isActive: true,
+      ownerId: owner.id,
+      facilitySports: {
+        create: [
+          { sportCategoryId: sports[1].id }, // Cầu lông
+        ],
+      },
+    },
+  });
+
+  const facility5 = await prisma.facility.upsert({
+    where: { id: 5 },
+    update: {},
+    create: {
+      name: "Green Court Hải Châu",
+      address: "12 Lý Tự Trọng, Hải Châu, Đà Nẵng",
+      description: "Sân Tennis và Pickleball cao cấp ngay trung tâm thành phố",
+      latitude: 16.0544,
+      longitude: 108.2242,
+      isActive: true,
+      ownerId: owner.id,
+      facilitySports: {
+        create: [
+          { sportCategoryId: sports[4].id }, // Tennis
+          { sportCategoryId: sports[2].id }, // Pickleball
+        ],
+      },
+    },
+  });
+
+  const facility6 = await prisma.facility.upsert({
+    where: { id: 6 },
+    update: {},
+    create: {
+      name: "Hoà Khánh Sport Center",
+      address: "234 Hoàng Văn Thái, Liên Chiểu, Đà Nẵng",
+      description: "Trung tâm thể thao đa năng phục vụ cộng đồng khu vực Hoà Khánh",
+      latitude: 16.0923,
+      longitude: 108.1687,
+      isActive: true,
+      ownerId: owner.id,
+      facilitySports: {
+        create: [
+          { sportCategoryId: sports[0].id }, // Bóng đá
+          { sportCategoryId: sports[1].id }, // Cầu lông
+          { sportCategoryId: sports[3].id }, // Bóng rổ
+        ],
+      },
+    },
+  });
+
+  const facility7 = await prisma.facility.upsert({
+    where: { id: 7 },
+    update: {},
+    create: {
+      name: "Pickleball Sơn Trà",
+      address: "67 Phạm Văn Đồng, Sơn Trà, Đà Nẵng",
+      description: "Sân Pickleball chuẩn quốc tế view biển Sơn Trà tuyệt đẹp",
+      latitude: 16.0715,
+      longitude: 108.2389,
+      isActive: true,
+      ownerId: owner.id,
+      facilitySports: {
+        create: [
+          { sportCategoryId: sports[2].id }, // Pickleball
+        ],
+      },
+    },
+  });
+
+  const facility8 = await prisma.facility.upsert({
+    where: { id: 8 },
+    update: {},
+    create: {
+      name: "Vũng Thùng Basketball Arena",
+      address: "89 Võ Nguyên Giáp, Sơn Trà, Đà Nẵng",
+      description: "Sân bóng rổ trong nhà và ngoài trời chuẩn thi đấu tại Mỹ Khê",
+      latitude: 16.0634,
+      longitude: 108.2467,
+      isActive: true,
+      ownerId: owner.id,
+      facilitySports: {
+        create: [
+          { sportCategoryId: sports[3].id }, // Bóng rổ
+          { sportCategoryId: sports[0].id }, // Bóng đá
+        ],
+      },
+    },
+  });
+
+  console.log("✅ Tạo 8 cơ sở sân");
 
   // ===================== 4. COURTS =====================
   console.log("🏸 Tạo sân con...");

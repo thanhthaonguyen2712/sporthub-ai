@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
           select: { courts: true },
         },
       },
-      orderBy: { id: "desc" },
+      orderBy: { name: "asc" },
     });
 
     // Tính rating trung bình

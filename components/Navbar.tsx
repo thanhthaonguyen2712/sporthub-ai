@@ -13,7 +13,7 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-sm">⚡</div>
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-sm"><img src="/logo.png" className="w-8 h-8 rounded-lg" alt="SportHub Logo" /></div>
           <span className="font-bold text-lg text-white">Sport<span className="text-emerald-400">Hub</span></span>
         </Link>
 

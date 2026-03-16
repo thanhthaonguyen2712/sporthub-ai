@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const sports = await prisma.sportCategory.findMany({
-      orderBy: { id: "asc" },
+      orderBy: { name: "asc" },
     });
     return NextResponse.json(sports);
   } catch (error) {
