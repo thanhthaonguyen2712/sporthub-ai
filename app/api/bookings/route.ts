@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
         status: { notIn: ["CANCELLED"] },
         OR: [
           {
-            startTime: { lte: new Date(`1970-01-01T${endTime}:00`) },
-            endTime: { gte: new Date(`1970-01-01T${startTime}:00`) },
+            startTime: { lte: new Date(`1970-01-01T${endTime}:00.000Z`) },
+            endTime: { gte: new Date(`1970-01-01T${startTime}:00.000Z`) },
           },
         ],
       },
@@ -90,8 +90,8 @@ export async function POST(req: NextRequest) {
           courtId: Number(courtId),
           customerId: Number((session.user as any).id),
           bookingDate: new Date(bookingDate),
-          startTime: new Date(`1970-01-01T${startTime}:00`),
-          endTime: new Date(`1970-01-01T${endTime}:00`),
+          startTime: new Date(`1970-01-01T${startTime}:00.000Z`),
+          endTime: new Date(`1970-01-01T${endTime}:00.000Z`),
           totalPrice: finalTotal,
           status: "CONFIRMED",
           paymentStatus: "PAID",

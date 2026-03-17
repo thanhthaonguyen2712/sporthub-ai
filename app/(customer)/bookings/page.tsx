@@ -26,6 +26,7 @@ export default function BookingPage() {
   const { data: session } = useSession();
 
   const courtId = searchParams.get("courtId");
+  const facilityId = searchParams.get("facilityId");
   const date = searchParams.get("date");
   const startTime = searchParams.get("start");
   const endTime = searchParams.get("end");
@@ -38,9 +39,30 @@ export default function BookingPage() {
   const [voucherMsg, setVoucherMsg] = useState("");
   const [discount, setDiscount] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "QR">("WALLET");
+  const [qrCountdown, setQrCountdown] = useState(180); 
+  const [qrExpired, setQrExpired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-
+  useEffect(() => {
+    if (paymentMethod !== "QR") {
+      setQrCountdown(180);
+      setQrExpired(false);
+      return;
+    }
+    const timer = setInterval(() => {
+      setQrCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setQrExpired(true);
+          router.push("/");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [paymentMethod]);
   const courtPrice = Number(priceParam) || 0;
   const serviceTotal = selectedServices.reduce((sum, item) => {
     const svc = services.find((s) => s.id === item.id);
@@ -49,21 +71,22 @@ export default function BookingPage() {
   const totalPrice = courtPrice + serviceTotal;
   const finalTotal = Math.max(totalPrice - discount, 0);
 
-  useEffect(() => {
-    if (!courtId) return;
-    fetch(`/api/facilities/${courtId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        // Lấy thông tin court từ facility detail
-        setCourt({
-          id: Number(courtId),
-          name: data.courts?.[0]?.name || "Sân",
-          category: data.courts?.[0]?.category || { name: "", iconUrl: "" },
-          facility: { id: data.id, name: data.name, address: data.address },
-        });
-        setServices(data.services || []);
+ useEffect(() => {
+  if (!courtId || !facilityId) return;
+  fetch(`/api/facilities/${facilityId}`)
+    .then((r) => r.json())
+    .then((data) => {
+      const courtData = data.courts?.find((c: any) => c.id === Number(courtId));
+      setCourt({
+        id: Number(courtId),
+        name: courtData?.name || "Sân",
+        category: courtData?.category || { name: "", iconUrl: "" },
+        facility: { id: data.id, name: data.name, address: data.address },
       });
-
+      const uniqueServices = (data.services || []).filter((s: any, index: number, self: any[]) =>
+          index === self.findIndex((t: any) => t.name === s.name));
+          setServices(uniqueServices);
+      });
     // Lấy số dư ví
     fetch("/api/wallet")
       .then((r) => r.json())
@@ -108,13 +131,14 @@ export default function BookingPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        courtId: Number(courtId),
-        bookingDate: date,
-        startTime,
-        endTime,
-        totalPrice: finalTotal,
-        serviceIds: selectedServices,
-        voucherCode: voucherCode || undefined,
+      courtId: Number(courtId),
+      bookingDate: date,
+      startTime,
+      endTime,
+      totalPrice: finalTotal,
+      serviceIds: selectedServices,
+      voucherCode: voucherCode || undefined,
+      paymentMethod,
       }),
     });
     const data = await res.json();
@@ -137,7 +161,7 @@ export default function BookingPage() {
             <p className="text-gray-600 text-sm mb-6">Email xác nhận đã được gửi về hộp thư của bạn.</p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => router.push("/profile")}
+                onClick={() => router.push("/profile?tab=bookings")}
                 className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
               >
                 Xem lịch đặt sân
@@ -276,30 +300,70 @@ export default function BookingPage() {
               <span className="text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span>
             </div>
           </div>
-
-          {/* Số dư ví */}
-          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 mb-4">
-            <div>
-              <p className="text-sm font-medium text-black">💰 Ví SportHub</p>
-              <p className="text-xs text-gray-500">Số dư: {walletBalance.toLocaleString("vi-VN")}đ</p>
+          {/* Chọn phương thức thanh toán */}
+          <div className="space-y-2 mb-4">
+            {/* Ví SportHub */}
+            <div onClick={() => setPaymentMethod("WALLET")}
+              className={`flex items-center justify-between bg-white border rounded-xl px-4 py-3 cursor-pointer transition-colors ${paymentMethod === "WALLET" ? "border-emerald-400 bg-emerald-50" : "border-gray-200"}`}>
+              <div className="flex items-center gap-3">
+                <input type="radio" checked={paymentMethod === "WALLET"} onChange={() => setPaymentMethod("WALLET")} className="accent-emerald-500" />
+                <div>
+                  <p className="text-sm font-medium text-black">💰 Ví SportHub</p>
+                  <p className="text-xs text-gray-500">Số dư: {walletBalance.toLocaleString("vi-VN")}đ</p>
+                </div>
+              </div>
+              <span className={`text-xs px-2 py-1 rounded-full ${walletBalance >= finalTotal ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                {walletBalance >= finalTotal ? "Đủ số dư" : "Không đủ"}
+              </span>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full ${walletBalance >= finalTotal ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
-              {walletBalance >= finalTotal ? "Đủ số dư" : "Không đủ"}
-            </span>
-          </div>
 
+            {/* QR Code */}
+            <div onClick={() => setPaymentMethod("QR")}
+              className={`flex items-center gap-3 bg-white border rounded-xl px-4 py-3 cursor-pointer transition-colors ${paymentMethod === "QR" ? "border-emerald-400 bg-emerald-50" : "border-gray-200"}`} >
+              <input type="radio" checked={paymentMethod === "QR"} onChange={() => setPaymentMethod("QR")} className="accent-emerald-500" />
+              <div>
+                <p className="text-sm font-medium text-black">📱 Thanh toán QR</p>
+                <p className="text-xs text-gray-500">Quét mã QR để thanh toán</p>
+              </div>
+            </div>
+          </div>
+          {/* Hiển thị QR nếu chọn QR */}
+          {paymentMethod === "QR" && (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 text-center">
+              <p className="text-sm font-medium text-black mb-1">Quét mã QR để thanh toán</p>
+              <div className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full mb-3 ${qrCountdown <= 30 ? "bg-red-100 text-red-600" : "bg-yellow-100 text-yellow-700"}`}>
+                ⏱ Hết hạn sau: <span className="font-bold">
+                  {String(Math.floor(qrCountdown / 60)).padStart(2, "0")}:{String(qrCountdown % 60).padStart(2, "0")}
+                </span>
+              </div>
+              <div className={`inline-block bg-gray-100 rounded-xl p-4 ${qrCountdown <= 30 ? "opacity-50" : ""}`}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SportHub-Payment-${finalTotal}-${courtId}`}
+                  alt="QR thanh toán" className="w-44 h-44"/>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Số tiền: <span className="font-bold text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span>
+              </p>
+              {qrCountdown <= 30 && (
+                <p className="text-xs text-red-500 mt-1 font-medium">⚠️ Sắp hết hạn! Vui lòng quét ngay.</p>
+              )}
+            </div>
+          )}
+          {paymentMethod === "WALLET" && walletBalance < finalTotal && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4 text-xs text-yellow-700">
+              ⚠️ Số dư ví không đủ. Vui lòng nạp thêm tiền.
+              <button onClick={() => router.push("/profile")} className="ml-2 underline font-medium">Nạp tiền ngay</button>
+            </div>
+          )}
           {walletBalance < finalTotal && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4 text-xs text-yellow-700">
               ⚠️ Số dư ví không đủ. Vui lòng nạp thêm tiền vào ví trước khi đặt sân.
               <button onClick={() => router.push("/profile")} className="ml-2 underline font-medium">Nạp tiền ngay</button>
             </div>
           )}
-
-          <button
-            onClick={handleBooking}
-            disabled={loading || walletBalance < finalTotal}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors text-sm"
-          >
+          <button onClick={handleBooking}
+            disabled={loading || (paymentMethod === "WALLET" && walletBalance < finalTotal)}
+            className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors text-sm">
             {loading ? "Đang xử lý..." : `Xác nhận đặt sân · ${finalTotal.toLocaleString("vi-VN")}đ`}
           </button>
         </div>

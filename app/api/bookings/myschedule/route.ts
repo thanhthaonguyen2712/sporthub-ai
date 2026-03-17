@@ -32,9 +32,10 @@ export async function GET() {
 
     const result = bookings.map((b) => ({
       id: b.id,
+      createdAt: b.createdAt,
       bookingDate: b.bookingDate,
-      startTime: b.startTime,
-      endTime: b.endTime,
+      startTime: b.startTime.toISOString().slice(11, 16),
+      endTime: b.endTime.toISOString().slice(11, 16),
       totalPrice: b.totalPrice,
       status: b.status,
       paymentStatus: b.paymentStatus,

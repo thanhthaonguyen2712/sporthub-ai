@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -109,19 +108,17 @@ function isValidSelection(
   return { valid: true, error: "" };
 }
 
-const MOCK_BOOKED: Record<number, string[]> = {
-  1: ["07:00", "08:00", "17:00", "19:00"],
-  2: ["08:00", "09:00", "19:00"],
-  3: ["09:00", "17:00"],
-  4: ["10:00", "10:30", "19:00"],
-  5: ["07:30", "08:00", "17:00"],
-};
-
 function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; selectedDate: string; facilityId: number }) {
   const router = useRouter();
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
-  const booked = MOCK_BOOKED[court.id] || [];
+  const [booked, setBooked] = useState<string[]>([]);
+  useEffect(() => {
+    if (!selectedDate) return;
+    fetch(`/api/courts/${court.id}/booked-slots?date=${selectedDate}`)
+      .then((r) => r.json())
+      .then((data) => setBooked(data.bookedSlots || []));
+  }, [court.id, selectedDate]);
   const sportName = court.category.name;
   const ALL_SLOTS = generateSlots(sportName);
   const isOneHour = ONE_HOUR_SPORTS.includes(sportName);
@@ -295,8 +292,8 @@ export default function FacilityDetailPage() {
   const [activeTab, setActiveTab] = useState("courts");
   const [selectedSport, setSelectedSport] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0]
+);
 
   useEffect(() => {
     fetch(`/api/facilities/${id}`)
@@ -401,7 +398,7 @@ export default function FacilityDetailPage() {
               <input
                 type="date"
                 value={selectedDate}
-                min={new Date().toISOString().split("T")[0]}
+                min={new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0]}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="bg-white border border-gray-300 text-black rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-400"
               />

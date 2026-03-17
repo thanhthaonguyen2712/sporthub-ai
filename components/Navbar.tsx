@@ -55,10 +55,9 @@ export default function Navbar() {
                     👤 Hồ sơ của tôi
                   </Link>
                   <Link
-                    href="/bookings"
+                    href="/profile?tab=bookings"
                     className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors"
-                    onClick={() => setMenuOpen(false)}
-                  >
+                    onClick={() => setMenuOpen(false)}>
                     📋 Lịch đặt sân
                   </Link>
                   <button

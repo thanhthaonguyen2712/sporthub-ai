@@ -1,12 +1,13 @@
 "use client";
-
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
 const menuItems = [
   { id: "info", icon: "👤", label: "Thông tin cá nhân" },
   { id: "bookings", icon: "📋", label: "Lịch đặt sân" },
+  { id: "wallet", icon: "💰", label: "Ví SportHub" },
   { id: "courses", icon: "🎓", label: "Khóa học" },
   { id: "membership", icon: "💎", label: "Gói hội viên" },
   { id: "vouchers", icon: "🎁", label: "Ưu đãi của tôi" },
@@ -17,7 +18,8 @@ const menuItems = [
 
 export default function ProfilePage() {
   const { data: session } = useSession();
-  const [active, setActive] = useState("info");
+  const searchParams = useSearchParams();
+  const [active, setActive] = useState(searchParams.get("tab") || "info");
 
   return (
     <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)", color: "#000" }}>
@@ -81,6 +83,7 @@ export default function ProfilePage() {
           <main className="flex-1 min-w-0">
             {active === "info" && <SectionInfo session={session} />}
             {active === "bookings" && <SectionBookings />}
+            {active === "wallet" && <SectionWallet />}
             {active === "courses" && <SectionCourses />}
             {active === "membership" && <SectionMembership />}
             {active === "vouchers" && <SectionVouchers />}
@@ -134,28 +137,44 @@ function SectionInfo({ session }: { session: any }) {
     </div>
   );
 }
-
-/* ─── LỊCH ĐẶT SÂN ─── */
 /* ─── LỊCH ĐẶT SÂN ─── */
 function SectionBookings() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [filter, setFilter] = useState("Tất cả");
   const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [showConfirm, setShowConfirm] = useState<number | null>(null);
+  const [toast, setToast] = useState("");
 
-  useEffect(() => {
+  function loadBookings() {
     fetch("/api/bookings/myschedule")
       .then((r) => r.json())
       .then((data) => { setBookings(Array.isArray(data) ? data : []); setLoading(false); });
-  }, []);
-
+  }
+  useEffect(() => { loadBookings(); }, []);
+  async function handleCancel(bookingId: number) {
+    setCancellingId(bookingId);
+    const res = await fetch(`/api/bookings/${bookingId}/cancel`, { method: "POST" });
+    const data = await res.json();
+    setCancellingId(null);
+    setShowConfirm(null);
+    setToast(res.ok ? data.message : data.error || "Hủy thất bại!");
+    setTimeout(() => setToast(""), 4000);
+    if (res.ok) loadBookings();
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const filtered = bookings.filter((b) => {
+    const bookingDate = new Date(b.bookingDate);
+    bookingDate.setHours(0, 0, 0, 0);
     if (filter === "Tất cả") return true;
-    if (filter === "Sắp tới") return b.status === "CONFIRMED" || b.status === "PENDING";
-    if (filter === "Đã hoàn thành") return b.status === "COMPLETED";
+    if (filter === "Sắp tới")
+      return bookingDate >= today && (b.status === "CONFIRMED" || b.status === "PENDING");
+    if (filter === "Đã hoàn thành")
+      return b.status === "COMPLETED" || bookingDate < today;
     if (filter === "Đã hủy") return b.status === "CANCELLED";
     return true;
   });
-
   const statusLabel: Record<string, { label: string; color: string }> = {
     PENDING:   { label: "Chờ xác nhận", color: "bg-yellow-100 text-yellow-700" },
     CONFIRMED: { label: "Đã xác nhận",  color: "bg-emerald-100 text-emerald-700" },
@@ -216,24 +235,166 @@ function SectionBookings() {
                   {statusLabel[b.status]?.label}
                 </span>
               </div>
+
               <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
-                <span>📅 {new Date(b.bookingDate).toLocaleDateString("vi-VN")}</span>
-                <span>🕐 {b.startTime?.slice(11, 16)} – {b.endTime?.slice(11, 16)}</span>
+                <span>📅 {new Date(b.bookingDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+                <span>🕐 {b.startTime} – {b.endTime}</span>
               </div>
-              <div className="flex items-center justify-between">
+
+              <div className="flex items-center justify-between mt-1">
                 <span className="text-emerald-600 font-bold text-sm">
                   {Number(b.totalPrice).toLocaleString("vi-VN")}đ
                 </span>
-                <span className="text-xs text-gray-400">#{b.id}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">#{b.id}</span>
+                  {(b.status === "CONFIRMED" || b.status === "PENDING") &&
+                    (new Date().getTime() - new Date(b.createdAt).getTime()) / 60000 <= 60 && (
+                      <button
+                        onClick={() => setShowConfirm(b.id)}
+                        className="text-xs text-red-500 hover:text-red-700 border border-red-300 hover:border-red-500 px-2 py-0.5 rounded-lg transition-colors">Hủy
+                      </button>
+                    )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toast.includes("thành công") || toast.includes("Hoàn") ? "bg-emerald-500" : "bg-red-500"}`}>
+          {toast}
+        </div>
+      )}
+
+      {/* Popup xác nhận hủy */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="font-bold text-black text-lg mb-2">Xác nhận hủy sân</h3>
+            <p className="text-gray-600 text-sm mb-1">Bạn có chắc muốn hủy lịch đặt sân này?</p>
+            <p className="text-emerald-600 text-xs mb-5">✅ Tiền sẽ được hoàn về ví SportHub ngay lập tức.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirm(null)}
+                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Không hủy
+              </button>
+              <button
+                onClick={() => handleCancel(showConfirm)}
+                disabled={cancellingId === showConfirm}
+                className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+                {cancellingId === showConfirm ? "Đang hủy..." : "Xác nhận hủy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+/* ─── VÍ SPORTHUB ─── */
+function SectionWallet() {
+  const [wallet, setWallet] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    fetch("/api/wallet/detail")
+      .then((r) => r.json())
+      .then((data) => {
+        setWallet(data.wallet);
+        setTransactions(data.transactions || []);
+        setLoading(false);
+      });
+  }, []);
+
+  const typeLabel: Record<string, { label: string; color: string; sign: string }> = {
+    DEPOSIT:  { label: "Nạp tiền",        color: "text-emerald-600", sign: "+" },
+    PAYMENT:  { label: "Thanh toán",      color: "text-red-500",     sign: "-" },
+    REFUND:   { label: "Hoàn tiền",       color: "text-emerald-600", sign: "+" },
+    WITHDRAW: { label: "Rút tiền",        color: "text-red-500",     sign: "-" },
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Số dư */}
+      <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
+        <h2 className="text-lg font-semibold text-black mb-4">💰 Ví SportHub</h2>
+        {loading ? (
+          <div className="h-16 bg-white/50 rounded-xl animate-pulse" />
+        ) : (
+          <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl p-5 text-white">
+            <p className="text-sm opacity-80 mb-1">Số dư hiện tại</p>
+            <p className="text-3xl font-bold">{Number(wallet?.balance || 0).toLocaleString("vi-VN")}đ</p>
+            <div className="flex items-center gap-2 mt-3">
+              <span className={`text-xs px-2 py-0.5 rounded-full ${wallet?.status === "ACTIVE" ? "bg-white/20" : "bg-red-300/40"}`}>
+                {wallet?.status === "ACTIVE" ? "✅ Hoạt động" : "🔒 Bị khóa"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Nút nạp tiền (demo) */}
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {[50000, 100000, 200000, 500000, 1000000, 2000000].map((amount) => (
+            <button
+              key={amount}
+              className="bg-white border border-emerald-300 text-emerald-700 text-xs py-2 rounded-xl hover:bg-emerald-50 transition-colors font-medium"
+              onClick={async () => {
+                const res = await fetch("/api/wallet/topup", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ amount }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                  setWallet((w: any) => ({ ...w, balance: Number(w.balance) + amount }));
+                  setTransactions((prev) => [data.transaction, ...prev]);
+                }
+              }}
+            >
+              +{(amount / 1000).toFixed(0)}k
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-2 text-center">Chọn số tiền để nạp vào ví (demo)</p>
+      </div>
+
+      {/* Lịch sử giao dịch */}
+      <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
+        <h2 className="text-lg font-semibold text-black mb-4">📜 Lịch sử giao dịch</h2>
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-white/50 rounded-xl animate-pulse" />)}
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-10 text-gray-500">
+            <div className="text-4xl mb-2">📭</div>
+            <p className="text-sm">Chưa có giao dịch nào</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {transactions.map((t) => (
+              <div key={t.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-black">{typeLabel[t.type]?.label || t.type}</p>
+                  {t.description && <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>}
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {new Date(t.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+                <span className={`font-bold text-sm ${typeLabel[t.type]?.color}`}>
+                  {typeLabel[t.type]?.sign}{Number(t.amount).toLocaleString("vi-VN")}đ
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 /* ─── KHÓA HỌC ─── */
 function SectionCourses() {
   const courses = [
