@@ -10,10 +10,11 @@ datasource db {
 // ===================== ENUMS =====================
 
 enum Role {
-  ADMIN     // Quản trị viên hệ thống
-  OWNER     // Chủ sân
-  STAFF     // Nhân viên
-  CUSTOMER  // Khách hàng
+  ADMIN
+  OWNER
+  STAFF
+  WAREHOUSE_MANAGER  
+  CUSTOMER
 }
 
 enum DayType {
@@ -90,6 +91,31 @@ enum PaymentMethod {
   WALLET   // Ví điện tử SportHub
 }
 
+enum GuestBookingStatus {
+  PENDING
+  CONFIRMED
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+enum StaffRole {
+  STAFF
+  WAREHOUSE_MANAGER
+}
+
+enum ShiftType {
+  MORNING
+  AFTERNOON
+  EVENING
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+  VERIFIED
+}
+
 // ===================== MODELS =====================
 
 // 1. NGƯỜI DÙNG - Dùng chung cho tất cả role
@@ -112,6 +138,9 @@ model User {
   reviews         Review[]
   vouchers        Voucher[]         @relation("OwnerVouchers")
   wallet          Wallet?
+  facilityStaff   FacilityStaff[]
+  inventoryShifts InventoryShift[]
+  staffBookings      Booking[]         @relation("StaffBookings")
 
   @@map("users")
 }
@@ -156,11 +185,13 @@ model Facility {
   ownerId     Int      @map("owner_id")
   owner       User     @relation("OwnerFacilities", fields: [ownerId], references: [id], onDelete: Cascade)
 
-  courts         Court[]
-  services       Service[]
-  matchPosts     MatchPost[]
-  facilitySports FacilitySport[]
-  reviews        Review[]
+  courts          Court[]
+  services        Service[]
+  matchPosts      MatchPost[]
+  facilitySports  FacilitySport[]
+  reviews         Review[]
+  facilityStaff   FacilityStaff[]
+  inventoryShifts InventoryShift[]
 
   @@map("facilities")
 }
@@ -188,6 +219,7 @@ model Court {
 
   pricingRules CourtPricingRule[]
   bookings     Booking[]
+  guestBookings GuestBooking[]
 
   @@map("courts")
 }
@@ -247,7 +279,7 @@ model Service {
 
   stockLogs    StockLog[]
   invoiceItems InvoiceItem[]
-
+  inventoryItems InventoryShiftItem[]
   @@map("services")
 }
 
@@ -273,14 +305,19 @@ model Booking {
   totalPrice    Decimal       @map("total_price") @db.Decimal(10, 2)
   status        BookingStatus @default(PENDING)
   paymentStatus PaymentStatus @default(UNPAID) @map("payment_status")
+  isWalkIn      Boolean       @default(false) @map("is_walk_in") // Đặt tại quầy
+  walkInName    String?       @map("walk_in_name")   // Tên khách vãng lai
+  walkInPhone   String?       @map("walk_in_phone")  // SĐT khách vãng lai
+  createdByStaff Boolean      @default(false) @map("created_by_staff") // Nhân viên đặt hộ
   createdAt     DateTime      @default(now()) @map("created_at")
-  customerId    Int           @map("customer_id")
-  customer      User          @relation("CustomerBookings", fields: [customerId], references: [id])
+  customerId    Int?          @map("customer_id")   // null nếu khách vãng lai
+  customer      User?         @relation("CustomerBookings", fields: [customerId], references: [id])
+  staffId       Int?          @map("staff_id")      // Nhân viên đặt hộ
+  staff         User?         @relation("StaffBookings", fields: [staffId], references: [id])
   courtId       Int           @map("court_id")
   court         Court         @relation(fields: [courtId], references: [id])
   voucherId     Int?          @map("voucher_id")
   voucher       Voucher?      @relation(fields: [voucherId], references: [id])
-
   invoice Invoice?
 
   @@map("booking")
@@ -373,4 +410,79 @@ model Voucher {
   bookings Booking[]
 
   @@map("vouchers")
+}
+// 18. NHÂN VIÊN THUỘC CƠ SỞ CỤ THỂ
+model FacilityStaff {
+  id         Int       @id @default(autoincrement())
+  facilityId Int       @map("facility_id")
+  userId     Int       @map("user_id")
+  role       StaffRole @default(STAFF)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  facility   Facility  @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([facilityId, userId])
+  @@map("facility_staff")
+}
+
+// 19. KHÁCH VÃNG LAI ĐẶT SÂN
+model GuestBooking {
+  id          Int                @id @default(autoincrement())
+  guestName   String             @map("guest_name")
+  guestPhone  String             @map("guest_phone")
+  guestEmail  String?            @map("guest_email")
+  courtId     Int                @map("court_id")
+  bookingDate DateTime           @map("booking_date") @db.Date
+  startTime   DateTime           @map("start_time") @db.Time
+  endTime     DateTime           @map("end_time") @db.Time
+  totalPrice  Decimal            @map("total_price") @db.Decimal(10, 2)
+  status      GuestBookingStatus @default(PENDING)
+  otpCode     String?            @map("otp_code")
+  otpExpiry   DateTime?          @map("otp_expiry")
+  expiredAt   DateTime           @map("expired_at")
+  paymentQr   String?            @map("payment_qr") @db.Text
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  court       Court              @relation(fields: [courtId], references: [id])
+
+  @@map("guest_bookings")
+}
+
+// 20. CA KIỂM KÊ KHO
+model InventoryShift {
+  id         Int         @id @default(autoincrement())
+  facilityId Int         @map("facility_id")
+  managerId  Int         @map("manager_id")
+  shiftDate  DateTime    @map("shift_date") @db.Date
+  shiftType  ShiftType   @map("shift_type")
+  notes      String?     @db.Text
+  status     ShiftStatus @default(OPEN)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  closedAt   DateTime?   @map("closed_at")
+
+  facility   Facility    @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  manager    User        @relation(fields: [managerId], references: [id])
+  items      InventoryShiftItem[]
+
+  @@map("inventory_shifts")
+}
+
+// 21. CHI TIẾT KIỂM KÊ KHO THEO CA
+model InventoryShiftItem {
+  id             Int      @id @default(autoincrement())
+  shiftId        Int      @map("shift_id")
+  serviceId      Int      @map("service_id")
+  openingStock   Int      @map("opening_stock")
+  sold           Int      @default(0)
+  returned       Int      @default(0)
+  closingStock   Int?     @map("closing_stock")
+  discrepancy    Int?
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  shift          InventoryShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  service        Service        @relation(fields: [serviceId], references: [id])
+
+  @@map("inventory_shift_items")
 }

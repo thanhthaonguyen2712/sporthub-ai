@@ -52,11 +52,10 @@ interface Slot {
   duration: number;
   isPeak: boolean;
   label: string;
-  endLabel: string; // giờ kết thúc
+  endLabel: string;
 }
 
 const ONE_HOUR_SPORTS = ["Bóng đá", "Bóng rổ"];
-// Môn áp dụng rule: nếu không liên tiếp thì phải cách >=1h
 const GAP_RULE_SPORTS = ["Cầu lông", "Pickleball", "Tennis"];
 
 function addMinutes(time: string, mins: number): string {
@@ -88,7 +87,6 @@ function generateSlots(sportName: string): Slot[] {
     }
   }
 
-  // Cao điểm cố định 2 tiếng
   slots.push({ time: "17:00", duration: 120, isPeak: true, label: "17:00 – 19:00", endLabel: "19:00" });
   slots.push({ time: "19:00", duration: 120, isPeak: true, label: "19:00 – 21:00", endLabel: "21:00" });
 
@@ -102,7 +100,6 @@ function generateSlots(sportName: string): Slot[] {
   return slots;
 }
 
-// Kiểm tra slot mới có hợp lệ với các slot đã chọn không
 function isValidSelection(
   slots: Slot[],
   selected: string[],
@@ -120,7 +117,6 @@ const MOCK_BOOKED: Record<number, string[]> = {
   5: ["07:30", "08:00", "17:00"],
 };
 
-// ── CourtSchedule ──────────────────────────────────────
 function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: string }) {
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
@@ -140,13 +136,11 @@ function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: st
     if (booked.includes(slotTime)) return;
     setErrorMsg("");
 
-    // Bỏ chọn slot đã chọn
     if (selectedSlots.includes(slotTime)) {
       setSelectedSlots(selectedSlots.filter((s) => s !== slotTime));
       return;
     }
 
-    // Kiểm tra hợp lệ
     const { valid, error } = isValidSelection(ALL_SLOTS, selectedSlots, slotTime, sportName);
     if (!valid) {
       setErrorMsg(error);
@@ -187,15 +181,15 @@ function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: st
       {/* Chú thích */}
       <div className="flex gap-3 text-xs mb-4 flex-wrap">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded inline-block" style={{ background: "#d1fae5", border: "1px solid #6ee7b7" }}></span>
+          <span className="w-3 h-3 rounded inline-block" style={{ background: "#96CDCD", border: "1px solid #D1EEEE" }}></span>
           <span className="text-black">{isOneHour ? "Còn trống (80k/1h)" : "Còn trống (40k/30p)"}</span>
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded inline-block" style={{ background: "#CDBA96" }}></span>
+          <span className="w-3 h-3 rounded inline-block" style={{ background: "#EED5D2" }}></span>
           <span className="text-black">Đã đặt</span>
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded inline-block" style={{ background: "#CAFF70" }}></span>
+          <span className="w-3 h-3 rounded inline-block" style={{ background: "#9BCD9B" }}></span>
           <span className="text-black">Cao điểm (160k/2h)</span>
         </span>
         <span className="flex items-center gap-1">
@@ -214,18 +208,21 @@ function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: st
           let cls = "border rounded-lg text-xs font-medium transition-all text-left ";
 
           if (isBooked) {
-            bgStyle = { background: "#CDBA96", borderColor: "#b8a07a", color: "#000" };
-            cls += "cursor-not-allowed opacity-70";
+            bgStyle = { background: "#EED5D2", borderColor: "#FFB5C5", color: "#000" };
+            cls += "cursor-not-allowed ";
           } else if (isSelected) {
             bgStyle = { background: "#B0C4DE", borderColor: "#7a9cbf", color: "#000" };
             cls += "cursor-pointer ring-2 ring-blue-400";
           } else if (slot.isPeak) {
-            bgStyle = { background: "#CAFF70", borderColor: "#a8e050", color: "#000" };
+            bgStyle = { background: "#9BCD9B", borderColor: "#a8e050", color: "#000" };
             cls += "cursor-pointer hover:opacity-80";
           } else {
-            bgStyle = { background: "#d1fae5", borderColor: "#6ee7b7", color: "#000" };
+            bgStyle = { background: "#96CDCD", borderColor: "#D1EEEE", color: "#000" };
             cls += "cursor-pointer hover:opacity-80";
           }
+
+          // Áp dụng chữ đậm cho tất cả các loại ô
+          bgStyle.fontWeight = "bold";
 
           const pad = slot.isPeak ? "px-4 py-2.5" : "px-2.5 py-2";
 
@@ -239,7 +236,7 @@ function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: st
             >
               <div className="font-semibold text-[11px]">{slot.label}</div>
               <div className="text-[10px] opacity-70 mt-0.5">
-                {slot.isPeak ? "160k · 2h" : slot.duration === 60 ? "80k · 1h" : "40k · 30p"}
+                {slot.isPeak ? "160k/2h" : slot.duration === 60 ? "80k/1h" : "40k · 30p"}
               </div>
             </button>
           );
@@ -273,7 +270,6 @@ function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: st
   );
 }
 
-// ── Main Page ──────────────────────────────────────────
 export default function FacilityDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -335,7 +331,7 @@ export default function FacilityDetailPage() {
       <div className="max-w-6xl mx-auto px-6 py-8">
 
         {/* Header */}
-        <div className="border border-gray-300 rounded-2xl p-6 mb-6 flex items-start justify-between" style={{ background: "#E0EEE0" }}>
+        <div className="border border-gray-300 rounded-2xl p-6 mb-6 flex items-start justify-between" style={{ background: "#B4EEB4" }}>
           <div className="flex items-start gap-5">
             <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center border border-gray-200 flex-shrink-0">
               {facility.sports[0] && <img src={facility.sports[0].iconUrl} className="w-10 h-10" alt={facility.sports[0].name} />}
