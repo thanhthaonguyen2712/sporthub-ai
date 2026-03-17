@@ -117,7 +117,8 @@ const MOCK_BOOKED: Record<number, string[]> = {
   5: ["07:30", "08:00", "17:00"],
 };
 
-function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: string }) {
+function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; selectedDate: string; facilityId: number }) {
+  const router = useRouter();
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const booked = MOCK_BOOKED[court.id] || [];
@@ -261,8 +262,24 @@ function CourtSchedule({ court, selectedDate }: { court: Court; selectedDate: st
               {totalPrice.toLocaleString("vi-VN")}đ
             </p>
           </div>
-          <button className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-6 py-2.5 rounded-lg transition-colors font-medium">
-            Đặt sân →
+          <button onClick={() => {
+              const sorted = [...selectedSlots].sort((a, b) => toMinutes(a) - toMinutes(b));
+              const startSlot = ALL_SLOTS.find((s) => s.time === sorted[0])!;
+              const endSlot = ALL_SLOTS.find((s) => s.time === sorted[sorted.length - 1])!;
+              const startTime = sorted[0];
+              const endTime = endSlot.endLabel;
+              const params = new URLSearchParams({
+                courtId: String(court.id),
+                facilityId: String(facilityId),
+                date: selectedDate,
+                start: startTime,
+                end: endTime,
+                price: String(totalPrice),
+              });
+              router.push(`/bookings?${params}`);
+            }}
+            className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-6 py-2.5 rounded-lg transition-colors font-medium">
+               Đặt sân →
           </button>
         </div>
       )}
@@ -428,7 +445,7 @@ export default function FacilityDetailPage() {
                     <div className="flex-1 h-0.5 bg-emerald-400 rounded ml-1" />
                   </div>
                   {group.courts.map((court) => (
-                    <CourtSchedule key={court.id} court={court} selectedDate={selectedDate} />
+                    <CourtSchedule key={court.id} court={court} selectedDate={selectedDate} facilityId={facility.id} />
                   ))}
                 </div>
               ))
