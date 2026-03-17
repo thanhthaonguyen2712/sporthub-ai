@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 
 const menuItems = [
@@ -136,22 +136,100 @@ function SectionInfo({ session }: { session: any }) {
 }
 
 /* ─── LỊCH ĐẶT SÂN ─── */
+/* ─── LỊCH ĐẶT SÂN ─── */
 function SectionBookings() {
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [filter, setFilter] = useState("Tất cả");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/bookings/myschedule")
+      .then((r) => r.json())
+      .then((data) => { setBookings(Array.isArray(data) ? data : []); setLoading(false); });
+  }, []);
+
+  const filtered = bookings.filter((b) => {
+    if (filter === "Tất cả") return true;
+    if (filter === "Sắp tới") return b.status === "CONFIRMED" || b.status === "PENDING";
+    if (filter === "Đã hoàn thành") return b.status === "COMPLETED";
+    if (filter === "Đã hủy") return b.status === "CANCELLED";
+    return true;
+  });
+
+  const statusLabel: Record<string, { label: string; color: string }> = {
+    PENDING:   { label: "Chờ xác nhận", color: "bg-yellow-100 text-yellow-700" },
+    CONFIRMED: { label: "Đã xác nhận",  color: "bg-emerald-100 text-emerald-700" },
+    COMPLETED: { label: "Hoàn thành",   color: "bg-blue-100 text-blue-700" },
+    CANCELLED: { label: "Đã hủy",       color: "bg-red-100 text-red-600" },
+    NO_SHOW:   { label: "Không đến",    color: "bg-gray-100 text-gray-600" },
+  };
+
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-      <h2 className="text-lg font-semibold text-black mb-6">Lịch đặt sân</h2>
-      <div className="flex gap-3 mb-5">
-        {["Tất cả", "Sắp tới", "Đã hoàn thành", "Đã hủy"].map((tab, i) => (
-          <button key={tab} className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${i === 0 ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-gray-600 hover:bg-emerald-50 border border-gray-300"}`}>
+      <h2 className="text-lg font-semibold text-black mb-4">Lịch đặt sân</h2>
+
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {["Tất cả", "Sắp tới", "Đã hoàn thành", "Đã hủy"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setFilter(tab)}
+            className={`text-xs px-3 py-1.5 rounded-lg transition-colors border ${
+              filter === tab
+                ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium"
+                : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"
+            }`}
+          >
             {tab}
           </button>
         ))}
       </div>
-      <div className="text-center py-16 text-gray-500">
-        <div className="text-5xl mb-3">📋</div>
-        <p className="text-sm">Bạn chưa có lịch đặt sân nào</p>
-        <a href="/" className="inline-block mt-4 text-emerald-600 text-sm hover:underline">Đặt sân ngay →</a>
-      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-24 bg-white/50 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          <div className="text-4xl mb-2">📋</div>
+          <p className="text-sm">Chưa có lịch đặt sân nào</p>
+          <a href="/" className="inline-block mt-3 text-emerald-600 text-sm hover:underline">
+            Đặt sân ngay →
+          </a>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((b) => (
+            <div key={b.id} className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {b.court.iconUrl && (
+                    <img src={b.court.iconUrl} className="w-6 h-6" alt={b.court.category} />
+                  )}
+                  <div>
+                    <p className="font-semibold text-black text-sm">{b.facility.name}</p>
+                    <p className="text-gray-500 text-xs">{b.court.name} · {b.court.category}</p>
+                  </div>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${statusLabel[b.status]?.color}`}>
+                  {statusLabel[b.status]?.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+                <span>📅 {new Date(b.bookingDate).toLocaleDateString("vi-VN")}</span>
+                <span>🕐 {b.startTime?.slice(11, 16)} – {b.endTime?.slice(11, 16)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-emerald-600 font-bold text-sm">
+                  {Number(b.totalPrice).toLocaleString("vi-VN")}đ
+                </span>
+                <span className="text-xs text-gray-400">#{b.id}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
