@@ -140,6 +140,7 @@ model User {
   wallet          Wallet?
   facilityStaff   FacilityStaff[]
   inventoryShifts InventoryShift[]
+  bankAccounts    BankAccount[]
   staffBookings      Booking[]         @relation("StaffBookings")
 
   @@map("users")
@@ -485,4 +486,18 @@ model InventoryShiftItem {
   service        Service        @relation(fields: [serviceId], references: [id])
 
   @@map("inventory_shift_items")
+}
+// 22. TÀI KHOẢN NGÂN HÀNG
+model BankAccount {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  bankName      String   @map("bank_name")
+  accountNumber String   @map("account_number")
+  accountName   String   @map("account_name")
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bank_accounts")
 }
