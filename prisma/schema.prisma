@@ -115,7 +115,24 @@ enum ShiftStatus {
   CLOSED
   VERIFIED
 }
+enum EnrollmentStatus {
+  PENDING   // Chờ thanh toán
+  ACTIVE    // Đang học
+  COMPLETED // Hoàn thành
+  CANCELLED // Đã hủy
+}
+enum MembershipTier {
+  FREE
+  SILVER
+  GOLD
+  PLATINUM
+}
 
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
 // ===================== MODELS =====================
 
 // 1. NGƯỜI DÙNG - Dùng chung cho tất cả role
@@ -144,6 +161,9 @@ model User {
   staffBookings      Booking[]         @relation("StaffBookings")
   resetToken     String?   @map("reset_token")
   resetTokenExp  DateTime? @map("reset_token_exp")
+  coachCourses    Course[]          @relation("CoachCourses")
+  enrollments     CourseEnrollment[]
+  membership      Membership?
 
   @@map("users")
 }
@@ -195,6 +215,7 @@ model Facility {
   reviews         Review[]
   facilityStaff   FacilityStaff[]
   inventoryShifts InventoryShift[]
+  courses         Course[]
 
   @@map("facilities")
 }
@@ -502,4 +523,61 @@ model BankAccount {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("bank_accounts")
+}
+// 23. KHÓA HỌC
+model Course {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  @db.Text
+  sport       String   // Môn thể thao
+  level       MatchLevel
+  price       Decimal  @db.Decimal(10, 2)
+  maxStudents Int      @default(10) @map("max_students")
+  schedule    String   // "T2, T4, T6 - 07:00"
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  isPublic    Boolean  @default(true) @map("is_public")
+  isActive    Boolean  @default(true) @map("is_active")
+  facilityId  Int?     @map("facility_id")
+  courtId     Int?     @map("court_id")
+  coachId     Int      @map("coach_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  coach       User              @relation("CoachCourses", fields: [coachId], references: [id])
+  facility    Facility?         @relation(fields: [facilityId], references: [id])
+  enrollments CourseEnrollment[]
+
+  @@map("courses")
+}
+
+// 24. ĐĂNG KÝ KHÓA HỌC
+model CourseEnrollment {
+  id        Int      @id @default(autoincrement())
+  courseId  Int      @map("course_id")
+  userId    Int      @map("user_id")
+  status    EnrollmentStatus @default(PENDING)
+  progress  Int      @default(0) // % tiến độ
+  paidAt    DateTime? @map("paid_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@map("course_enrollments")
+}
+
+// 25. GÓI HỘI VIÊN
+model Membership {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @unique @map("user_id")
+  tier      MembershipTier   @default(FREE)
+  status    MembershipStatus @default(ACTIVE)
+  startDate DateTime?        @map("start_date")
+  endDate   DateTime?        @map("end_date")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
 }

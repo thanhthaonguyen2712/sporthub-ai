@@ -62,7 +62,7 @@ export async function POST(
       });
 
       // Hoàn tiền về ví nếu đã thanh toán bằng ví
-      if (booking.paymentStatus === "PAID" && booking.invoice?.paymentMethod === "WALLET") {
+      if (booking.paymentStatus === "PAID") {
         const wallet = await tx.wallet.findUnique({
           where: { userId: Number((session.user as any).id) },
         });

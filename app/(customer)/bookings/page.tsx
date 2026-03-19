@@ -40,29 +40,9 @@ export default function BookingPage() {
   const [discount, setDiscount] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "QR">("WALLET");
-  const [qrCountdown, setQrCountdown] = useState(180); 
-  const [qrExpired, setQrExpired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  useEffect(() => {
-    if (paymentMethod !== "QR") {
-      setQrCountdown(180);
-      setQrExpired(false);
-      return;
-    }
-    const timer = setInterval(() => {
-      setQrCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setQrExpired(true);
-          router.push("/");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [paymentMethod]);
+
   const courtPrice = Number(priceParam) || 0;
   const serviceTotal = selectedServices.reduce((sum, item) => {
     const svc = services.find((s) => s.id === item.id);
@@ -71,27 +51,29 @@ export default function BookingPage() {
   const totalPrice = courtPrice + serviceTotal;
   const finalTotal = Math.max(totalPrice - discount, 0);
 
- useEffect(() => {
-  if (!courtId || !facilityId) return;
-  fetch(`/api/facilities/${facilityId}`)
-    .then((r) => r.json())
-    .then((data) => {
-      const courtData = data.courts?.find((c: any) => c.id === Number(courtId));
-      setCourt({
-        id: Number(courtId),
-        name: courtData?.name || "Sân",
-        category: courtData?.category || { name: "", iconUrl: "" },
-        facility: { id: data.id, name: data.name, address: data.address },
+  useEffect(() => {
+    if (!courtId || !facilityId) return;
+    fetch(`/api/facilities/${facilityId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const courtData = data.courts?.find((c: any) => c.id === Number(courtId));
+        setCourt({
+          id: Number(courtId),
+          name: courtData?.name || "Sân",
+          category: courtData?.category || { name: "", iconUrl: "" },
+          facility: { id: data.id, name: data.name, address: data.address },
+        });
+        const uniqueServices = (data.services || []).filter(
+          (s: any, index: number, self: any[]) =>
+            index === self.findIndex((t: any) => t.name === s.name)
+        );
+        setServices(uniqueServices);
       });
-      const uniqueServices = (data.services || []).filter((s: any, index: number, self: any[]) =>
-          index === self.findIndex((t: any) => t.name === s.name));
-          setServices(uniqueServices);
-      });
-    // Lấy số dư ví
+
     fetch("/api/wallet")
       .then((r) => r.json())
       .then((data) => setWalletBalance(Number(data.balance) || 0));
-  }, [courtId]);
+  }, [courtId, facilityId]);
 
   function toggleService(serviceId: number) {
     setSelectedServices((prev) => {
@@ -122,31 +104,53 @@ export default function BookingPage() {
   }
 
   async function handleBooking() {
-    if (!session) {
-      router.push("/login");
-      return;
-    }
+    if (!session) { router.push("/login"); return; }
     setLoading(true);
     const res = await fetch("/api/bookings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-      courtId: Number(courtId),
-      bookingDate: date,
-      startTime,
-      endTime,
-      totalPrice: finalTotal,
-      serviceIds: selectedServices,
-      voucherCode: voucherCode || undefined,
-      paymentMethod,
+        courtId: Number(courtId),
+        bookingDate: date,
+        startTime,
+        endTime,
+        totalPrice: finalTotal,
+        serviceIds: selectedServices,
+        voucherCode: voucherCode || undefined,
+        paymentMethod: "WALLET",
       }),
     });
     const data = await res.json();
     setLoading(false);
-    if (res.ok) {
-      setSuccess(true);
+    if (res.ok) setSuccess(true);
+    else alert(data.error || "Đặt sân thất bại!");
+  }
+
+  async function handleVNPay() {
+    setLoading(true);
+    const res = await fetch("/api/payment/vnpay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: finalTotal,
+        orderInfo: `Dat san ${court?.name} - ${court?.facility.name}`,
+        bookingData: {
+          courtId,
+          bookingDate: date,
+          startTime,
+          endTime,
+          totalPrice: finalTotal,
+          serviceIds: selectedServices,
+          voucherCode: voucherCode || undefined,
+        },
+      }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (data.payUrl) {
+      window.location.href = data.payUrl;
     } else {
-      alert(data.error || "Đặt sân thất bại!");
+      alert(data.error || "Lỗi kết nối VNPay!");
     }
   }
 
@@ -160,16 +164,12 @@ export default function BookingPage() {
             <h2 className="text-2xl font-bold text-black mb-2">Đặt sân thành công!</h2>
             <p className="text-gray-600 text-sm mb-6">Email xác nhận đã được gửi về hộp thư của bạn.</p>
             <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => router.push("/profile?tab=bookings")}
-                className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
-              >
+              <button onClick={() => router.push("/profile?tab=bookings")}
+                className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
                 Xem lịch đặt sân
               </button>
-              <button
-                onClick={() => router.push("/")}
-                className="bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 px-6 py-2.5 rounded-xl text-sm transition-colors"
-              >
+              <button onClick={() => router.push("/")}
+                className="bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 px-6 py-2.5 rounded-xl text-sm transition-colors">
                 Về trang chủ
               </button>
             </div>
@@ -224,12 +224,7 @@ export default function BookingPage() {
                 return (
                   <div key={svc.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={!!selected}
-                        onChange={() => toggleService(svc.id)}
-                        className="w-4 h-4 accent-emerald-500"
-                      />
+                      <input type="checkbox" checked={!!selected} onChange={() => toggleService(svc.id)} className="w-4 h-4 accent-emerald-500" />
                       <div>
                         <p className="text-sm font-medium text-black">{svc.name}</p>
                         <p className="text-xs text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ/{svc.type === "RENTAL" ? "lần thuê" : "cái"}</p>
@@ -253,24 +248,17 @@ export default function BookingPage() {
         <div className="border border-gray-300 rounded-2xl p-5 mb-4" style={{ background: "#E0EEE0" }}>
           <h2 className="font-semibold text-black mb-3">🎁 Mã giảm giá</h2>
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={voucherCode}
+            <input type="text" value={voucherCode}
               onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
               placeholder="Nhập mã voucher..."
-              className="flex-1 bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
-            />
-            <button
-              onClick={applyVoucher}
-              className="bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
-            >
+              className="flex-1 bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
+            <button onClick={applyVoucher}
+              className="bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors">
               Áp dụng
             </button>
           </div>
           {voucherMsg && (
-            <p className={`text-xs mt-2 ${discount > 0 ? "text-emerald-600" : "text-red-500"}`}>
-              {voucherMsg}
-            </p>
+            <p className={`text-xs mt-2 ${discount > 0 ? "text-emerald-600" : "text-red-500"}`}>{voucherMsg}</p>
           )}
         </div>
 
@@ -300,6 +288,7 @@ export default function BookingPage() {
               <span className="text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span>
             </div>
           </div>
+
           {/* Chọn phương thức thanh toán */}
           <div className="space-y-2 mb-4">
             {/* Ví SportHub */}
@@ -317,54 +306,39 @@ export default function BookingPage() {
               </span>
             </div>
 
-            {/* QR Code */}
+            {/* VNPay */}
             <div onClick={() => setPaymentMethod("QR")}
-              className={`flex items-center gap-3 bg-white border rounded-xl px-4 py-3 cursor-pointer transition-colors ${paymentMethod === "QR" ? "border-emerald-400 bg-emerald-50" : "border-gray-200"}`} >
-              <input type="radio" checked={paymentMethod === "QR"} onChange={() => setPaymentMethod("QR")} className="accent-emerald-500" />
-              <div>
-                <p className="text-sm font-medium text-black">📱 Thanh toán QR</p>
-                <p className="text-xs text-gray-500">Quét mã QR để thanh toán</p>
+              className={`flex items-center gap-3 bg-white border rounded-xl px-4 py-3 cursor-pointer transition-colors ${paymentMethod === "QR" ? "border-blue-400 bg-blue-50" : "border-gray-200"}`}>
+              <input type="radio" checked={paymentMethod === "QR"} onChange={() => setPaymentMethod("QR")} className="accent-blue-500" />
+              <div className="flex items-center gap-2">
+                <img src="/vnpay.png" className="w-8 h-8 object-contain rounded" alt="VNPay" />
+                <div>
+                  <p className="text-sm font-medium text-black">Thanh toán VNPay</p>
+                  <p className="text-xs text-gray-500">ATM, Visa, QR Code</p>
+                </div>
               </div>
             </div>
           </div>
-          {/* Hiển thị QR nếu chọn QR */}
-          {paymentMethod === "QR" && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 text-center">
-              <p className="text-sm font-medium text-black mb-1">Quét mã QR để thanh toán</p>
-              <div className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full mb-3 ${qrCountdown <= 30 ? "bg-red-100 text-red-600" : "bg-yellow-100 text-yellow-700"}`}>
-                ⏱ Hết hạn sau: <span className="font-bold">
-                  {String(Math.floor(qrCountdown / 60)).padStart(2, "0")}:{String(qrCountdown % 60).padStart(2, "0")}
-                </span>
-              </div>
-              <div className={`inline-block bg-gray-100 rounded-xl p-4 ${qrCountdown <= 30 ? "opacity-50" : ""}`}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SportHub-Payment-${finalTotal}-${courtId}`}
-                  alt="QR thanh toán" className="w-44 h-44"/>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Số tiền: <span className="font-bold text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span>
-              </p>
-              {qrCountdown <= 30 && (
-                <p className="text-xs text-red-500 mt-1 font-medium">⚠️ Sắp hết hạn! Vui lòng quét ngay.</p>
-              )}
-            </div>
-          )}
+
+          {/* Cảnh báo số dư ví */}
           {paymentMethod === "WALLET" && walletBalance < finalTotal && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4 text-xs text-yellow-700">
               ⚠️ Số dư ví không đủ. Vui lòng nạp thêm tiền.
-              <button onClick={() => router.push("/profile")} className="ml-2 underline font-medium">Nạp tiền ngay</button>
+              <button onClick={() => router.push("/profile?tab=wallet")} className="ml-2 underline font-medium">Nạp tiền ngay</button>
             </div>
           )}
-          {walletBalance < finalTotal && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4 text-xs text-yellow-700">
-              ⚠️ Số dư ví không đủ. Vui lòng nạp thêm tiền vào ví trước khi đặt sân.
-              <button onClick={() => router.push("/profile")} className="ml-2 underline font-medium">Nạp tiền ngay</button>
-            </div>
-          )}
-          <button onClick={handleBooking}
+
+          <button
+            onClick={paymentMethod === "QR" ? handleVNPay : handleBooking}
             disabled={loading || (paymentMethod === "WALLET" && walletBalance < finalTotal)}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors text-sm">
-            {loading ? "Đang xử lý..." : `Xác nhận đặt sân · ${finalTotal.toLocaleString("vi-VN")}đ`}
+            className={`w-full font-semibold py-3 rounded-xl transition-colors text-sm ${
+              paymentMethod === "QR"
+                ? "bg-blue-500 hover:bg-blue-400 text-white"
+                : "bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white"
+            }`}>
+            {loading ? "Đang xử lý..." : paymentMethod === "QR"
+              ? `Thanh toán VNPay · ${finalTotal.toLocaleString("vi-VN")}đ`
+              : `Xác nhận đặt sân · ${finalTotal.toLocaleString("vi-VN")}đ`}
           </button>
         </div>
 
