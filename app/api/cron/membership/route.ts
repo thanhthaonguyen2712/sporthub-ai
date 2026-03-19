@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       const price = MEMBERSHIP_PRICES[membership.tier];
       const wallet = membership.user.wallet;
 
-      if (wallet && Number(wallet.balance) >= price) {
+      if (wallet && Number(wallet.balance) >= price && membership.status === "ACTIVE") {
         // Đủ tiền → gia hạn tự động
         const newStart = new Date();
         const newEnd = new Date();
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
         // Không đủ tiền → hủy về FREE
         await prisma.membership.update({
           where: { id: membership.id },
-          data: { tier: "FREE", status: "CANCELLED" },
+          data: { tier: "FREE", status: "ACTIVE" },
         });
         results.cancelled++;
       }

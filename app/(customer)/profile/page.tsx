@@ -1103,11 +1103,18 @@ function SectionMembership() {
               </p>
             )}
             {membership?.tier !== "FREE" && (
-  <button onClick={handleCancel}
-    className="mt-2 text-xs text-red-500 hover:text-red-700 underline transition-colors">
-    Hủy gia hạn
-  </button>
-)}
+              <div className="mt-2">
+                {membership?.status === "CANCELLED" ? (
+                  <span className="text-xs text-orange-500">⚠️ Đã hủy gia hạn — còn hiệu lực đến {new Date(membership.endDate).toLocaleDateString("vi-VN")}</span>
+                ) : (
+                  <button onClick={handleCancel}
+                    className="text-xs text-red-500 hover:text-red-700 underline transition-colors">
+                    Hủy gia hạn tự động
+                  </button>
+                )}
+              </div>
+            )}
+ 
           </div>
           <span className="text-4xl">
             {membership?.tier === "SILVER" ? "🥈" : membership?.tier === "GOLD" ? "🥇" : membership?.tier === "PLATINUM" ? "💎" : "🥉"}

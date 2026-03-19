@@ -84,10 +84,10 @@ export async function DELETE() {
 
     await prisma.membership.update({
       where: { userId },
-      data: { status: "CANCELLED", tier: "FREE" },
+      data: { status: "CANCELLED" }, // Chỉ đánh dấu hủy, KHÔNG đổi tier
     });
 
-    return NextResponse.json({ success: true, message: "Đã hủy gói hội viên!" });
+    return NextResponse.json({ success: true, message: "Đã hủy gia hạn tự động! Gói hiện tại vẫn có hiệu lực đến hết chu kỳ." });
   } catch (error) {
     return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
   }
