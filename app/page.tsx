@@ -15,10 +15,23 @@ interface Facility {
   name: string;
   address: string;
   description: string;
+  latitude: string | null;
+  longitude: string | null;
   sports: { id: number; name: string; slug: string; icon: string }[];
   courtCount: number;
   avgRating: string | null;
   reviewCount: number;
+  distance?: number | null;
+}
+
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
 export default function HomePage() {
@@ -27,11 +40,14 @@ export default function HomePage() {
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [sortByDistance, setSortByDistance] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/sports")
-      .then((r) => r.json())
-      .then(setSports);
+    fetch("/api/sports").then((r) => r.json()).then(setSports);
   }, []);
 
   useEffect(() => {
@@ -39,19 +55,60 @@ export default function HomePage() {
     const params = new URLSearchParams();
     if (selectedSport) params.set("sport", selectedSport);
     if (search) params.set("search", search);
-
     fetch(`/api/facilities?${params}`)
       .then((r) => r.json())
-      .then((data) => {
-        setFacilities(data);
-        setLoading(false);
-      });
+      .then((data) => { setFacilities(data); setLoading(false); });
   }, [selectedSport, search]);
 
+  function getNearMe() {
+    if (!navigator.geolocation) { alert("Trình duyệt không hỗ trợ định vị!"); return; }
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setSortByDistance(true);
+        setLocationLoading(false);
+      },
+      () => { alert("Không thể lấy vị trí!"); setLocationLoading(false); }
+    );
+  }
+
+  async function getAiSuggestion() {
+    setAiLoading(true);
+    setAiSuggestion("");
+
+    const params = new URLSearchParams();
+    if (userLocation) {
+      params.set("lat", String(userLocation.lat));
+      params.set("lng", String(userLocation.lng));
+    }
+
+    const res = await fetch(`/api/facilities/available?${params}`);
+    const data = await res.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      setAiSuggestion("Hiện tại không có sân trống nào phù hợp. Vui lòng thử lại sau!");
+      setAiLoading(false);
+      return;
+    }
+
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const timeStr = `${String(hour).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;
+
+    const topFacilities = data.slice(0, 5);
+    setAiSuggestion(JSON.stringify({ time: timeStr, facilities: topFacilities, hasLocation: !!userLocation }));
+  }
+
+  // Tính khoảng cách + sort
+  const facilitiesWithDistance: Facility[] = facilities.map((f) => ({ ...f,
+    distance: userLocation && f.latitude && f.longitude ? haversine(userLocation.lat, userLocation.lng, Number(f.latitude), Number(f.longitude)): null,
+  }));
+  const sortedFacilities = sortByDistance && userLocation ? [...facilitiesWithDistance].sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999)): facilitiesWithDistance;
   return (
     <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
       <Navbar />
-
       {/* Hero */}
       <div className="py-16 px-6" style={{ background: "#E0EEE0" }}>
         <div className="max-w-6xl mx-auto">
@@ -59,8 +116,6 @@ export default function HomePage() {
             Đặt sân thể thao <span className="text-emerald-600">dễ dàng</span>
           </h1>
           <p className="text-gray-600 mb-8 text-lg">Tìm và đặt sân bóng đá, cầu lông, pickleball... gần bạn nhất</p>
-
-          {/* Search bar */}
           <div className="flex gap-3 max-w-2xl">
             <input
               type="text"
@@ -82,9 +137,7 @@ export default function HomePage() {
           <button
             onClick={() => setSelectedSport("")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              selectedSport === ""
-                ? "bg-emerald-500 text-white"
-                : "bg-white text-gray-600 hover:text-black border border-gray-300"
+              selectedSport === "" ? "bg-emerald-500 text-white" : "bg-white text-gray-600 hover:text-black border border-gray-300"
             }`}
           >
             <img src="https://cdn-icons-png.flaticon.com/128/9385/9385212.png" className="w-5 h-5" />
@@ -95,9 +148,7 @@ export default function HomePage() {
               key={sport.id}
               onClick={() => setSelectedSport(selectedSport === sport.slug ? "" : sport.slug)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                selectedSport === sport.slug
-                  ? "bg-emerald-500 text-white"
-                  : "bg-white text-gray-600 hover:text-black border border-gray-300"
+                selectedSport === sport.slug ? "bg-emerald-500 text-white" : "bg-white text-gray-600 hover:text-black border border-gray-300"
               }`}
             >
               <img src={sport.iconUrl} className="w-5 h-5" />
@@ -106,47 +157,102 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Danh sách sân */}
-        <div className="mb-4">
+        {/* Header + buttons */}
+        <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-lg font-semibold text-black">
-            {loading ? "Đang tải..." : `${facilities.length} cơ sở sân`}
+            {loading ? "Đang tải..." : `${sortedFacilities.length} cơ sở sân`}
           </h2>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={getNearMe} disabled={locationLoading}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                sortByDistance ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
+              }`}>
+              {locationLoading ? "⏳" : "📍"} {sortByDistance ? "Đang lọc gần tôi" : "Gần tôi"}
+            </button>
+            {sortByDistance && (
+              <button onClick={() => { setSortByDistance(false); setUserLocation(null); }}
+                className="px-3 py-2 rounded-xl text-sm border border-gray-300 bg-white text-gray-500 hover:bg-gray-50">
+                ✕
+              </button>
+            )}
+            <button onClick={getAiSuggestion} disabled={aiLoading || loading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 transition-colors">
+              {aiLoading ? "⏳ Đang tìm..." : "✨ Sân trống gần tôi"}
+            </button>
+          </div>
         </div>
 
+        {/* AI suggestion box */}
+        {aiSuggestion && (() => {
+          try {
+    const parsed = JSON.parse(aiSuggestion);
+    return (
+      <div className="mb-5 bg-purple-50 border border-purple-200 rounded-2xl p-4">
+        <p className="text-xs font-semibold text-purple-700 mb-3">
+          ✨ Lúc {parsed.time} hôm nay, các sân còn trống{parsed.hasLocation ? " gần bạn" : ""}:
+        </p>
+        <div className="space-y-2">
+          {parsed.facilities.map((f: any, i: number) => (
+            <Link key={f.id} href={`/facilities/${f.id}`}
+              className="flex items-center justify-between bg-white border border-purple-100 hover:border-emerald-400 rounded-xl px-4 py-2.5 transition-colors group">
+              <div>
+                <p className="text-sm font-medium text-black group-hover:text-emerald-600 transition-colors">
+                  {i+1}. {f.name}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {f.availableSports.join(", ")} • còn {f.availableCourts}/{f.totalCourts} sân
+                  {f.distance != null && ` • cách ${f.distance.toFixed(1)}km`}
+                </p>
+              </div>
+              <span className="text-emerald-500 text-xs font-medium group-hover:underline">Đặt ngay →</span>
+            </Link>
+          ))}
+        </div>
+        <button onClick={() => setAiSuggestion("")} className="text-xs text-purple-400 mt-3 hover:text-purple-600">Đóng</button>
+      </div>
+    );
+          }catch {
+            return (
+            <div className="mb-5 bg-purple-50 border border-purple-200 rounded-2xl p-4">
+              <p className="text-sm text-gray-700">{aiSuggestion}</p>
+              <button onClick={() => setAiSuggestion("")} className="text-xs text-purple-400 mt-2 hover:text-purple-600">Đóng</button>
+            </div>
+            );
+          }
+        })()}
+        
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3].map((i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"> {[1, 2, 3].map((i) => (
               <div key={i} className="rounded-2xl h-56 animate-pulse" style={{ background: "#E0EEE0" }} />
             ))}
-          </div>
-        ) : facilities.length === 0 ? (
-          <div className="text-center py-20 text-gray-500">
-            <div className="text-5xl mb-4">🔍</div>
-            <p>Không tìm thấy sân phù hợp</p>
+          </div>) : sortedFacilities.length === 0 ? (
+            <div className="text-center py-20 text-gray-500">
+              <div className="text-5xl mb-4">🔍</div>
+              <p>Không tìm thấy sân phù hợp</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {facilities.map((facility) => (
+            {sortedFacilities.map((facility) => (
               <Link
                 key={facility.id}
                 href={`/facilities/${facility.id}`}
                 className="border border-gray-300 rounded-2xl p-5 hover:border-emerald-400 transition-all group"
-                style={{ background: "#E0EEE0" }}
-              >
-                {/* Placeholder image */}
+                style={{ background: "#E0EEE0" }} >
                 <div className="w-full h-36 bg-white rounded-xl mb-4 flex items-center justify-center border border-gray-200">
                   {facility.sports[0]?.icon
                     ? <img src={facility.sports[0].icon} className="w-16 h-16 opacity-80" />
                     : <span className="text-4xl">🏟️</span>
                   }
                 </div>
-
                 <h3 className="font-semibold text-black group-hover:text-emerald-600 transition-colors mb-1 line-clamp-1">
                   {facility.name}
                 </h3>
-                <p className="text-gray-500 text-xs mb-3 line-clamp-1">📍 {facility.address}</p>
-
-                {/* Sports tags */}
+                <p className="text-gray-500 text-xs mb-3 line-clamp-1">
+                  📍 {facility.address}
+                  {facility.distance != null && (
+                    <span className="ml-2 text-emerald-600 font-medium">· {facility.distance.toFixed(1)}km</span>
+                  )}
+                </p>
                 <div className="flex gap-1.5 flex-wrap mb-3">
                   {facility.sports.map((s) => (
                     <span key={s.id} className="flex items-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
@@ -155,14 +261,9 @@ export default function HomePage() {
                     </span>
                   ))}
                 </div>
-
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>🏸 {facility.courtCount} sân</span>
-                  <span>
-                    {facility.avgRating
-                      ? `⭐ ${facility.avgRating} (${facility.reviewCount})`
-                      : "Chưa có đánh giá"}
-                  </span>
+                  <span>{facility.avgRating ? `⭐ ${facility.avgRating} (${facility.reviewCount})` : "Chưa có đánh giá"}</span>
                 </div>
               </Link>
             ))}

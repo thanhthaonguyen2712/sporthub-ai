@@ -20,11 +20,7 @@ export const authOptions: NextAuthOptions = {
 
         if (!user) return null;
 
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-
+        const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
         return {
@@ -37,15 +33,28 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user) token.role = (user as any).role;
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as any).role;
+      }
       return token;
     },
-    session({ session, token }) {
+    async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.sub;
+        (session.user as any).id = token.id;
         (session.user as any).role = token.role;
       }
+
+      // Lấy fullName mới nhất từ DB
+      if (token.id) {
+        const user = await prisma.user.findUnique({
+          where: { id: Number(token.id) },
+          select: { fullName: true },
+        });
+        if (user && session.user) session.user.name = user.fullName;
+      }
+
       return session;
     },
   },

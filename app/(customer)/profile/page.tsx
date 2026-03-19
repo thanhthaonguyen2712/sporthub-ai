@@ -20,16 +20,32 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const [active, setActive] = useState(searchParams.get("tab") || "info");
-
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  async function handleDeleteAccount() {
+    if (!deletePassword) { setDeleteError("Vui lòng nhập mật khẩu!"); return; }
+    setDeleting(true);
+    const res = await fetch("/api/user/delete", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: deletePassword }),
+    });
+    const data = await res.json();
+    setDeleting(false);
+    if (res.ok) {
+      signOut({ callbackUrl: "/" });
+    } else {
+      setDeleteError(data.error || "Có lỗi xảy ra!");
+    }
+  }
   return (
     <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)", color: "#000" }}>
       <Navbar />
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex gap-6">
-
-          {/* Sidebar */}
           <aside className="w-64 flex-shrink-0">
-            {/* Avatar + tên */}
             <div className="border border-gray-300 rounded-2xl p-5 mb-4 text-center" style={{ background: "#E0EEE0" }}>
               <div className="relative inline-block mb-3">
                 <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center text-2xl font-bold mx-auto text-white">
@@ -45,8 +61,6 @@ export default function ProfilePage() {
                 {(session?.user as any)?.role || "CUSTOMER"}
               </span>
             </div>
-
-            {/* Menu */}
             <nav className="border border-gray-300 rounded-2xl overflow-hidden" style={{ background: "#E0EEE0" }}>
               {menuItems.map((item, index) => (
                 <button
@@ -54,32 +68,22 @@ export default function ProfilePage() {
                   onClick={() => setActive(item.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left
                     ${index !== 0 ? "border-t border-gray-300" : ""}
-                    ${active === item.id
-                      ? "bg-emerald-100 text-emerald-700 font-medium"
-                      : "text-black hover:bg-blue-100"
-                    }`}
-                >
+                    ${active === item.id ? "bg-emerald-100 text-emerald-700 font-medium" : "text-black hover:bg-blue-100"}`}>
                   <span>{item.icon}</span>
                   {item.label}
                 </button>
               ))}
-
-              {/* Đăng xuất */}
-              <button
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-gray-300 text-left"
-              >
-              Đăng xuất
+              <button onClick={() => signOut({ callbackUrl: "/" })}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-gray-300 text-left" >
+                 Đăng xuất
               </button>
-
-              {/* Xóa tài khoản */}
-              <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-700 hover:bg-red-50 transition-colors border-t border-gray-300 text-left">
-               Xóa tài khoản
+              <button onClick={() => setShowDeleteConfirm(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-700 hover:bg-red-50 transition-colors border-t border-gray-300 text-left">
+                Xóa tài khoản
               </button>
             </nav>
           </aside>
 
-          {/* Nội dung */}
           <main className="flex-1 min-w-0">
             {active === "info" && <SectionInfo session={session} />}
             {active === "bookings" && <SectionBookings />}
@@ -93,6 +97,42 @@ export default function ProfilePage() {
           </main>
         </div>
       </div>
+    {/* Popup xóa tài khoản */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="text-center mb-4">
+              <div className="text-4xl mb-2">⚠️</div>
+              <h3 className="font-bold text-black text-lg">Xóa tài khoản</h3>
+              <p className="text-gray-500 text-sm mt-1">Hành động này không thể hoàn tác! Tất cả dữ liệu sẽ bị xóa vĩnh viễn.</p>
+            </div>
+            <div className="mb-4">
+              <label className="text-xs text-gray-600 mb-1.5 block font-medium">Nhập mật khẩu để xác nhận</label>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(""); }}
+                placeholder="Nhập mật khẩu của bạn..."
+                className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-red-400"
+              />
+              {deleteError && <p className="text-red-500 text-xs mt-1">{deleteError}</p>}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeletePassword(""); setDeleteError(""); }}
+                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                Hủy
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+                {deleting ? "Đang xóa..." : "Xác nhận xóa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -100,43 +140,128 @@ export default function ProfilePage() {
 /* ─── THÔNG TIN CÁ NHÂN ─── */
 function SectionInfo({ session }: { session: any }) {
   const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ fullName: "", phone: "" });
+  const [dob, setDob] = useState({ day: "", month: "", year: "" });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/user/profile")
+      .then((r) => r.json())
+      .then((data) => {
+        setForm({ fullName: data.fullName || "", phone: data.phone || "" });
+      });
+  }, []);
+
+  // Auto focus next input khi nhập đủ ký tự
+  function handleDob(field: "day" | "month" | "year", value: string) {
+    if (!/^\d*$/.test(value)) return;
+    setDob((prev) => ({ ...prev, [field]: value }));
+    if (field === "day" && value.length === 2) {
+      document.getElementById("dob-month")?.focus();
+    }
+    if (field === "month" && value.length === 2) {
+      document.getElementById("dob-year")?.focus();
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    const res = await fetch("/api/user/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName: form.fullName, phone: form.phone }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (res.ok) {
+      setMsg("✅ Lưu thành công!");
+      setEditing(false);
+      // Reload trang để cập nhật session
+      setTimeout(() => window.location.reload(), 800);
+    } else {
+      setMsg(data.error || "Lỗi khi lưu!");
+    }
+    setTimeout(() => setMsg(""), 3000);
+  }
+
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-black">Thông tin cá nhân</h2>
-        <button
-          onClick={() => setEditing(!editing)}
-          className="text-sm text-emerald-600 hover:text-emerald-700 border border-emerald-400 px-3 py-1.5 rounded-lg transition-colors"
-        >
+        <button onClick={() => setEditing(!editing)}
+          className="text-sm text-emerald-600 hover:text-emerald-700 border border-emerald-400 px-3 py-1.5 rounded-lg transition-colors">
           {editing ? "Hủy" : "✏️ Chỉnh sửa"}
         </button>
       </div>
+
       <div className="grid grid-cols-2 gap-4">
-        {[
-          { label: "Họ và tên", value: session?.user?.name, placeholder: "Nhập họ tên" },
-          { label: "Email", value: session?.user?.email, placeholder: "Nhập email" },
-          { label: "Số điện thoại", value: "", placeholder: "Nhập số điện thoại" },
-          { label: "Ngày sinh", value: "", placeholder: "DD/MM/YYYY" },
-        ].map((field) => (
-          <div key={field.label}>
-            <label className="text-xs text-gray-600 mb-1.5 block font-medium">{field.label}</label>
-            <input
-              defaultValue={field.value || ""}
-              placeholder={field.placeholder}
-              disabled={!editing}
-              className="w-full bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all"
-            />
+        <div>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Họ và tên</label>
+          <input value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+            disabled={!editing} placeholder="Nhập họ tên"
+            className="w-full bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Email</label>
+          <input value={session?.user?.email || ""} disabled
+            className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm opacity-60" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Số điện thoại</label>
+          <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            disabled={!editing} placeholder="Nhập số điện thoại"
+            className="w-full bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Ngày sinh</label>
+          <div className="flex gap-2">
+            {/* Ngày */}
+            <div className="flex-1">
+              <input id="dob-day" value={dob.day}
+                onChange={(e) => handleDob("day", e.target.value)}
+                disabled={!editing} placeholder="DD" maxLength={2}
+                className="w-full bg-white border border-gray-300 text-black text-center placeholder-gray-400 rounded-xl px-2 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
+              <p className="text-xs text-gray-400 text-center mt-0.5">Ngày</p>
+            </div>
+            <div className="flex items-start pt-2.5 text-gray-400">/</div>
+            {/* Tháng */}
+            <div className="flex-1">
+              <input id="dob-month" value={dob.month}
+                onChange={(e) => handleDob("month", e.target.value)}
+                disabled={!editing} placeholder="MM" maxLength={2}
+                className="w-full bg-white border border-gray-300 text-black text-center placeholder-gray-400 rounded-xl px-2 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
+              <p className="text-xs text-gray-400 text-center mt-0.5">Tháng</p>
+            </div>
+            <div className="flex items-start pt-2.5 text-gray-400">/</div>
+            {/* Năm */}
+            <div className="flex-[2]">
+              <input id="dob-year" value={dob.year}
+                onChange={(e) => handleDob("year", e.target.value)}
+                disabled={!editing} placeholder="YYYY" maxLength={4}
+                className="w-full bg-white border border-gray-300 text-black text-center placeholder-gray-400 rounded-xl px-2 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
+              <p className="text-xs text-gray-400 text-center mt-0.5">Năm</p>
+            </div>
           </div>
-        ))}
+        </div>
       </div>
+
+      {msg && (
+        <p className={`mt-3 text-sm px-3 py-2 rounded-lg ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+          {msg}
+        </p>
+      )}
+
       {editing && (
-        <button className="mt-5 bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
-          Lưu thay đổi
+        <button onClick={handleSave} disabled={saving}
+          className="mt-5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
+          {saving ? "Đang lưu..." : "Lưu thay đổi"}
         </button>
       )}
     </div>
   );
 }
+
 /* ─── LỊCH ĐẶT SÂN ─── */
 function SectionBookings() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -152,6 +277,7 @@ function SectionBookings() {
       .then((data) => { setBookings(Array.isArray(data) ? data : []); setLoading(false); });
   }
   useEffect(() => { loadBookings(); }, []);
+
   async function handleCancel(bookingId: number) {
     setCancellingId(bookingId);
     const res = await fetch(`/api/bookings/${bookingId}/cancel`, { method: "POST" });
@@ -162,19 +288,20 @@ function SectionBookings() {
     setTimeout(() => setToast(""), 4000);
     if (res.ok) loadBookings();
   }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
   const filtered = bookings.filter((b) => {
     const bookingDate = new Date(b.bookingDate);
     bookingDate.setHours(0, 0, 0, 0);
     if (filter === "Tất cả") return true;
-    if (filter === "Sắp tới")
-      return bookingDate >= today && (b.status === "CONFIRMED" || b.status === "PENDING");
-    if (filter === "Đã hoàn thành")
-      return b.status === "COMPLETED" || bookingDate < today;
+    if (filter === "Sắp tới") return bookingDate >= today && (b.status === "CONFIRMED" || b.status === "PENDING");
+    if (filter === "Đã hoàn thành") return b.status === "COMPLETED" || bookingDate < today;
     if (filter === "Đã hủy") return b.status === "CANCELLED";
     return true;
   });
+
   const statusLabel: Record<string, { label: string; color: string }> = {
     PENDING:   { label: "Chờ xác nhận", color: "bg-yellow-100 text-yellow-700" },
     CONFIRMED: { label: "Đã xác nhận",  color: "bg-emerald-100 text-emerald-700" },
@@ -186,36 +313,21 @@ function SectionBookings() {
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
       <h2 className="text-lg font-semibold text-black mb-4">Lịch đặt sân</h2>
-
       <div className="flex gap-2 mb-5 flex-wrap">
         {["Tất cả", "Sắp tới", "Đã hoàn thành", "Đã hủy"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setFilter(tab)}
-            className={`text-xs px-3 py-1.5 rounded-lg transition-colors border ${
-              filter === tab
-                ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium"
-                : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"
-            }`}
-          >
+          <button key={tab} onClick={() => setFilter(tab)}
+            className={`text-xs px-3 py-1.5 rounded-lg transition-colors border ${filter === tab ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"}`}>
             {tab}
           </button>
         ))}
       </div>
-
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div key={i} className="h-24 bg-white/50 rounded-xl animate-pulse" />
-          ))}
-        </div>
+        <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-24 bg-white/50 rounded-xl animate-pulse" />)}</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <div className="text-4xl mb-2">📋</div>
           <p className="text-sm">Chưa có lịch đặt sân nào</p>
-          <a href="/" className="inline-block mt-3 text-emerald-600 text-sm hover:underline">
-            Đặt sân ngay →
-          </a>
+          <a href="/" className="inline-block mt-3 text-emerald-600 text-sm hover:underline">Đặt sân ngay →</a>
         </div>
       ) : (
         <div className="space-y-3">
@@ -223,9 +335,7 @@ function SectionBookings() {
             <div key={b.id} className="bg-white border border-gray-200 rounded-xl p-4">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  {b.court.iconUrl && (
-                    <img src={b.court.iconUrl} className="w-6 h-6" alt={b.court.category} />
-                  )}
+                  {b.court.iconUrl && <img src={b.court.iconUrl} className="w-6 h-6" alt={b.court.category} />}
                   <div>
                     <p className="font-semibold text-black text-sm">{b.facility.name}</p>
                     <p className="text-gray-500 text-xs">{b.court.name} · {b.court.category}</p>
@@ -235,23 +345,19 @@ function SectionBookings() {
                   {statusLabel[b.status]?.label}
                 </span>
               </div>
-
               <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
                 <span>📅 {new Date(b.bookingDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
                 <span>🕐 {b.startTime} – {b.endTime}</span>
               </div>
-
               <div className="flex items-center justify-between mt-1">
-                <span className="text-emerald-600 font-bold text-sm">
-                  {Number(b.totalPrice).toLocaleString("vi-VN")}đ
-                </span>
+                <span className="text-emerald-600 font-bold text-sm">{Number(b.totalPrice).toLocaleString("vi-VN")}đ</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400">#{b.id}</span>
                   {(b.status === "CONFIRMED" || b.status === "PENDING") &&
                     (new Date().getTime() - new Date(b.createdAt).getTime()) / 60000 <= 60 && (
-                      <button
-                        onClick={() => setShowConfirm(b.id)}
-                        className="text-xs text-red-500 hover:text-red-700 border border-red-300 hover:border-red-500 px-2 py-0.5 rounded-lg transition-colors">Hủy
+                      <button onClick={() => setShowConfirm(b.id)}
+                        className="text-xs text-red-500 hover:text-red-700 border border-red-300 hover:border-red-500 px-2 py-0.5 rounded-lg transition-colors">
+                        Hủy
                       </button>
                     )}
                 </div>
@@ -260,15 +366,11 @@ function SectionBookings() {
           ))}
         </div>
       )}
-
-      {/* Toast */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toast.includes("thành công") || toast.includes("Hoàn") ? "bg-emerald-500" : "bg-red-500"}`}>
           {toast}
         </div>
       )}
-
-      {/* Popup xác nhận hủy */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
@@ -276,13 +378,8 @@ function SectionBookings() {
             <p className="text-gray-600 text-sm mb-1">Bạn có chắc muốn hủy lịch đặt sân này?</p>
             <p className="text-emerald-600 text-xs mb-5">✅ Tiền sẽ được hoàn về ví SportHub ngay lập tức.</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirm(null)}
-                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Không hủy
-              </button>
-              <button
-                onClick={() => handleCancel(showConfirm)}
-                disabled={cancellingId === showConfirm}
+              <button onClick={() => setShowConfirm(null)} className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Không hủy</button>
+              <button onClick={() => handleCancel(showConfirm)} disabled={cancellingId === showConfirm}
                 className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
                 {cancellingId === showConfirm ? "Đang hủy..." : "Xác nhận hủy"}
               </button>
@@ -293,32 +390,62 @@ function SectionBookings() {
     </div>
   );
 }
+
 /* ─── VÍ SPORTHUB ─── */
 function SectionWallet() {
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawForm, setWithdrawForm] = useState({ amount: "", bankName: "", accountNumber: "", accountName: "", saveBank: false });
+  const [savedBanks, setSavedBanks] = useState<any[]>([]);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawMsg, setWithdrawMsg] = useState("");
+  const [txFilter, setTxFilter] = useState("Tất cả");
 
   useEffect(() => {
-    fetch("/api/wallet/detail")
-      .then((r) => r.json())
-      .then((data) => {
-        setWallet(data.wallet);
-        setTransactions(data.transactions || []);
-        setLoading(false);
-      });
+    fetch("/api/wallet/detail").then((r) => r.json()).then((data) => {
+      setWallet(data.wallet);
+      setTransactions(data.transactions || []);
+      setLoading(false);
+    });
+    fetch("/api/wallet/banks").then((r) => r.json()).then((data) => setSavedBanks(Array.isArray(data) ? data : []));
   }, []);
 
   const typeLabel: Record<string, { label: string; color: string; sign: string }> = {
-    DEPOSIT:  { label: "Nạp tiền",        color: "text-emerald-600", sign: "+" },
-    PAYMENT:  { label: "Thanh toán",      color: "text-red-500",     sign: "-" },
-    REFUND:   { label: "Hoàn tiền",       color: "text-emerald-600", sign: "+" },
-    WITHDRAW: { label: "Rút tiền",        color: "text-red-500",     sign: "-" },
+    DEPOSIT:  { label: "Nạp tiền",   color: "text-emerald-600", sign: "+" },
+    PAYMENT:  { label: "Thanh toán", color: "text-red-500",     sign: "-" },
+    REFUND:   { label: "Hoàn tiền",  color: "text-emerald-600", sign: "+" },
+    WITHDRAW: { label: "Rút tiền",   color: "text-red-500",     sign: "-" },
   };
+
+  async function handleWithdraw() {
+    if (!withdrawForm.amount || !withdrawForm.bankName || !withdrawForm.accountNumber || !withdrawForm.accountName) {
+      setWithdrawMsg("Vui lòng điền đầy đủ thông tin!"); return;
+    }
+    setWithdrawing(true);
+    const res = await fetch("/api/wallet/withdraw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: Number(withdrawForm.amount)* 1000, bankName: withdrawForm.bankName, accountNumber: withdrawForm.accountNumber, accountName: withdrawForm.accountName, saveBank: withdrawForm.saveBank }),
+    });
+    const data = await res.json();
+    setWithdrawing(false);
+    if (res.ok) {
+      setWithdrawMsg(data.message);
+      setWallet((w: any) => ({ ...w, balance: Number(w.balance) - Number(withdrawForm.amount) }));
+      setWithdrawForm({ amount: "", bankName: "", accountNumber: "", accountName: "", saveBank: false });
+      setShowWithdraw(false);
+      fetch("/api/wallet/detail").then((r) => r.json()).then((d) => setTransactions(d.transactions || []));
+      setTimeout(() => setWithdrawMsg(""), 4000);
+    } else {
+      setWithdrawMsg(data.error || "Rút tiền thất bại!");
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Số dư */}
+      {/* Card số dư */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <h2 className="text-lg font-semibold text-black mb-4">💰 Ví SportHub</h2>
         {loading ? (
@@ -327,47 +454,63 @@ function SectionWallet() {
           <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl p-5 text-white">
             <p className="text-sm opacity-80 mb-1">Số dư hiện tại</p>
             <p className="text-3xl font-bold">{Number(wallet?.balance || 0).toLocaleString("vi-VN")}đ</p>
-            <div className="flex items-center gap-2 mt-3">
-              <span className={`text-xs px-2 py-0.5 rounded-full ${wallet?.status === "ACTIVE" ? "bg-white/20" : "bg-red-300/40"}`}>
-                {wallet?.status === "ACTIVE" ? "✅ Hoạt động" : "🔒 Bị khóa"}
-              </span>
-            </div>
+            <span className={`inline-block mt-3 text-xs px-2 py-0.5 rounded-full ${wallet?.status === "ACTIVE" ? "bg-white/20" : "bg-red-300/40"}`}>
+              {wallet?.status === "ACTIVE" ? "✅ Hoạt động" : "🔒 Bị khóa"}
+            </span>
           </div>
         )}
 
-        {/* Nút nạp tiền (demo) */}
+        {/* Nút nạp tiền */}
         <div className="mt-4 grid grid-cols-3 gap-2">
           {[50000, 100000, 200000, 500000, 1000000, 2000000].map((amount) => (
-            <button
-              key={amount}
+            <button key={amount}
               className="bg-white border border-emerald-300 text-emerald-700 text-xs py-2 rounded-xl hover:bg-emerald-50 transition-colors font-medium"
               onClick={async () => {
-                const res = await fetch("/api/wallet/topup", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ amount }),
-                });
+                const res = await fetch("/api/wallet/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount }) });
                 const data = await res.json();
                 if (res.ok) {
                   setWallet((w: any) => ({ ...w, balance: Number(w.balance) + amount }));
                   setTransactions((prev) => [data.transaction, ...prev]);
                 }
-              }}
-            >
+              }}>
               +{(amount / 1000).toFixed(0)}k
             </button>
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-2 text-center">Chọn số tiền để nạp vào ví (demo)</p>
+
+        {/* Nút rút tiền */}
+        <button onClick={() => setShowWithdraw(true)}
+          className="mt-3 w-full bg-white border border-red-300 text-red-500 hover:bg-red-50 text-sm py-2.5 rounded-xl transition-colors font-medium">
+          🏦 Rút tiền về ngân hàng
+        </button>
+
+        {withdrawMsg && (
+          <div className={`mt-3 text-xs px-3 py-2 rounded-lg ${withdrawMsg.includes("thành công") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+            {withdrawMsg}
+          </div>
+        )}
       </div>
 
       {/* Lịch sử giao dịch */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-        <h2 className="text-lg font-semibold text-black mb-4">📜 Lịch sử giao dịch</h2>
-        {loading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-white/50 rounded-xl animate-pulse" />)}
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h2 className="text-lg font-semibold text-black">📜 Lịch sử giao dịch</h2>
+          <div className="flex gap-2 flex-wrap">
+            {["Tất cả", "Nạp tiền", "Thanh toán", "Hoàn tiền", "Rút tiền"].map((tab) => (
+              <button key={tab} onClick={() => setTxFilter(tab)}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                  txFilter === tab
+                    ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium"
+                    : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"
+                }`}>
+                {tab}
+              </button>
+            ))}
           </div>
+        </div>
+        {loading ? (
+          <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-14 bg-white/50 rounded-xl animate-pulse" />)}</div>
         ) : transactions.length === 0 ? (
           <div className="text-center py-10 text-gray-500">
             <div className="text-4xl mb-2">📭</div>
@@ -375,26 +518,157 @@ function SectionWallet() {
           </div>
         ) : (
           <div className="space-y-2">
-            {transactions.map((t) => (
-              <div key={t.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-black">{typeLabel[t.type]?.label || t.type}</p>
-                  {t.description && <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>}
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {new Date(t.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </p>
+            {transactions
+              .filter((t) => {
+                if (txFilter === "Tất cả") return true;
+                if (txFilter === "Nạp tiền") return t.type === "DEPOSIT";
+                if (txFilter === "Thanh toán") return t.type === "PAYMENT";
+                if (txFilter === "Hoàn tiền") return t.type === "REFUND";
+                if (txFilter === "Rút tiền") return t.type === "WITHDRAW";
+                return true;
+              })
+              .map((t) => (
+                <div key={t.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-black">{typeLabel[t.type]?.label || t.type}</p>
+                    {t.description && <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>}
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(t.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <span className={`font-bold text-sm ${typeLabel[t.type]?.color}`}>
+                    {typeLabel[t.type]?.sign}{Number(t.amount).toLocaleString("vi-VN")}đ
+                  </span>
                 </div>
-                <span className={`font-bold text-sm ${typeLabel[t.type]?.color}`}>
-                  {typeLabel[t.type]?.sign}{Number(t.amount).toLocaleString("vi-VN")}đ
-                </span>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>
+      {/* Popup rút tiền */}
+      {showWithdraw && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <h3 className="font-bold text-black text-lg mb-4">🏦 Rút tiền về ngân hàng</h3>
+            {savedBanks.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 mb-2">Tài khoản đã lưu:</p>
+                <div className="space-y-2">
+                  {savedBanks.map((b) => (
+                    <button key={b.id}
+                      onClick={() => setWithdrawForm((f) => ({ ...f, bankName: b.bankName, accountNumber: b.accountNumber, accountName: b.accountName }))}
+                      className="w-full text-left bg-gray-50 border border-gray-200 hover:border-emerald-400 rounded-xl px-4 py-2.5 text-sm transition-colors">
+                      <p className="font-medium text-black">{b.bankName} - {b.accountNumber}</p>
+                      <p className="text-xs text-gray-500">{b.accountName}</p>
+                    </button>
+                  ))}
+                </div>
+                <div className="border-t border-gray-200 my-3" />
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">Số tiền rút (đ)</label>
+                {/* Hiển thị số tiền */}
+                <div className="bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-center mb-3">
+                  <p className="text-2xl font-bold text-black">
+                    {withdrawForm.amount
+                      ? (Number(withdrawForm.amount) * 1000).toLocaleString("vi-VN")
+                      : "0"}đ
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Số dư: {Number(wallet?.balance || 0).toLocaleString("vi-VN")}đ</p>
+                </div>
+
+                {/* Numpad */}
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {["1","2","3","4","5","6","7","8","9","⌫","0","✓"].map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        if (key === "⌫") {
+                          setWithdrawForm((f) => ({ ...f, amount: f.amount.slice(0, -1) }));
+                        } else if (key === "✓") {
+                          // xác nhận số
+                        } else {
+                          if (withdrawForm.amount.length >= 6) return; // tối đa 999.999k
+                          setWithdrawForm((f) => ({ ...f, amount: f.amount + key }));
+                        }
+                      }}
+                      className={`py-3 rounded-xl text-sm font-semibold transition-colors border ${
+                        key === "⌫" ? "bg-red-50 border-red-200 text-red-500 hover:bg-red-100"
+                        : key === "✓" ? "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100"
+                        : "bg-white border-gray-200 text-black hover:bg-gray-50"
+                      }`}
+                    >
+                      {key}
+                    </button>
+                  ))}
+                </div>
+                {/* Phím tắt */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[50, 100, 200, 500].map((val) => (
+                    <button key={val} type="button"
+                      onClick={() => setWithdrawForm((f) => ({ ...f, amount: String(val) }))}
+                      className="py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg hover:bg-emerald-100 transition-colors font-medium">
+                      {val}k
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">Ngân hàng</label>
+                  <select value={withdrawForm.bankName}
+                    onChange={(e) => setWithdrawForm((f) => ({ ...f, bankName: e.target.value }))}
+                    className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400">
+                    <option value="">Chọn ngân hàng...</option>
+                    {["Vietcombank", "Techcombank", "MB Bank", "BIDV", "Agribank", "VPBank", "ACB", "Sacombank", "TPBank", "VIB"].map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+              </div>
+              <div>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">Số tài khoản</label>
+                  <input type="text" value={withdrawForm.accountNumber}
+                    onChange={(e) => setWithdrawForm((f) => ({ ...f, accountNumber: e.target.value }))}
+                    placeholder="Nhập số tài khoản..."
+                    className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
+              </div>
+              <div>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">Tên chủ tài khoản</label>
+                  <input type="text" value={withdrawForm.accountName}
+                    onChange={(e) => setWithdrawForm((f) => ({ ...f, accountName: e.target.value.toUpperCase() }))}
+                    placeholder="NGUYEN VAN A..."
+                    className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={withdrawForm.saveBank}
+                    onChange={(e) => setWithdrawForm((f) => ({ ...f, saveBank: e.target.checked }))}
+                    className="accent-emerald-500" />
+                  Lưu tài khoản này để dùng lần sau
+              </label>
+            </div>
+            {withdrawMsg && (
+              <p className="text-xs text-red-500 mt-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{withdrawMsg}</p>
+            )}
+
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => { setShowWithdraw(false); setWithdrawMsg(""); }}
+                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                Hủy
+              </button>
+              <button onClick={handleWithdraw} disabled={withdrawing}
+                className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+                {withdrawing ? "Đang xử lý..." : "Xác nhận rút tiền"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 /* ─── KHÓA HỌC ─── */
 function SectionCourses() {
   const courses = [
@@ -421,9 +695,7 @@ function SectionCourses() {
             </div>
             {c.progress > 0 && (
               <div className="mt-3">
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Tiến độ</span><span>{c.progress}%</span>
-                </div>
+                <div className="flex justify-between text-xs text-gray-500 mb-1"><span>Tiến độ</span><span>{c.progress}%</span></div>
                 <div className="h-1.5 bg-gray-200 rounded-full">
                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${c.progress}%` }} />
                 </div>
@@ -461,9 +733,7 @@ function SectionMembership() {
             <p className="font-semibold text-sm text-black mb-1">{pkg.name}</p>
             <p className="text-emerald-600 text-xs mb-3">{pkg.price}</p>
             {pkg.perks.map((p) => <p key={p} className="text-gray-500 text-xs mb-1">✓ {p}</p>)}
-            <button className="mt-3 w-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs py-2 rounded-lg transition-colors">
-              Nâng cấp
-            </button>
+            <button className="mt-3 w-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs py-2 rounded-lg transition-colors">Nâng cấp</button>
           </div>
         ))}
       </div>
@@ -504,9 +774,7 @@ function SectionGroups() {
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-black">Nhóm của tôi</h2>
-        <button className="text-sm bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-lg transition-colors">
-          + Tạo nhóm
-        </button>
+        <button className="text-sm bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-lg transition-colors">+ Tạo nhóm</button>
       </div>
       <div className="text-center py-16 text-gray-500">
         <div className="text-5xl mb-3">👥</div>
@@ -529,9 +797,7 @@ function SectionPassword() {
             <input type="password" className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 transition-all" />
           </div>
         ))}
-        <button className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-medium transition-colors mt-2">
-          Cập nhật mật khẩu
-        </button>
+        <button className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-medium transition-colors mt-2">Cập nhật mật khẩu</button>
       </div>
     </div>
   );
@@ -556,10 +822,8 @@ function SectionSettings() {
                 <p className="text-sm font-medium text-black">{item.label}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
               </div>
-              <button
-                onClick={() => setNotif((p) => ({ ...p, [item.key]: !p[item.key as keyof typeof p] }))}
-                className={`w-11 h-6 rounded-full transition-colors relative ${notif[item.key as keyof typeof notif] ? "bg-emerald-500" : "bg-gray-300"}`}
-              >
+              <button onClick={() => setNotif((p) => ({ ...p, [item.key]: !p[item.key as keyof typeof p] }))}
+                className={`w-11 h-6 rounded-full transition-colors relative ${notif[item.key as keyof typeof notif] ? "bg-emerald-500" : "bg-gray-300"}`}>
                 <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow ${notif[item.key as keyof typeof notif] ? "left-[22px]" : "left-0.5"}`} />
               </button>
             </div>
@@ -570,11 +834,8 @@ function SectionSettings() {
         <h2 className="text-lg font-semibold text-black mb-5">Ngôn ngữ</h2>
         <div className="flex gap-3">
           {[{ value: "vi", label: "🇻🇳 Tiếng Việt" }, { value: "en", label: "🇬🇧 English" }].map((l) => (
-            <button
-              key={l.value}
-              onClick={() => setLang(l.value)}
-              className={`px-4 py-2 rounded-xl text-sm border transition-colors ${lang === l.value ? "bg-emerald-100 border-emerald-400 text-emerald-700 font-medium" : "border-gray-300 text-gray-600 hover:border-gray-400 bg-white"}`}
-            >
+            <button key={l.value} onClick={() => setLang(l.value)}
+              className={`px-4 py-2 rounded-xl text-sm border transition-colors ${lang === l.value ? "bg-emerald-100 border-emerald-400 text-emerald-700 font-medium" : "border-gray-300 text-gray-600 hover:border-gray-400 bg-white"}`}>
               {l.label}
             </button>
           ))}

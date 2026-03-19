@@ -142,6 +142,8 @@ model User {
   inventoryShifts InventoryShift[]
   bankAccounts    BankAccount[]
   staffBookings      Booking[]         @relation("StaffBookings")
+  resetToken     String?   @map("reset_token")
+  resetTokenExp  DateTime? @map("reset_token_exp")
 
   @@map("users")
 }
