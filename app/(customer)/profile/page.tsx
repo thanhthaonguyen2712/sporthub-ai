@@ -1029,8 +1029,6 @@ function SectionCourses() {
     </div>
   );
 }
-
-/* ─── GÓI HỘI VIÊN ─── */
 /* ─── GÓI HỘI VIÊN ─── */
 function SectionMembership() {
   const [membership, setMembership] = useState<any>({ tier: "FREE" });
@@ -1078,6 +1076,12 @@ function SectionMembership() {
   const tierColors: Record<string, string> = {
     FREE: "text-gray-600", SILVER: "text-gray-500", GOLD: "text-yellow-600", PLATINUM: "text-purple-600"
   };
+  function getEffectiveTier(membership: any) {
+  if (!membership || membership.tier === "FREE") return "FREE";
+  // Nếu đã hết hạn → FREE
+  if (membership.endDate && new Date(membership.endDate) < new Date()) return "FREE";
+  return membership.tier;
+}
 
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
@@ -1094,15 +1098,15 @@ function SectionMembership() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-500 mb-1">Gói hiện tại</p>
-            <p className={`text-2xl font-bold ${tierColors[membership?.tier || "FREE"]}`}>
-              {membership?.tier || "FREE"}
+            <p className={`text-2xl font-bold ${tierColors[getEffectiveTier(membership)]}`}>
+              {getEffectiveTier(membership)}
             </p>
             {membership?.endDate && membership.tier !== "FREE" && (
               <p className="text-xs text-gray-500 mt-1">
                 Hết hạn: {new Date(membership.endDate).toLocaleDateString("vi-VN")}
               </p>
             )}
-            {membership?.tier !== "FREE" && (
+            {getEffectiveTier(membership) !== "FREE" && (
               <div className="mt-2">
                 {membership?.status === "CANCELLED" ? (
                   <span className="text-xs text-orange-500">⚠️ Đã hủy gia hạn — còn hiệu lực đến {new Date(membership.endDate).toLocaleDateString("vi-VN")}</span>
@@ -1114,7 +1118,6 @@ function SectionMembership() {
                 )}
               </div>
             )}
- 
           </div>
           <span className="text-4xl">
             {membership?.tier === "SILVER" ? "🥈" : membership?.tier === "GOLD" ? "🥇" : membership?.tier === "PLATINUM" ? "💎" : "🥉"}
