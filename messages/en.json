@@ -52,5 +52,32 @@
     "Cầu lông": "Badminton",
     "Pickleball": "Pickleball",
     "Tennis": "Tennis"
-  }
+  },
+  "auth": {
+  "loginTitle": "Login",
+  "loginSubtitle": "Welcome back!",
+  "registerTitle": "Register",
+  "registerSubtitle": "Create a new account",
+  "email": "Email",
+  "password": "Password",
+  "fullName": "Full Name",
+  "phone": "Phone Number",
+  "loginBtn": "Login",
+  "registerBtn": "Register",
+  "forgotPassword": "Forgot password?",
+  "noAccount": "Don't have an account?",
+  "hasAccount": "Already have an account?",
+  "registerNow": "Register now",
+  "loginNow": "Login now",
+  "logging": "Logging in...",
+  "registering": "Registering...",
+  "wrongCredentials": "Invalid email or password",
+  "platform": "Smart sports court booking platform",
+  "confirmPassword": "Confirm Password",
+  "createAccount": "Create Account",
+  "registerSubtitle2": "Fill in your information to get started",
+  "registerFree": "Create a free account",
+  "passwordMismatch": "Passwords do not match",
+  "registerFailed": "Registration failed"
+}
 }

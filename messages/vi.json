@@ -52,5 +52,32 @@
   "Cầu lông": "Cầu lông",
   "Pickleball": "Pickleball",
   "Tennis": "Tennis"
+},
+"auth": {
+  "loginTitle": "Đăng nhập",
+  "loginSubtitle": "Chào mừng trở lại!",
+  "registerTitle": "Đăng ký",
+  "registerSubtitle": "Tạo tài khoản mới",
+  "email": "Email",
+  "password": "Mật khẩu",
+  "fullName": "Họ và tên",
+  "phone": "Số điện thoại",
+  "loginBtn": "Đăng nhập",
+  "registerBtn": "Đăng ký",
+  "forgotPassword": "Quên mật khẩu?",
+  "noAccount": "Chưa có tài khoản?",
+  "hasAccount": "Đã có tài khoản?",
+  "registerNow": "Đăng ký ngay",
+  "loginNow": "Đăng nhập ngay",
+  "logging": "Đang đăng nhập...",
+  "registering": "Đang đăng ký...",
+  "wrongCredentials": "Email hoặc mật khẩu không đúng",
+  "platform": "Nền tảng đặt sân thể thao thông minh",
+  "confirmPassword": "Xác nhận mật khẩu",
+"createAccount": "Tạo tài khoản",
+"registerSubtitle2": "Điền thông tin để bắt đầu",
+"registerFree": "Tạo tài khoản miễn phí",
+"passwordMismatch": "Mật khẩu xác nhận không khớp",
+"registerFailed": "Đăng ký thất bại"
 }
 }
