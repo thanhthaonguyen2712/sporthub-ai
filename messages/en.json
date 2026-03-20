@@ -1,0 +1,56 @@
+{
+  "nav": {
+    "login": "Login",
+    "register": "Register",
+    "profile": "My Profile",
+    "bookings": "My Bookings",
+    "logout": "Logout"
+  },
+  "home": {
+    "title": "Book sports courts",
+    "highlight": "easily",
+    "subtitle": "Find and book football, badminton, pickleball courts near you",
+    "search": "Search court name or address...",
+    "searchBtn": "Search",
+    "allSports": "All",
+    "nearMe": "Near Me",
+    "aiSuggest": "Available Courts Near Me",
+    "courts": "facilities",
+    "noResult": "No courts found"
+  },
+  "booking": {
+    "confirm": "Confirm Booking",
+    "courtInfo": "Booking Information",
+    "facility": "Facility",
+    "court": "Court",
+    "date": "Date",
+    "time": "Time",
+    "courtFee": "Court Fee",
+    "services": "Additional Services",
+    "voucher": "Discount Code",
+    "payment": "Payment",
+    "total": "Total",
+    "confirm_btn": "Confirm Booking",
+    "success": "Booking Successful!"
+  },
+  "profile": {
+    "info": "Personal Information",
+    "bookings": "My Bookings",
+    "wallet": "SportHub Wallet",
+    "courses": "Courses",
+    "membership": "Membership",
+    "vouchers": "My Vouchers",
+    "groups": "My Groups",
+    "password": "Change Password",
+    "settings": "Settings",
+    "logout": "Logout",
+    "deleteAccount": "Delete Account"
+  },
+  "sports": {
+    "Bóng đá": "Football",
+    "Bóng rổ": "Basketball", 
+    "Cầu lông": "Badminton",
+    "Pickleball": "Pickleball",
+    "Tennis": "Tennis"
+  }
+}

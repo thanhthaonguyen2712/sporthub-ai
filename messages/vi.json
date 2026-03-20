@@ -1,0 +1,56 @@
+{
+  "nav": {
+    "login": "Đăng nhập",
+    "register": "Đăng ký",
+    "profile": "Hồ sơ của tôi",
+    "bookings": "Lịch đặt sân",
+    "logout": "Đăng xuất"
+  },
+  "home": {
+    "title": "Đặt sân thể thao",
+    "highlight": "dễ dàng",
+    "subtitle": "Tìm và đặt sân bóng đá, cầu lông, pickleball... gần bạn nhất",
+    "search": "Tìm tên sân hoặc địa chỉ...",
+    "searchBtn": "Tìm kiếm",
+    "allSports": "Tất cả",
+    "nearMe": "Gần tôi",
+    "aiSuggest": "Sân trống gần tôi",
+    "courts": "cơ sở sân",
+    "noResult": "Không tìm thấy sân phù hợp"
+  },
+  "booking": {
+    "confirm": "Xác nhận đặt sân",
+    "courtInfo": "Thông tin đặt sân",
+    "facility": "Cơ sở",
+    "court": "Sân",
+    "date": "Ngày",
+    "time": "Giờ",
+    "courtFee": "Tiền sân",
+    "services": "Dịch vụ kèm theo",
+    "voucher": "Mã giảm giá",
+    "payment": "Thanh toán",
+    "total": "Tổng cộng",
+    "confirm_btn": "Xác nhận đặt sân",
+    "success": "Đặt sân thành công!"
+  },
+  "profile": {
+    "info": "Thông tin cá nhân",
+    "bookings": "Lịch đặt sân",
+    "wallet": "Ví SportHub",
+    "courses": "Khóa học",
+    "membership": "Gói hội viên",
+    "vouchers": "Ưu đãi của tôi",
+    "groups": "Nhóm của tôi",
+    "password": "Đổi mật khẩu",
+    "settings": "Cài đặt",
+    "logout": "Đăng xuất",
+    "deleteAccount": "Xóa tài khoản"
+  },
+  "sports": {
+  "Bóng đá": "Bóng đá",
+  "Bóng rổ": "Bóng rổ",
+  "Cầu lông": "Cầu lông",
+  "Pickleball": "Pickleball",
+  "Tennis": "Tennis"
+}
+}

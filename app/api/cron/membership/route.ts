@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
           results.errors++;
         }
       } else {
-        // Không đủ tiền → hủy về FREE
+        // Không đủ tiền hoặc đã hủy gia hạn → hủy về FREE
         await prisma.membership.update({
           where: { id: membership.id },
           data: { tier: "FREE", status: "ACTIVE" },

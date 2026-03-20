@@ -133,6 +133,20 @@ enum MembershipStatus {
   EXPIRED
   CANCELLED
 }
+
+enum GroupRole {
+  OWNER
+  MEMBER
+}
+
+enum NotificationType {
+  BOOKING       // Đặt sân
+  PAYMENT       // Thanh toán
+  SYSTEM        // Hệ thống
+  PROMOTION     // Khuyến mãi
+  COURSE        // Khóa học
+  MEMBERSHIP    // Hội viên
+}
 // ===================== MODELS =====================
 
 // 1. NGƯỜI DÙNG - Dùng chung cho tất cả role
@@ -164,6 +178,13 @@ model User {
   coachCourses    Course[]          @relation("CoachCourses")
   enrollments     CourseEnrollment[]
   membership      Membership?
+  ownedGroups     Group[]       @relation("GroupOwner")
+  groupMembers    GroupMember[]
+  notifEmail  Boolean  @default(true)  @map("notif_email")
+  notifSms    Boolean  @default(false) @map("notif_sms")
+  notifPush   Boolean  @default(true)  @map("notif_push")
+  language    String   @default("vi")
+  notifications   Notification[]
 
   @@map("users")
 }
@@ -581,3 +602,48 @@ model Membership {
 
   @@map("memberships")
 }
+// 26. NHÓM ĐẶT SÂN
+model Group {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  ownerId     Int      @map("owner_id")
+
+  owner       User         @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+
+  @@map("groups")
+}
+
+// 27. THÀNH VIÊN NHÓM
+model GroupMember {
+  id       Int         @id @default(autoincrement())
+  groupId  Int         @map("group_id")
+  userId   Int         @map("user_id")
+  role     GroupRole   @default(MEMBER)
+  joinedAt DateTime    @default(now()) @map("joined_at")
+
+  group    Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+// 28. THÔNG BÁO
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  title     String
+  content   String           @db.Text
+  type      NotificationType
+  isRead    Boolean          @default(false) @map("is_read")
+  link      String?          // Link điều hướng khi click
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+

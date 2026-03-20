@@ -222,9 +222,12 @@ export default function BookingPage() {
               {services.map((svc) => {
                 const selected = selectedServices.find((s) => s.id === svc.id);
                 return (
-                  <div key={svc.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3">
+                  <div key={svc.id} onClick={() => toggleService(svc.id)}
+                    className={`flex items-center justify-between border rounded-xl px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-emerald-50 border-emerald-400" : "bg-white border-gray-200 hover:border-emerald-300"}`}>
                     <div className="flex items-center gap-3">
-                      <input type="checkbox" checked={!!selected} onChange={() => toggleService(svc.id)} className="w-4 h-4 accent-emerald-500" />
+                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${selected ? "bg-emerald-500 border-emerald-500" : "border-gray-300"}`}>
+                        {selected && <span className="text-white text-xs">✓</span>}
+                      </div>
                       <div>
                         <p className="text-sm font-medium text-black">{svc.name}</p>
                         <p className="text-xs text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ/{svc.type === "RENTAL" ? "lần thuê" : "cái"}</p>

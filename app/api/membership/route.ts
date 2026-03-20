@@ -84,7 +84,7 @@ export async function DELETE() {
 
     await prisma.membership.update({
       where: { userId },
-      data: { status: "CANCELLED" }, // Chỉ đánh dấu hủy, KHÔNG đổi tier
+      data: { status: "CANCELLED" }, 
     });
 
     return NextResponse.json({ success: true, message: "Đã hủy gia hạn tự động! Gói hiện tại vẫn có hiệu lực đến hết chu kỳ." });

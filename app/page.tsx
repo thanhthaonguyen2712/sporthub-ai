@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { useTranslations } from "next-intl";
 
 interface Sport {
   id: number;
@@ -45,6 +46,8 @@ export default function HomePage() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const t = useTranslations("home");
+  const tSports = useTranslations("sports");
 
   useEffect(() => {
     fetch("/api/sports").then((r) => r.json()).then(setSports);
@@ -113,20 +116,21 @@ export default function HomePage() {
       <div className="py-16 px-6" style={{ background: "#E0EEE0" }}>
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-3 text-black">
-            Đặt sân thể thao <span className="text-emerald-600">dễ dàng</span>
+            {t("title")} <span className="text-emerald-600">{t("highlight")}</span>
           </h1>
-          <p className="text-gray-600 mb-8 text-lg">Tìm và đặt sân bóng đá, cầu lông, pickleball... gần bạn nhất</p>
+
+         <p className="text-gray-600 mb-8 text-lg">{t("subtitle")}</p>
           <div className="flex gap-3 max-w-2xl">
             <input
               type="text"
-              placeholder="Tìm tên sân hoặc địa chỉ..."
+              placeholder={t("search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="flex-1 bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-5 py-3.5 text-sm focus:outline-none focus:border-emerald-400 transition-all"
             />
-            <button className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors">
-              Tìm kiếm
-            </button>
+           <button className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3.5 rounded-xl text-sm font-semibold transition-colors">
+            {t("searchBtn")}
+          </button>
           </div>
         </div>
       </div>
@@ -141,7 +145,7 @@ export default function HomePage() {
             }`}
           >
             <img src="https://cdn-icons-png.flaticon.com/128/9385/9385212.png" className="w-5 h-5" />
-            Tất cả
+            {t("allSports")}
           </button>
           {sports.map((sport) => (
             <button
@@ -152,7 +156,7 @@ export default function HomePage() {
               }`}
             >
               <img src={sport.iconUrl} className="w-5 h-5" />
-              {sport.name}
+              {tSports(sport.name)}
             </button>
           ))}
         </div>
@@ -160,14 +164,14 @@ export default function HomePage() {
         {/* Header + buttons */}
         <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-lg font-semibold text-black">
-            {loading ? "Đang tải..." : `${sortedFacilities.length} cơ sở sân`}
+            {loading ? "..." : `${sortedFacilities.length} ${t("courts")}`}
           </h2>
           <div className="flex gap-2 flex-wrap">
             <button onClick={getNearMe} disabled={locationLoading}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
                 sortByDistance ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
               }`}>
-              {locationLoading ? "⏳" : "📍"} {sortByDistance ? "Đang lọc gần tôi" : "Gần tôi"}
+              {locationLoading ? "⏳" : "📍"} {sortByDistance ? t("nearMe") : t("nearMe")}
             </button>
             {sortByDistance && (
               <button onClick={() => { setSortByDistance(false); setUserLocation(null); }}
@@ -177,7 +181,7 @@ export default function HomePage() {
             )}
             <button onClick={getAiSuggestion} disabled={aiLoading || loading}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 transition-colors">
-              {aiLoading ? "⏳ Đang tìm..." : "✨ Sân trống gần tôi"}
+              {aiLoading ? "⏳ ..." : `✨ ${t("aiSuggest")}`}
             </button>
           </div>
         </div>
@@ -228,7 +232,7 @@ export default function HomePage() {
           </div>) : sortedFacilities.length === 0 ? (
             <div className="text-center py-20 text-gray-500">
               <div className="text-5xl mb-4">🔍</div>
-              <p>Không tìm thấy sân phù hợp</p>
+              <p>{t("noResult")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

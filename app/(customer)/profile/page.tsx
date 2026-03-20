@@ -1155,61 +1155,369 @@ function SectionMembership() {
 
 /* ─── ƯU ĐÃI ─── */
 function SectionVouchers() {
+  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [code, setCode] = useState("");
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/vouchers/mine")
+      .then((r) => r.json())
+      .then((data) => { setVouchers(Array.isArray(data) ? data : []); setLoading(false); });
+  }, []);
+
+  async function handleApply(code: string) {
+    window.location.href = `/?voucher=${code}`;
+  }
+
+  const now = new Date();
+
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-      <h2 className="text-lg font-semibold text-black mb-6">Ưu đãi của tôi</h2>
-      <div className="space-y-3">
-        {[
-          { code: "WELCOME10", desc: "Giảm 10% lần đặt đầu tiên", expire: "31/03/2026", used: false },
-          { code: "SUMMER20", desc: "Giảm 20% mùa hè", expire: "30/06/2026", used: false },
-          { code: "OLDCODE", desc: "Voucher đã hết hạn", expire: "01/01/2026", used: true },
-        ].map((v) => (
-          <div key={v.code} className={`flex items-center justify-between border rounded-xl p-4 ${v.used ? "opacity-50 border-gray-300 bg-gray-100" : "border-emerald-200 bg-white"}`}>
-            <div>
-              <p className="font-mono font-bold text-emerald-600 text-sm">{v.code}</p>
-              <p className="text-gray-700 text-xs mt-0.5">{v.desc}</p>
-              <p className="text-gray-400 text-xs mt-0.5">HSD: {v.expire}</p>
-            </div>
-            <span className={`text-xs px-2 py-1 rounded-lg ${v.used ? "bg-gray-200 text-gray-500" : "bg-emerald-100 text-emerald-700"}`}>
-              {v.used ? "Hết hạn" : "Dùng ngay"}
-            </span>
-          </div>
-        ))}
-      </div>
+      <h2 className="text-lg font-semibold text-black mb-4">Ưu đãi của tôi</h2>
+
+      {msg && (
+        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+          {msg}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">{[1,2].map((i) => <div key={i} className="h-16 bg-white/50 rounded-xl animate-pulse" />)}</div>
+      ) : vouchers.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          <div className="text-4xl mb-2">🎁</div>
+          <p className="text-sm">Bạn chưa có voucher nào</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {vouchers.map((v) => {
+            const isExpired = new Date(v.endDate) < now || v.usedCount >= v.usageLimit || !v.isActive;
+            return (
+              <div key={v.id} className={`flex items-center justify-between border rounded-xl p-4 ${isExpired ? "opacity-50 border-gray-300 bg-gray-100" : "border-emerald-200 bg-white"}`}>
+                <div>
+                  <p className="font-mono font-bold text-emerald-600 text-sm">{v.code}</p>
+                  <p className="text-gray-700 text-xs mt-0.5">
+                    {v.discountType === "PERCENT" ? `Giảm ${v.discountValue}%` : `Giảm ${Number(v.discountValue).toLocaleString("vi-VN")}đ`}
+                    {v.minOrderValue > 0 && ` - Đơn tối thiểu ${Number(v.minOrderValue).toLocaleString("vi-VN")}đ`}
+                  </p>
+                  <p className="text-gray-400 text-xs mt-0.5">HSD: {new Date(v.endDate).toLocaleDateString("vi-VN")}</p>
+                </div>
+                <button
+                  disabled={isExpired}
+                  onClick={() => {
+                    navigator.clipboard.writeText(v.code);
+                    setMsg(`✅ Đã copy mã ${v.code}!`);
+                    setTimeout(() => setMsg(""), 2000);
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${isExpired ? "bg-gray-200 text-gray-500 cursor-not-allowed" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
+                  {isExpired ? "Hết hạn" : "📋 Copy mã"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 /* ─── NHÓM ─── */
+/* ─── NHÓM ─── */
 function SectionGroups() {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showDetail, setShowDetail] = useState<any | null>(null);
+  const [groupName, setGroupName] = useState("");
+  const [groupDesc, setGroupDesc] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [msg, setMsg] = useState("");
+  const [creating, setCreating] = useState(false);
+  const { data: session } = useSession();
+
+  function loadGroups() {
+    fetch("/api/groups")
+      .then((r) => r.json())
+      .then((data) => { setGroups(Array.isArray(data) ? data : []); setLoading(false); });
+  }
+
+  useEffect(() => { loadGroups(); }, []);
+
+  async function handleCreate() {
+    if (!groupName) { setMsg("Vui lòng nhập tên nhóm!"); return; }
+    setCreating(true);
+    const res = await fetch("/api/groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: groupName, description: groupDesc }),
+    });
+    const data = await res.json();
+    setCreating(false);
+    if (res.ok) {
+      setShowCreate(false);
+      setGroupName(""); setGroupDesc("");
+      loadGroups();
+      setMsg("✅ Tạo nhóm thành công!");
+    } else {
+      setMsg(data.error);
+    }
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  async function handleInvite(groupId: number) {
+    if (!inviteEmail) return;
+    const res = await fetch(`/api/groups/${groupId}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: inviteEmail }),
+    });
+    const data = await res.json();
+    setMsg(res.ok ? `✅ ${data.message}` : data.error);
+    if (res.ok) {
+      setInviteEmail("");
+      // Reload group detail
+      fetch("/api/groups").then((r) => r.json()).then((d) => {
+        setGroups(Array.isArray(d) ? d : []);
+        const updated = d.find((g: any) => g.id === groupId);
+        if (updated) setShowDetail(updated);
+      });
+    }
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  async function handleRemove(groupId: number, userId: number) {
+    const res = await fetch(`/api/groups/${groupId}/members`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    if (res.ok) {
+      fetch("/api/groups").then((r) => r.json()).then((d) => {
+        setGroups(Array.isArray(d) ? d : []);
+        const updated = d.find((g: any) => g.id === groupId);
+        if (updated) setShowDetail(updated);
+        else setShowDetail(null);
+      });
+    }
+  }
+
+  const myId = Number((session?.user as any)?.id);
+
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-black">Nhóm của tôi</h2>
-        <button className="text-sm bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-lg transition-colors">+ Tạo nhóm</button>
+        <button onClick={() => setShowCreate(true)}
+          className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-4 py-2 rounded-xl transition-colors">
+          + Tạo nhóm
+        </button>
       </div>
-      <div className="text-center py-16 text-gray-500">
-        <div className="text-5xl mb-3">👥</div>
-        <p className="text-sm">Bạn chưa tham gia nhóm nào</p>
-        <p className="text-xs mt-2 text-gray-400">Tạo nhóm để rủ bạn bè cùng đặt sân</p>
-      </div>
+
+      {msg && (
+        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+          {msg}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">{[1,2].map((i) => <div key={i} className="h-16 bg-white/50 rounded-xl animate-pulse" />)}</div>
+      ) : groups.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          <div className="text-5xl mb-3">👥</div>
+          <p className="text-sm">Bạn chưa tham gia nhóm nào</p>
+          <p className="text-xs mt-2 text-gray-400">Tạo nhóm để rủ bạn bè cùng đặt sân</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((g) => (
+            <div key={g.id} onClick={() => setShowDetail(g)}
+              className="bg-white border border-gray-200 hover:border-emerald-400 rounded-xl p-4 cursor-pointer transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-black text-sm">{g.name}</p>
+                  {g.description && <p className="text-gray-500 text-xs mt-0.5">{g.description}</p>}
+                </div>
+                <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                  👥 {g._count.members} thành viên
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                {g.ownerId === myId ? "👑 Bạn là trưởng nhóm" : `👤 Trưởng nhóm: ${g.owner.fullName}`}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Popup tạo nhóm */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="font-bold text-black text-lg mb-4">+ Tạo nhóm mới</h3>
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">Tên nhóm</label>
+                <input value={groupName} onChange={(e) => setGroupName(e.target.value)}
+                  placeholder="VD: Nhóm cầu lông sáng thứ 2..."
+                  className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">Mô tả (tuỳ chọn)</label>
+                <textarea value={groupDesc} onChange={(e) => setGroupDesc(e.target.value)}
+                  placeholder="Mô tả nhóm..."
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowCreate(false); setGroupName(""); setGroupDesc(""); }}
+                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                Hủy
+              </button>
+              <button onClick={handleCreate} disabled={creating}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+                {creating ? "Đang tạo..." : "Tạo nhóm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup chi tiết nhóm */}
+      {showDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-black text-lg">{showDetail.name}</h3>
+              <button onClick={() => setShowDetail(null)} className="text-gray-400 hover:text-black text-xl">✕</button>
+            </div>
+
+            {showDetail.description && (
+              <p className="text-gray-500 text-sm mb-4">{showDetail.description}</p>
+            )}
+
+            {/* Danh sách thành viên */}
+            <p className="text-xs font-semibold text-gray-500 mb-2">THÀNH VIÊN ({showDetail.members.length})</p>
+            <div className="space-y-2 mb-4">
+              {showDetail.members.map((m: any) => (
+                <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                      {m.user.fullName?.[0]?.toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-black">{m.user.fullName}</p>
+                      <p className="text-xs text-gray-500">{m.user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {m.role === "OWNER" && <span className="text-xs text-yellow-600">👑</span>}
+                    {showDetail.ownerId === myId && m.userId !== myId && (
+                      <button onClick={() => handleRemove(showDetail.id, m.userId)}
+                        className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Thêm thành viên */}
+            {showDetail.ownerId === myId && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">THÊM THÀNH VIÊN</p>
+                <div className="flex gap-2">
+                  <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="Nhập email thành viên..."
+                    className="flex-1 bg-gray-50 border border-gray-300 text-black rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
+                  <button onClick={() => handleInvite(showDetail.id)}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2 rounded-xl text-sm transition-colors">
+                    Thêm
+                  </button>
+                </div>
+                {msg && (
+                  <p className={`text-xs mt-2 ${msg.includes("✅") ? "text-emerald-600" : "text-red-500"}`}>{msg}</p>
+                )}
+              </div>
+            )}
+
+            {/* Nút đặt sân nhóm */}
+            <button onClick={() => { setShowDetail(null); window.location.href = "/"; }}
+              className="mt-4 w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+              🏸 Đặt sân cho nhóm
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ─── ĐỔI MẬT KHẨU ─── */
 function SectionPassword() {
+  const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [show, setShow] = useState({ current: false, new: false, confirm: false });
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function handleSubmit() {
+    setLoading(true);
+    setMsg("");
+    const res = await fetch("/api/user/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json();
+    setLoading(false);
+    setMsg(res.ok ? `✅ ${data.message}` : data.error);
+    if (res.ok) setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    setTimeout(() => setMsg(""), 4000);
+  }
+
+  const fields = [
+    { key: "currentPassword", label: "Mật khẩu hiện tại", showKey: "current" },
+    { key: "newPassword", label: "Mật khẩu mới", showKey: "new" },
+    { key: "confirmPassword", label: "Xác nhận mật khẩu mới", showKey: "confirm" },
+  ];
+
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
       <h2 className="text-lg font-semibold text-black mb-6">Đổi mật khẩu</h2>
+
+      {msg && (
+        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+          {msg}
+        </div>
+      )}
+
       <div className="max-w-sm space-y-4">
-        {["Mật khẩu hiện tại", "Mật khẩu mới", "Xác nhận mật khẩu mới"].map((label) => (
-          <div key={label}>
-            <label className="text-xs text-gray-600 mb-1.5 block font-medium">{label}</label>
-            <input type="password" className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 transition-all" />
+        {fields.map((field) => (
+          <div key={field.key}>
+            <label className="text-xs text-gray-600 mb-1.5 block font-medium">{field.label}</label>
+            <div className="relative">
+              <input
+                type={show[field.showKey as keyof typeof show] ? "text" : "password"}
+                value={(form as any)[field.key]}
+                onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                placeholder="••••••••"
+                className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 transition-all pr-10"
+              />
+              <button
+                onClick={() => setShow((s) => ({ ...s, [field.showKey]: !s[field.showKey as keyof typeof s] }))}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 text-sm">
+                {show[field.showKey as keyof typeof show] ? "🙈" : "👁️"}
+              </button>
+            </div>
           </div>
         ))}
-        <button className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-medium transition-colors mt-2">Cập nhật mật khẩu</button>
+
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors mt-2">
+          {loading ? "Đang xử lý..." : "Cập nhật mật khẩu"}
+        </button>
       </div>
     </div>
   );
@@ -1217,42 +1525,84 @@ function SectionPassword() {
 
 /* ─── CÀI ĐẶT ─── */
 function SectionSettings() {
-  const [notif, setNotif] = useState({ email: true, sms: false, push: true });
-  const [lang, setLang] = useState("vi");
+  const [settings, setSettings] = useState({ notifEmail: true, notifSms: false, notifPush: true, language: "vi" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/user/settings")
+      .then((r) => r.json())
+      .then((data) => { setSettings(data); setLoading(false); });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    const res = await fetch("/api/user/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    const data = await res.json();
+    setSaving(false);
+    setMsg(res.ok ? `✅ ${data.message}` : data.error);
+    setTimeout(() => setMsg(""), 3000);
+  }
+
   return (
     <div className="space-y-4">
+      {msg && (
+        <div className={`px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+          {msg}
+        </div>
+      )}
+
+      {/* Thông báo */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <h2 className="text-lg font-semibold text-black mb-5">Cài đặt thông báo</h2>
-        <div className="space-y-4">
-          {[
-            { key: "email", label: "Thông báo qua Email", desc: "Nhận xác nhận đặt sân qua email" },
-            { key: "sms", label: "Thông báo SMS", desc: "Nhận nhắc nhở qua tin nhắn" },
-            { key: "push", label: "Thông báo đẩy", desc: "Nhận thông báo trên trình duyệt" },
-          ].map((item) => (
-            <div key={item.key} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-black">{item.label}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
+        {loading ? (
+          <div className="space-y-3">{[1,2,3].map((i) => <div key={i} className="h-10 bg-white/50 rounded-xl animate-pulse" />)}</div>
+        ) : (
+          <div className="space-y-4">
+            {[
+              { key: "notifEmail", label: "Thông báo qua Email", desc: "Nhận xác nhận đặt sân qua email" },
+              { key: "notifSms", label: "Thông báo SMS", desc: "Nhận nhắc nhở qua tin nhắn" },
+              { key: "notifPush", label: "Thông báo đẩy", desc: "Nhận thông báo trên trình duyệt" },
+            ].map((item) => (
+              <div key={item.key} className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-black">{item.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
+                </div>
+                <button
+                  onClick={() => setSettings((s) => ({ ...s, [item.key]: !s[item.key as keyof typeof s] }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${(settings as any)[item.key] ? "bg-emerald-500" : "bg-gray-300"}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow ${(settings as any)[item.key] ? "left-[22px]" : "left-0.5"}`} />
+                </button>
               </div>
-              <button onClick={() => setNotif((p) => ({ ...p, [item.key]: !p[item.key as keyof typeof p] }))}
-                className={`w-11 h-6 rounded-full transition-colors relative ${notif[item.key as keyof typeof notif] ? "bg-emerald-500" : "bg-gray-300"}`}>
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow ${notif[item.key as keyof typeof notif] ? "left-[22px]" : "left-0.5"}`} />
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Ngôn ngữ */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <h2 className="text-lg font-semibold text-black mb-5">Ngôn ngữ</h2>
         <div className="flex gap-3">
           {[{ value: "vi", label: "🇻🇳 Tiếng Việt" }, { value: "en", label: "🇬🇧 English" }].map((l) => (
-            <button key={l.value} onClick={() => setLang(l.value)}
-              className={`px-4 py-2 rounded-xl text-sm border transition-colors ${lang === l.value ? "bg-emerald-100 border-emerald-400 text-emerald-700 font-medium" : "border-gray-300 text-gray-600 hover:border-gray-400 bg-white"}`}>
+            <button key={l.value} onClick={() => setSettings((s) => ({ ...s, language: l.value }))}
+              className={`px-4 py-2 rounded-xl text-sm border transition-colors ${settings.language === l.value ? "bg-emerald-100 border-emerald-400 text-emerald-700 font-medium" : "border-gray-300 text-gray-600 hover:border-gray-400 bg-white"}`}>
               {l.label}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Nút lưu */}
+      <button onClick={handleSave} disabled={saving}
+        className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+        {saving ? "Đang lưu..." : "💾 Lưu cài đặt"}
+      </button>
     </div>
   );
 }
