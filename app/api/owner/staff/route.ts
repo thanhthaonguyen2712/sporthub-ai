@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const staff = await prisma.facilityStaff.findMany({
     where,
     include: {
-      user: { select: { id: true, fullName: true, email: true, phone: true, role: true, createdAt: true } },
+      user: { select: { id: true, fullName: true, email: true, phone: true, role: true, isLocked: true, createdAt: true } },
       facility: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },

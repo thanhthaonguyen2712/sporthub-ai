@@ -18,8 +18,16 @@ export default function ForgotPasswordPage() {
       body: JSON.stringify({ email }),
     });
     setLoading(false);
-    if (res.ok) setSent(true);
-    else setError("Có lỗi xảy ra, thử lại!");
+    if (res.ok) {
+      setSent(true);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      if (data.error === "STAFF_ACCOUNT") {
+        setError("Tài khoản nhân viên không thể tự đặt lại mật khẩu. Vui lòng liên hệ chủ sân để được hỗ trợ.");
+      } else {
+        setError("Có lỗi xảy ra, thử lại!");
+      }
+    }
   }
 
   return (

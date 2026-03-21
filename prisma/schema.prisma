@@ -146,6 +146,7 @@ enum NotificationType {
   PROMOTION     // Khuyến mãi
   COURSE        // Khóa học
   MEMBERSHIP    // Hội viên
+  REPORT        // Báo cáo sự cố nhân viên
 }
 // ===================== MODELS =====================
 
@@ -187,6 +188,8 @@ model User {
   notifications   Notification[]
   wageConfigs    StaffWageConfig[]   @relation("StaffWageConfigs")
   salaryRecords  StaffSalaryRecord[] @relation("StaffSalaryRecords")
+  isLocked       Boolean  @default(false) @map("is_locked")
+  staffReports   StaffReport[]       @relation("StaffReports")
 
   @@map("users")
 }
@@ -241,6 +244,7 @@ model Facility {
   courses         Course[]
   wageConfigs     StaffWageConfig[]
   salaryRecords   StaffSalaryRecord[]
+  staffReports    StaffReport[]
 
   @@map("facilities")
 }
@@ -691,3 +695,20 @@ model StaffSalaryRecord {
   @@map("staff_salary_records")
 }
 
+
+// 31. BÁO CÁO SỰ CỐ CỦA NHÂN VIÊN
+model StaffReport {
+  id          Int      @id @default(autoincrement())
+  staffId     Int      @map("staff_id")
+  facilityId  Int      @map("facility_id")
+  type        String   // "FACILITY" | "EQUIPMENT" | "INVENTORY_DAMAGE"
+  title       String
+  description String   @db.Text
+  status      String   @default("OPEN") // "OPEN" | "RESOLVED"
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  staff       User     @relation("StaffReports", fields: [staffId], references: [id], onDelete: Cascade)
+  facility    Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  @@map("staff_reports")
+}

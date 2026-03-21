@@ -2,6 +2,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import {
+  generateCourtSlots, getSlotPrice, getSlotPriceLabel,
+  isHoliday, isWeekend, CourtSlot,
+} from "@/lib/court-slots";
 
 interface PricingRule {
   dayType: string;
@@ -46,111 +50,44 @@ interface Facility {
   avgRating: string | null;
 }
 
-interface Slot {
-  time: string;
-  duration: number;
-  isPeak: boolean;
-  label: string;
-  endLabel: string;
-}
-
-const ONE_HOUR_SPORTS = ["Bóng đá", "Bóng rổ"];
-const GAP_RULE_SPORTS = ["Cầu lông", "Pickleball", "Tennis"];
-
-function addMinutes(time: string, mins: number): string {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + mins;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
 }
 
-function generateSlots(sportName: string): Slot[] {
-  const isOneHour = ONE_HOUR_SPORTS.includes(sportName);
-  const slots: Slot[] = [];
-
-  for (let h = 6; h < 17; h++) {
-    if (isOneHour) {
-      const time = `${String(h).padStart(2, "0")}:00`;
-      const end = addMinutes(time, 60);
-      slots.push({ time, duration: 60, isPeak: false, label: `${time} – ${end}`, endLabel: end });
-    } else {
-      for (const m of [0, 30]) {
-        const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-        const end = addMinutes(time, 30);
-        slots.push({ time, duration: 30, isPeak: false, label: `${time} – ${end}`, endLabel: end });
-      }
-    }
-  }
-
-  slots.push({ time: "17:00", duration: 120, isPeak: true, label: "17:00 – 19:00", endLabel: "19:00" });
-  slots.push({ time: "19:00", duration: 120, isPeak: true, label: "19:00 – 21:00", endLabel: "21:00" });
-
-  if (isOneHour) {
-    slots.push({ time: "21:00", duration: 60, isPeak: false, label: "21:00 – 22:00", endLabel: "22:00" });
-  } else {
-    slots.push({ time: "21:00", duration: 30, isPeak: false, label: "21:00 – 21:30", endLabel: "21:30" });
-    slots.push({ time: "21:30", duration: 30, isPeak: false, label: "21:30 – 22:00", endLabel: "22:00" });
-  }
-
-  return slots;
-}
-
-function isValidSelection(
-  slots: Slot[],
-  selected: string[],
-  newTime: string,
-  sportName: string
-): { valid: boolean; error: string } {
-  return { valid: true, error: "" };
-}
+const GAP_RULE_SPORTS = ["Cầu lông", "Pickleball", "Tennis"];
+const ONE_HOUR_SPORTS_CUSTOMER = ["Bóng đá", "Bóng rổ"];
 
 function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; selectedDate: string; facilityId: number }) {
   const router = useRouter();
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
-  const [errorMsg, setErrorMsg] = useState("");
   const [booked, setBooked] = useState<string[]>([]);
+
   useEffect(() => {
     if (!selectedDate) return;
+    setSelectedSlots([]);
     fetch(`/api/courts/${court.id}/booked-slots?date=${selectedDate}`)
       .then((r) => r.json())
       .then((data) => setBooked(data.bookedSlots || []));
   }, [court.id, selectedDate]);
-  const sportName = court.category.name;
-  const ALL_SLOTS = generateSlots(sportName);
-  const isOneHour = ONE_HOUR_SPORTS.includes(sportName);
-  const hasGapRule = GAP_RULE_SPORTS.includes(sportName);
 
-  function getPrice(slot: Slot): number {
-    if (slot.isPeak) return 160000;
-    if (slot.duration === 60) return 80000;
-    return 40000;
-  }
+  const sportName = court.category.name;
+  const ALL_SLOTS: CourtSlot[] = generateCourtSlots(sportName, selectedDate);
+  const isOneHour = ONE_HOUR_SPORTS_CUSTOMER.includes(sportName);
+  const hasGapRule = GAP_RULE_SPORTS.includes(sportName);
+  const holiday = isHoliday(selectedDate);
+  const weekend = isWeekend(selectedDate);
 
   function toggleSlot(slotTime: string) {
     if (booked.includes(slotTime)) return;
-    setErrorMsg("");
-
-    if (selectedSlots.includes(slotTime)) {
-      setSelectedSlots(selectedSlots.filter((s) => s !== slotTime));
-      return;
-    }
-
-    const { valid, error } = isValidSelection(ALL_SLOTS, selectedSlots, slotTime, sportName);
-    if (!valid) {
-      setErrorMsg(error);
-      return;
-    }
-
-    setSelectedSlots((prev) => [...prev, slotTime]);
+    setSelectedSlots((prev) =>
+      prev.includes(slotTime) ? prev.filter((s) => s !== slotTime) : [...prev, slotTime]
+    );
   }
 
   const totalPrice = selectedSlots.reduce((sum, t) => {
     const slot = ALL_SLOTS.find((s) => s.time === t);
-    return sum + (slot ? getPrice(slot) : 0);
+    return sum + (slot ? getSlotPrice(slot, selectedDate) : 0);
   }, 0);
 
   const totalMinutes = selectedSlots.reduce((sum, t) => {
@@ -161,18 +98,20 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
   return (
     <div className="border border-gray-300 rounded-xl p-4 mb-4" style={{ background: "#E0EEE0" }}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3">
-        <img src={court.category.iconUrl} className="w-8 h-8" alt={court.category.name} />
-        <div>
-          <p className="font-semibold text-black">{court.name}</p>
-          <p className="text-gray-500 text-xs">
-            {sportName} ·{" "}
-            {isOneHour
-              ? "Tối thiểu 1h · Đặt liên tiếp"
-              : hasGapRule
-              ? "30p/slot · Liên tiếp hoặc cách ≥1h"
-              : "Tối thiểu 1h · Đặt liên tiếp"}
-          </p>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3">
+          <img src={court.category.iconUrl} className="w-8 h-8" alt={court.category.name} />
+          <div>
+            <p className="font-semibold text-black">{court.name}</p>
+            <p className="text-gray-500 text-xs">
+              {sportName} ·{" "}
+              {isOneHour ? "Tối thiểu 1h · Đặt liên tiếp" : hasGapRule ? "30p/slot · Liên tiếp hoặc cách ≥1h" : "Tối thiểu 1h · Đặt liên tiếp"}
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          {weekend && !holiday && <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">Cuối tuần</span>}
+          {holiday && <span className="text-[11px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">🎌 Ngày lễ +15%</span>}
         </div>
       </div>
 
@@ -186,9 +125,15 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#EED5D2" }}></span>
           <span className="text-black">Đã đặt</span>
         </span>
+        {(weekend || holiday) && (
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded inline-block" style={{ background: "#FFD580" }}></span>
+            <span className="text-black">Cao điểm sáng 7–9h</span>
+          </span>
+        )}
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#9BCD9B" }}></span>
-          <span className="text-black">Cao điểm (160k/2h)</span>
+          <span className="text-black">Cao điểm chiều {holiday ? "(+15%)" : "(160k/2h)"}</span>
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#B0C4DE" }}></span>
@@ -202,81 +147,56 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
           const isBooked = booked.includes(slot.time);
           const isSelected = selectedSlots.includes(slot.time);
 
-          let bgStyle: React.CSSProperties = {};
+          let bgStyle: React.CSSProperties = { fontWeight: "bold" };
           let cls = "border rounded-lg text-xs font-medium transition-all text-left ";
 
           if (isBooked) {
-            bgStyle = { background: "#EED5D2", borderColor: "#FFB5C5", color: "#000" };
+            bgStyle = { ...bgStyle, background: "#EED5D2", borderColor: "#FFB5C5", color: "#000" };
             cls += "cursor-not-allowed ";
           } else if (isSelected) {
-            bgStyle = { background: "#B0C4DE", borderColor: "#7a9cbf", color: "#000" };
+            bgStyle = { ...bgStyle, background: "#B0C4DE", borderColor: "#7a9cbf", color: "#000" };
             cls += "cursor-pointer ring-2 ring-blue-400";
+          } else if (slot.isMorningPeak) {
+            bgStyle = { ...bgStyle, background: "#FFD580", borderColor: "#FFC107", color: "#000" };
+            cls += "cursor-pointer hover:opacity-80";
           } else if (slot.isPeak) {
-            bgStyle = { background: "#9BCD9B", borderColor: "#a8e050", color: "#000" };
+            bgStyle = { ...bgStyle, background: "#9BCD9B", borderColor: "#a8e050", color: "#000" };
             cls += "cursor-pointer hover:opacity-80";
           } else {
-            bgStyle = { background: "#96CDCD", borderColor: "#D1EEEE", color: "#000" };
+            bgStyle = { ...bgStyle, background: "#96CDCD", borderColor: "#D1EEEE", color: "#000" };
             cls += "cursor-pointer hover:opacity-80";
           }
-
-          // Áp dụng chữ đậm cho tất cả các loại ô
-          bgStyle.fontWeight = "bold";
 
           const pad = slot.isPeak ? "px-4 py-2.5" : "px-2.5 py-2";
 
           return (
-            <button
-              key={slot.time}
-              onClick={() => toggleSlot(slot.time)}
-              disabled={isBooked}
-              className={`${cls} ${pad}`}
-              style={bgStyle}
-            >
+            <button key={slot.time} onClick={() => toggleSlot(slot.time)} disabled={isBooked}
+              className={`${cls} ${pad}`} style={bgStyle}>
               <div className="font-semibold text-[11px]">{slot.label}</div>
-              <div className="text-[10px] opacity-70 mt-0.5">
-                {slot.isPeak ? "160k/2h" : slot.duration === 60 ? "80k/1h" : "40k · 30p"}
-              </div>
+              <div className="text-[10px] opacity-70 mt-0.5">{getSlotPriceLabel(slot, selectedDate)}</div>
             </button>
           );
         })}
       </div>
 
-      {/* Thông báo lỗi */}
-      {errorMsg && (
-        <p className="text-red-600 text-xs mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          ⚠️ {errorMsg}
-        </p>
-      )}
-
       {/* Tổng tiền */}
       {selectedSlots.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
           <div>
-            <p className="text-xs text-gray-500">
-              {selectedSlots.length} slot · {totalMinutes} phút
-            </p>
-            <p className="font-bold text-emerald-600 text-lg">
-              {totalPrice.toLocaleString("vi-VN")}đ
-            </p>
+            <p className="text-xs text-gray-500">{selectedSlots.length} slot · {totalMinutes} phút{holiday ? " · 🎌 Ngày lễ" : ""}</p>
+            <p className="font-bold text-emerald-600 text-lg">{totalPrice.toLocaleString("vi-VN")}đ</p>
           </div>
           <button onClick={() => {
               const sorted = [...selectedSlots].sort((a, b) => toMinutes(a) - toMinutes(b));
-              const startSlot = ALL_SLOTS.find((s) => s.time === sorted[0])!;
               const endSlot = ALL_SLOTS.find((s) => s.time === sorted[sorted.length - 1])!;
-              const startTime = sorted[0];
-              const endTime = endSlot.endLabel;
               const params = new URLSearchParams({
-                courtId: String(court.id),
-                facilityId: String(facilityId),
-                date: selectedDate,
-                start: startTime,
-                end: endTime,
-                price: String(totalPrice),
+                courtId: String(court.id), facilityId: String(facilityId),
+                date: selectedDate, start: sorted[0], end: endSlot.end, price: String(totalPrice),
               });
               router.push(`/bookings?${params}`);
             }}
             className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-6 py-2.5 rounded-lg transition-colors font-medium">
-               Đặt sân →
+            Đặt sân →
           </button>
         </div>
       )}

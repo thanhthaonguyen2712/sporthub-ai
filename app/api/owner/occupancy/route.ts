@@ -11,19 +11,49 @@ export async function GET(req: NextRequest) {
   const ownerId = Number((session.user as any).id);
   const { searchParams } = req.nextUrl;
   const facilityId = Number(searchParams.get("facilityId"));
-  const period = searchParams.get("period") || "month"; // "week" | "month"
+  const period = searchParams.get("period") || "month";
   const month = Number(searchParams.get("month") || new Date().getMonth() + 1);
   const year = Number(searchParams.get("year") || new Date().getFullYear());
 
   const facility = await prisma.facility.findFirst({
     where: { id: facilityId, ownerId },
-    include: { courts: { where: { isActive: true }, select: { id: true, name: true } } },
+    include: {
+      courts: {
+        where: { isActive: true },
+        select: { id: true, name: true, category: { select: { name: true } } },
+      },
+    },
   });
   if (!facility) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
 
+  const courtIds = facility.courts.map((c) => c.id);
+
+  // ── Yearly view ─────────────────────────────────────────────────────────────
+  if (period === "year") {
+    const yearBookings = await prisma.booking.findMany({
+      where: {
+        courtId: { in: courtIds },
+        bookingDate: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31) },
+        status: { notIn: ["CANCELLED"] },
+      },
+      select: { bookingDate: true },
+    });
+    const monthlyStats = Array.from({ length: 12 }, (_, i) => {
+      const count = yearBookings.filter((b) => new Date(b.bookingDate).getMonth() === i).length;
+      const daysInMonth = new Date(year, i + 1, 0).getDate();
+      const totalSlots = courtIds.length * 16 * daysInMonth;
+      return {
+        month: i + 1,
+        count,
+        rate: totalSlots > 0 ? Math.round((count / totalSlots) * 100) : 0,
+      };
+    });
+    return NextResponse.json({ monthlyStats });
+  }
+
+  // ── Monthly view ─────────────────────────────────────────────────────────────
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
-  const courtIds = facility.courts.map((c) => c.id);
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -31,40 +61,47 @@ export async function GET(req: NextRequest) {
       bookingDate: { gte: startDate, lte: endDate },
       status: { notIn: ["CANCELLED"] },
     },
-    select: { bookingDate: true, startTime: true, endTime: true, courtId: true },
+    select: { bookingDate: true, startTime: true, courtId: true },
   });
 
-  // Tỉ lệ lấp đầy theo ngày
+  // Daily stats
   const daysInMonth = endDate.getDate();
   const dailyStats = Array.from({ length: daysInMonth }, (_, i) => {
-    const date = new Date(year, month - 1, i + 1);
-    const dayBookings = bookings.filter(
-      (b) => new Date(b.bookingDate).getDate() === i + 1
-    );
-    const totalSlots = courtIds.length * 16; // 16 khung giờ/ngày mỗi sân
-    const bookedSlots = dayBookings.length;
+    const count = bookings.filter((b) => new Date(b.bookingDate).getDate() === i + 1).length;
+    const totalSlots = courtIds.length * 16;
     return {
       day: i + 1,
-      date: date.toISOString().split("T")[0],
-      bookedSlots,
-      totalSlots,
-      rate: totalSlots > 0 ? Math.round((bookedSlots / totalSlots) * 100) : 0,
+      count,
+      rate: totalSlots > 0 ? Math.round((count / totalSlots) * 100) : 0,
     };
   });
 
-  // Tỉ lệ lấp đầy theo khung giờ
-  const hourlyStats: Record<string, number> = {};
+  // Hourly stats
+  const hourlyMap: Record<string, number> = {};
   bookings.forEach((b) => {
     const hour = new Date(b.startTime).getUTCHours();
     const key = `${String(hour).padStart(2, "0")}:00`;
-    hourlyStats[key] = (hourlyStats[key] || 0) + 1;
+    hourlyMap[key] = (hourlyMap[key] || 0) + 1;
   });
+  const hourlyStats = Object.entries(hourlyMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([hour, count]) => ({ hour, count }));
 
-  // Tỉ lệ theo sân
-  const courtStats = facility.courts.map((c) => {
+  // Court stats
+  const courtStats = facility.courts.map((c) => ({
+    courtId: c.id,
+    courtName: c.name,
+    count: bookings.filter((b) => b.courtId === c.id).length,
+  }));
+
+  // Sport stats
+  const sportMap: Record<string, number> = {};
+  facility.courts.forEach((c) => {
+    const sport = c.category?.name || "Khác";
     const count = bookings.filter((b) => b.courtId === c.id).length;
-    return { courtId: c.id, courtName: c.name, bookingCount: count };
+    sportMap[sport] = (sportMap[sport] || 0) + count;
   });
+  const sportStats = Object.entries(sportMap).map(([name, count]) => ({ name, count }));
 
-  return NextResponse.json({ dailyStats, hourlyStats, courtStats, month, year });
+  return NextResponse.json({ dailyStats, hourlyStats, courtStats, sportStats, month, year });
 }

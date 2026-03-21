@@ -149,8 +149,14 @@ export default function Navbar() {
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
                   className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl px-3 py-2 transition-colors">
-                  <div className="w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                    {session.user?.name?.[0]?.toUpperCase() || "U"}
+                  <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
+                    {(session.user as any)?.avatar ? (
+                      <img src={(session.user as any).avatar} alt="avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">
+                        {session.user?.name?.[0]?.toUpperCase() || "U"}
+                      </div>
+                    )}
                   </div>
                   <span className="text-white text-sm font-medium max-w-24 truncate">{session.user?.name}</span>
                   <span className="text-slate-400 text-xs">▾</span>
@@ -165,15 +171,25 @@ export default function Navbar() {
                         {(session.user as any)?.role || "CUSTOMER"}
                       </span>
                     </div>
-                    <Link href="/profile" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
-                      👤 {t("profile")}
-                    </Link>
-                    <Link href="/profile?tab=bookings" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
-                      📋 {t("bookings")}
-                    </Link>
+                    {/* Ẩn profile/bookings với nhân viên */}
+                    {(session.user as any)?.role !== "STAFF" && (session.user as any)?.role !== "WAREHOUSE_MANAGER" && (
+                      <>
+                        <Link href="/profile" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
+                          {t("profile")}
+                        </Link>
+                        <Link href="/profile?tab=bookings" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
+                          {t("bookings")}
+                        </Link>
+                      </>
+                    )}
                     {(session.user as any)?.role === "OWNER" && (
                       <Link href="/owner/dashboard" className="block px-4 py-2.5 text-emerald-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
-                        🏟️ Quản lý sân
+                        Quản lý sân
+                      </Link>
+                    )}
+                    {((session.user as any)?.role === "STAFF" || (session.user as any)?.role === "WAREHOUSE_MANAGER") && (
+                      <Link href="/staff/dashboard" className="block px-4 py-2.5 text-blue-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
+                        {(session.user as any)?.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Trang làm việc"}
                       </Link>
                     )}
                     <button

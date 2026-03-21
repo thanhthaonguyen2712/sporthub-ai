@@ -20,6 +20,8 @@ export const authOptions: NextAuthOptions = {
 
         if (!user) return null;
 
+        if (user.isLocked) return null;
+
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
@@ -46,13 +48,16 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = token.role;
       }
 
-      // Lấy fullName mới nhất từ DB
+      // Lấy fullName + avatar mới nhất từ DB
       if (token.id) {
         const user = await prisma.user.findUnique({
           where: { id: Number(token.id) },
-          select: { fullName: true },
+          select: { fullName: true, avatar: true },
         });
-        if (user && session.user) session.user.name = user.fullName;
+        if (user && session.user) {
+          session.user.name = user.fullName;
+          (session.user as any).avatar = user.avatar;
+        }
       }
 
       return session;

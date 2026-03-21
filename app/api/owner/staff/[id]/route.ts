@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// DELETE /api/owner/staff/[staffRecordId] - Xóa nhân viên khỏi cơ sở
-export async function DELETE(
-  _req: NextRequest,
+// PATCH /api/owner/staff/[staffRecordId] - Khóa / Mở khóa tài khoản nhân viên
+export async function PATCH(
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -17,9 +17,15 @@ export async function DELETE(
 
   const record = await prisma.facilityStaff.findFirst({
     where: { id: Number(id), facility: { ownerId } },
+    include: { user: { select: { id: true, isLocked: true } } },
   });
   if (!record) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
 
-  await prisma.facilityStaff.delete({ where: { id: Number(id) } });
-  return NextResponse.json({ success: true });
+  const newLocked = !record.user.isLocked;
+  await prisma.user.update({
+    where: { id: record.user.id },
+    data: { isLocked: newLocked },
+  });
+
+  return NextResponse.json({ success: true, isLocked: newLocked });
 }

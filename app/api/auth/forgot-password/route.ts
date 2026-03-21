@@ -14,6 +14,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // Tài khoản nhân viên không được tự đặt lại mật khẩu
+    if (user.role === "STAFF" || user.role === "WAREHOUSE_MANAGER") {
+      return NextResponse.json({ error: "STAFF_ACCOUNT" }, { status: 403 });
+    }
+
     // Tạo token reset
     const token = crypto.randomBytes(32).toString("hex");
     const exp = new Date(Date.now() + 30 * 60 * 1000); // hết hạn sau 30 phút

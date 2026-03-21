@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Facility { id: number; name: string; address: string; description: string; isActive: boolean; courtCount: number; staffCount: number; sports: { id: number; name: string }[] }
-interface StaffRecord { staffRecordId: number; facilityId: number; facilityName: string; role: string; joinedAt: string; user: { id: number; fullName: string; email: string; phone: string; role: string } }
+interface StaffRecord { staffRecordId: number; facilityId: number; facilityName: string; role: string; joinedAt: string; user: { id: number; fullName: string; email: string; phone: string; role: string; isLocked: boolean } }
 interface AttendanceStaff { userId: number; fullName: string; role: string; totalHours: number; presentDays: number; records: { id: number; date: string; checkIn: string | null; checkOut: string | null; totalHours: string | null; status: string }[] }
 interface SalaryRecord { id: number; staffId: number; month: number; year: number; totalHours: number; wageRate: number; wageType: string; baseSalary: number; bonus: number; finalSalary: number; isPaid: boolean; paidAt: string | null; staff: { fullName: string; email: string } }
 interface WageConfig { id: number; staffId: number; wageType: string; wageRate: number; staff: { id: number; fullName: string } }
@@ -15,14 +15,13 @@ interface Service { id: number; name: string; type: string; price: string; stock
 interface Invoice { id: number; createdAt: string; finalTotal: string; paymentMethod: string; staffName: string; customerName: string; courtName: string; items: { name: string; quantity: number; price: string }[] }
 
 const TAB_IDS = [
-  { id: "overview",   labelKey: "tabOverview",    icon: "📊" },
-  { id: "facilities", labelKey: "tabFacilities",  icon: "🏟️" },
-  { id: "staff",      labelKey: "tabStaff",       icon: "👥" },
-  { id: "attendance", labelKey: "tabAttendance",  icon: "📅" },
-  { id: "salary",     labelKey: "tabSalary",      icon: "💰" },
-  { id: "occupancy",  labelKey: "tabOccupancy",   icon: "📈" },
-  { id: "invoices",   labelKey: "tabInvoices",    icon: "🧾" },
-  { id: "services",   labelKey: "tabServices",    icon: "🛒" },
+  { id: "overview",   labelKey: "tabOverview"   },
+  { id: "facilities", labelKey: "tabFacilities" },
+  { id: "staff",      labelKey: "tabStaff"      },
+  { id: "attendance", labelKey: "tabAttendance" },
+  { id: "salary",     labelKey: "tabSalary"     },
+  { id: "invoices",   labelKey: "tabInvoices"   },
+  { id: "services",   labelKey: "tabServices"   },
 ];
 
 const CARD = "border border-gray-300 rounded-2xl p-5 mb-4";
@@ -41,13 +40,12 @@ function OverviewTab() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {[
-        { label: t("statFacilities"), value: stats.facilityCount, icon: "🏟️", color: "text-emerald-600" },
-        { label: t("statStaff"), value: stats.staffCount, icon: "👥", color: "text-blue-600" },
-        { label: t("statMonthlyBookings"), value: stats.monthlyBookings, icon: "📅", color: "text-purple-600" },
-        { label: t("statMonthlyRevenue"), value: Number(stats.monthlyRevenue).toLocaleString("vi-VN") + "đ", icon: "💰", color: "text-orange-600" },
+        { label: t("statFacilities"), value: stats.facilityCount, color: "text-emerald-600" },
+        { label: t("statStaff"), value: stats.staffCount, color: "text-blue-600" },
+        { label: t("statMonthlyBookings"), value: stats.monthlyBookings, color: "text-purple-600" },
+        { label: t("statMonthlyRevenue"), value: Number(stats.monthlyRevenue).toLocaleString("vi-VN") + "đ", color: "text-orange-600" },
       ].map(s => (
         <div key={s.label} className={`${CARD} text-center`} style={BG}>
-          <div className="text-3xl mb-2">{s.icon}</div>
           <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
           <div className="text-xs text-gray-500 mt-1">{s.label}</div>
         </div>
@@ -151,10 +149,10 @@ function FacilitiesTab() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-semibold text-black">{f.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">📍 {f.address}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{f.address}</p>
                 <div className="flex gap-2 mt-1.5 flex-wrap">
-                  <span className="text-xs bg-white border border-gray-200 rounded-full px-2 py-0.5">🏸 {f.courtCount} sân</span>
-                  <span className="text-xs bg-white border border-gray-200 rounded-full px-2 py-0.5">👥 {f.staffCount} NV</span>
+                  <span className="text-xs bg-white border border-gray-200 rounded-full px-2 py-0.5">{f.courtCount} sân</span>
+                  <span className="text-xs bg-white border border-gray-200 rounded-full px-2 py-0.5">{f.staffCount} NV</span>
                   {f.sports.map(s => <span key={s.id} className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-2 py-0.5">{s.name}</span>)}
                 </div>
               </div>
@@ -230,9 +228,10 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
     } else { const d = await res.json(); alert(d.error); }
   }
 
-  async function deleteStaff(recordId: number) {
-    if (!confirm("Xóa nhân viên này khỏi cơ sở?")) return;
-    await fetch(`/api/owner/staff/${recordId}`, { method: "DELETE" });
+  async function toggleLockStaff(recordId: number, isLocked: boolean) {
+    const action = isLocked ? "Mở khóa" : "Khóa";
+    if (!confirm(`${action} tài khoản nhân viên này?`)) return;
+    await fetch(`/api/owner/staff/${recordId}`, { method: "PATCH" });
     loadStaff(selectedFacility);
   }
 
@@ -264,9 +263,9 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
               <option value="WAREHOUSE_MANAGER">Quản lý kho</option>
             </select>
             <input className={INPUT} placeholder="Họ và tên *" value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} />
-            <input className={INPUT} placeholder="Email *" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-            <input className={INPUT} placeholder="Số điện thoại *" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
-            <input className={INPUT} placeholder="Mật khẩu *" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+            <input className={INPUT} placeholder="Email *" type="email" autoComplete="off" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+            <input className={INPUT} placeholder="Số điện thoại *" type="tel" autoComplete="off" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+            <input className={INPUT} placeholder="Mật khẩu *" type="password" autoComplete="new-password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
           </div>
           <div className="flex gap-2 justify-end mt-3">
             <button onClick={() => setShowForm(false)} className={BTN_W}>Hủy</button>
@@ -290,8 +289,11 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
             {filtered.length === 0 ? (
               <tr><td colSpan={5} className="text-center py-8 text-gray-400">Chưa có nhân viên</td></tr>
             ) : filtered.map(s => (
-              <tr key={s.staffRecordId} className="border-t border-gray-100 hover:bg-white/50">
-                <td className="px-4 py-3 font-medium text-black">{s.user.fullName}</td>
+              <tr key={s.staffRecordId} className={`border-t border-gray-100 hover:bg-white/50 ${s.user.isLocked ? "opacity-60" : ""}`}>
+                <td className="px-4 py-3 font-medium text-black">
+                  {s.user.fullName}
+                  {s.user.isLocked && <span className="ml-2 text-xs text-red-500 font-normal">(Đã khóa)</span>}
+                </td>
                 <td className="px-4 py-3 text-gray-600">
                   <p>{s.user.email}</p>
                   <p className="text-xs">{s.user.phone}</p>
@@ -303,7 +305,12 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{s.facilityName}</td>
                 <td className="px-4 py-3 text-right">
-                  <button onClick={() => deleteStaff(s.staffRecordId)} className={BTN_R}>Xóa</button>
+                  <button
+                    onClick={() => toggleLockStaff(s.staffRecordId, s.user.isLocked)}
+                    className={s.user.isLocked ? BTN_G : BTN_R}
+                  >
+                    {s.user.isLocked ? "Mở khóa" : "Khóa"}
+                  </button>
                 </td>
               </tr>
             ))}
@@ -557,97 +564,40 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
   );
 }
 
-// ─── Occupancy Tab ───────────────────────────────────────────────────────────
-function OccupancyTab({ facilities }: { facilities: Facility[] }) {
-  const now = new Date();
-  const [facilityId, setFacilityId] = useState<string>("");
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
-  const [data, setData] = useState<any>(null);
 
-  async function load() {
-    if (!facilityId) return;
-    const res = await fetch(`/api/owner/occupancy?facilityId=${facilityId}&month=${month}&year=${year}`);
-    setData(await res.json());
-  }
-
+// ─── Bar Chart ───────────────────────────────────────────────────────────────
+function BarChart({ items, labelKey, valueKey, color = "#10b981" }: {
+  items: any[];
+  labelKey: string;
+  valueKey: string;
+  color?: string;
+}) {
+  const max = Math.max(...items.map(i => i[valueKey]), 1);
   return (
-    <div>
-      <div className={CARD} style={BG}>
-        <div className="flex flex-wrap gap-3 items-end">
-          <div><p className="text-xs text-gray-500 mb-1">Cơ sở</p>
-            <select className={INPUT + " w-48"} value={facilityId} onChange={e => setFacilityId(e.target.value)}>
-              <option value="">-- Chọn cơ sở --</option>
-              {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          </div>
-          <div><p className="text-xs text-gray-500 mb-1">Tháng</p>
-            <select className={INPUT + " w-28"} value={month} onChange={e => setMonth(Number(e.target.value))}>
-              {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>T{i + 1}</option>)}
-            </select>
-          </div>
-          <div><p className="text-xs text-gray-500 mb-1">Năm</p>
-            <select className={INPUT + " w-24"} value={year} onChange={e => setYear(Number(e.target.value))}>
-              {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          <button onClick={load} className={BTN_G}>Xem</button>
-        </div>
+    <div className="w-full overflow-x-auto">
+      <div className="flex items-end gap-1.5 min-w-0" style={{ minHeight: 140 }}>
+        {items.map((item, idx) => {
+          const pct = Math.round((item[valueKey] / max) * 100);
+          const barColor = item.highlight ? "#f59e0b" : color;
+          return (
+            <div key={idx} className="flex flex-col items-center flex-1 min-w-[28px]">
+              <span className="text-xs font-semibold mb-1" style={{ color: barColor }}>
+                {item[valueKey]}
+              </span>
+              <div className="w-full rounded-t-md transition-all" style={{
+                height: `${Math.max(pct, 2)}px`,
+                background: barColor,
+                minHeight: 4,
+                maxHeight: 100,
+                opacity: pct === 0 ? 0.2 : 1,
+              }} />
+              <span className="text-xs text-gray-500 mt-1 truncate w-full text-center" style={{ fontSize: 10 }}>
+                {item[labelKey]}
+              </span>
+            </div>
+          );
+        })}
       </div>
-
-      {data && (
-        <div className="space-y-4">
-          {/* Tỉ lệ theo sân */}
-          <div className={CARD} style={BG}>
-            <h3 className="font-semibold text-black mb-3">Tỉ lệ đặt theo sân</h3>
-            <div className="space-y-2.5">
-              {data.courtStats.map((c: any) => (
-                <div key={c.courtId}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium text-black">{c.courtName}</span>
-                    <span className="text-gray-500">{c.bookingCount} lượt</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-emerald-500 h-2 rounded-full transition-all"
-                      style={{ width: `${Math.min(100, (c.bookingCount / (Math.max(...data.courtStats.map((x: any) => x.bookingCount)) || 1)) * 100)}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Tỉ lệ theo khung giờ */}
-          <div className={CARD} style={BG}>
-            <h3 className="font-semibold text-black mb-3">Khung giờ phổ biến</h3>
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-              {Object.entries(data.hourlyStats).sort().map(([hour, count]: any) => (
-                <div key={hour} className="text-center bg-white rounded-xl p-2 border border-gray-200">
-                  <p className="text-xs font-bold text-emerald-600">{count}</p>
-                  <p className="text-xs text-gray-500">{hour}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Tỉ lệ theo ngày */}
-          <div className={CARD} style={BG}>
-            <h3 className="font-semibold text-black mb-3">Lấp đầy theo ngày — Tháng {month}/{year}</h3>
-            <div className="grid grid-cols-7 gap-1">
-              {data.dailyStats.map((d: any) => (
-                <div key={d.day} className="text-center">
-                  <div className="rounded-lg p-2 text-xs" style={{
-                    background: `rgba(16,185,129,${d.rate / 100})`,
-                    border: "1px solid #e5e7eb",
-                  }}>
-                    <p className="font-bold text-gray-700">{d.day}</p>
-                    <p className="text-gray-600">{d.rate}%</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -661,18 +611,57 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [occupancy, setOccupancy] = useState<any>(null);
+  const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
+  const [chartView, setChartView] = useState<"day" | "hour" | "court" | "sport" | "month">("day");
 
   const PM_LABEL: Record<string, string> = { CASH: "Tiền mặt", TRANSFER: "Chuyển khoản", QR: "VNPay", WALLET: "Ví SportHub" };
 
   async function load() {
     if (!facilityId) return;
-    const res = await fetch(`/api/owner/invoices?facilityId=${facilityId}&month=${month}&year=${year}`);
-    const d = await res.json();
-    setInvoices(Array.isArray(d) ? d : []);
+    const [invRes, occRes, mRes] = await Promise.all([
+      fetch(`/api/owner/invoices?facilityId=${facilityId}&month=${month}&year=${year}`),
+      fetch(`/api/owner/occupancy?facilityId=${facilityId}&month=${month}&year=${year}`),
+      fetch(`/api/owner/occupancy?facilityId=${facilityId}&year=${year}&period=year`),
+    ]);
+    const invData = await invRes.json();
+    const occData = await occRes.json();
+    const mData = await mRes.json();
+    setInvoices(Array.isArray(invData) ? invData : []);
+    setOccupancy(occData.dailyStats ? occData : null);
+    setMonthlyStats(mData.monthlyStats || []);
     setLoaded(true);
   }
 
   const total = invoices.reduce((s, i) => s + Number(i.finalTotal), 0);
+
+  const CHART_VIEWS = [
+    { key: "day",   label: "Ngày" },
+    { key: "hour",  label: "Giờ" },
+    { key: "court", label: "Sân" },
+    { key: "sport", label: "Môn" },
+    { key: "month", label: "Tháng" },
+  ] as const;
+
+  function getChartItems() {
+    if (!occupancy && chartView !== "month") return [];
+    switch (chartView) {
+      case "day":
+        return (occupancy?.dailyStats || []).map((d: any) => ({ label: `${d.day}`, value: d.count }));
+      case "hour":
+        return (occupancy?.hourlyStats || []).map((h: any) => ({
+          label: h.hour.replace(":00", "h"),
+          value: h.count,
+          highlight: parseInt(h.hour) >= 7 && parseInt(h.hour) < 9,
+        }));
+      case "court":
+        return (occupancy?.courtStats || []).map((c: any) => ({ label: c.courtName, value: c.count }));
+      case "sport":
+        return (occupancy?.sportStats || []).map((s: any) => ({ label: s.name, value: s.count }));
+      case "month":
+        return monthlyStats.map((m: any) => ({ label: `T${m.month}`, value: m.count, rate: m.rate }));
+    }
+  }
 
   return (
     <div>
@@ -700,11 +689,12 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
 
       {loaded && (
         <>
+          {/* Invoice list */}
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-gray-600">{invoices.length} hóa đơn</p>
             <p className="font-bold text-emerald-600">Tổng: {total.toLocaleString("vi-VN")}đ</p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 mb-6">
             {invoices.length === 0 ? <p className="text-center py-10 text-gray-400">Không có hóa đơn</p> : invoices.map(inv => (
               <div key={inv.id} className={CARD + " cursor-pointer"} style={BG} onClick={() => setExpanded(expanded === inv.id ? null : inv.id)}>
                 <div className="flex justify-between items-start">
@@ -737,6 +727,67 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
               </div>
             ))}
           </div>
+
+          {/* Occupancy chart */}
+          <div className={CARD} style={BG}>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 className="font-semibold text-black">Tỉ lệ lấp đầy</h3>
+              <div className="flex gap-1 flex-wrap">
+                {CHART_VIEWS.map(v => (
+                  <button key={v.key} onClick={() => setChartView(v.key)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                      chartView === v.key
+                        ? "bg-emerald-500 text-white border-emerald-500"
+                        : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"
+                    }`}>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary row */}
+            {occupancy && chartView !== "month" && (
+              <div className="flex gap-3 mb-4 flex-wrap">
+                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
+                  <p className="text-xs text-gray-500">Tổng lượt đặt</p>
+                  <p className="font-bold text-emerald-600 text-lg">
+                    {(occupancy.dailyStats || []).reduce((s: number, d: any) => s + d.count, 0)}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
+                  <p className="text-xs text-gray-500">Ngày cao nhất</p>
+                  <p className="font-bold text-blue-600 text-lg">
+                    {Math.max(...(occupancy.dailyStats || [{ count: 0 }]).map((d: any) => d.count))} lượt
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
+                  <p className="text-xs text-gray-500">Lấp đầy TB/ngày</p>
+                  <p className="font-bold text-orange-600 text-lg">
+                    {(() => {
+                      const days = (occupancy.dailyStats || []);
+                      const avg = days.length ? Math.round(days.reduce((s: number, d: any) => s + d.rate, 0) / days.length) : 0;
+                      return avg + "%";
+                    })()}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <BarChart
+              items={getChartItems()}
+              labelKey="label"
+              valueKey="value"
+              color="#10b981"
+            />
+
+            {chartView === "hour" && (
+              <p className="text-xs text-gray-400 mt-2">Màu vàng = khung giờ cao điểm (7h–9h)</p>
+            )}
+            {chartView === "month" && (
+              <p className="text-xs text-gray-400 mt-2">Tổng lượt đặt theo từng tháng — năm {year}</p>
+            )}
+          </div>
         </>
       )}
     </div>
@@ -750,7 +801,7 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
   const [form, setForm] = useState({ name: "", type: "PRODUCT", price: "", stockQuantity: "" });
-  const [editForm, setEditForm] = useState<Partial<Service & { price: string; stockQuantity: string }>>({});
+  const [editForm, setEditForm] = useState<Partial<Omit<Service, "stockQuantity"> & { stockQuantity: string }>>({});
   const [loaded, setLoaded] = useState(false);
 
   const loadServices = useCallback((fid: string) => {
@@ -920,7 +971,7 @@ export default function OwnerDashboard() {
                   ? "bg-emerald-500 text-white"
                   : "bg-white text-gray-600 hover:text-black border border-gray-300 hover:border-emerald-300"
               }`}>
-              <span>{tab.icon}</span> {tab.label}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -932,7 +983,6 @@ export default function OwnerDashboard() {
           {activeTab === "staff"      && <StaffTab facilities={facilities} />}
           {activeTab === "attendance" && <AttendanceTab facilities={facilities} />}
           {activeTab === "salary"     && <SalaryTab facilities={facilities} />}
-          {activeTab === "occupancy"  && <OccupancyTab facilities={facilities} />}
           {activeTab === "invoices"   && <InvoicesTab facilities={facilities} />}
           {activeTab === "services"   && <ServicesTab facilities={facilities} />}
         </div>
