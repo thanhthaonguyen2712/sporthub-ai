@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { useTranslations } from "next-intl";
 
 interface Facility {
   id: number;
@@ -86,6 +87,7 @@ function generateSlots(sportName: string, pricingRules: Court["pricingRules"], d
 }
 
 export default function GuestBookingPage() {
+  const t = useTranslations("guestBooking");
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [selectedFacilityId, setSelectedFacilityId] = useState<number | null>(null);
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
@@ -151,7 +153,7 @@ export default function GuestBookingPage() {
 
   async function handleSubmit() {
     if (!selectedCourt || !selectedDate || !selectedSlot || !guestName || !guestPhone) {
-      setError("Vui lòng điền đầy đủ thông tin!");
+      setError(t("fillRequired"));
       return;
     }
     setError("");
@@ -176,7 +178,7 @@ export default function GuestBookingPage() {
       setSuccess(true);
       setBookingId(data.bookingId);
     } else {
-      setError(data.error || "Có lỗi xảy ra!");
+      setError(data.error || t("error"));
     }
   }
 
@@ -186,17 +188,17 @@ export default function GuestBookingPage() {
         <Navbar />
         <div className="max-w-lg mx-auto px-6 py-20 text-center">
           <div className="text-6xl mb-4">✅</div>
-          <h1 className="text-2xl font-bold text-black mb-2">Đặt sân thành công!</h1>
-          <p className="text-gray-600 mb-1">Mã đặt sân: <span className="font-semibold text-emerald-600">#{bookingId}</span></p>
-          <p className="text-gray-600 mb-6">Dùng số điện thoại <span className="font-semibold">{guestPhone}</span> để tra cứu lịch đặt.</p>
+          <h1 className="text-2xl font-bold text-black mb-2">{t("successTitle")}</h1>
+          <p className="text-gray-600 mb-1">{t("bookingCode")}: <span className="font-semibold text-emerald-600">#{bookingId}</span></p>
+          <p className="text-gray-600 mb-6">{t("usePhoneMsg", { phone: guestPhone })}</p>
           <div className="flex gap-3 justify-center">
             <Link href={`/guest-booking/invoice/${bookingId}?phone=${encodeURIComponent(guestPhone)}`}
               className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-colors">
-              Xem hóa đơn
+              {t("viewInvoice")}
             </Link>
             <Link href="/guest-booking/lookup"
               className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-6 py-3 rounded-xl text-sm font-semibold transition-colors">
-              Tra cứu lịch đặt
+              {t("lookupBooking")}
             </Link>
           </div>
         </div>
@@ -209,21 +211,21 @@ export default function GuestBookingPage() {
       <Navbar />
       <div className="max-w-2xl mx-auto px-6 py-10">
         <div className="mb-6">
-          <Link href="/" className="text-sm text-emerald-600 hover:underline">← Về trang chủ</Link>
-          <h1 className="text-2xl font-bold text-black mt-2">Đặt sân không cần tài khoản</h1>
-          <p className="text-gray-500 text-sm mt-1">Điền thông tin bên dưới để đặt sân nhanh chóng</p>
+          <Link href="/" className="text-sm text-emerald-600 hover:underline">{t("backHome")}</Link>
+          <h1 className="text-2xl font-bold text-black mt-2">{t("pageTitle")}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t("pageSubtitle")}</p>
         </div>
 
         <div className="space-y-5">
           {/* Chọn cơ sở */}
           <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
-            <h2 className="font-semibold text-black mb-3">1. Chọn cơ sở</h2>
+            <h2 className="font-semibold text-black mb-3">{t("step1")}</h2>
             <select
               value={selectedFacilityId ?? ""}
               onChange={(e) => setSelectedFacilityId(e.target.value ? Number(e.target.value) : null)}
               className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:border-emerald-400"
             >
-              <option value="">-- Chọn cơ sở --</option>
+              <option value="">{t("chooseFacility")}</option>
               {facilities.map((f) => (
                 <option key={f.id} value={f.id}>{f.name} – {f.address}</option>
               ))}
@@ -233,7 +235,7 @@ export default function GuestBookingPage() {
           {/* Chọn sân */}
           {facility && (
             <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
-              <h2 className="font-semibold text-black mb-3">2. Chọn sân</h2>
+              <h2 className="font-semibold text-black mb-3">{t("step2")}</h2>
               <div className="grid grid-cols-2 gap-2">
                 {facility.courts.map((court) => (
                   <button
@@ -256,7 +258,7 @@ export default function GuestBookingPage() {
           {/* Chọn ngày */}
           {selectedCourt && (
             <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
-              <h2 className="font-semibold text-black mb-3">3. Chọn ngày</h2>
+              <h2 className="font-semibold text-black mb-3">{t("step3")}</h2>
               <input
                 type="date"
                 min={today}
@@ -270,7 +272,7 @@ export default function GuestBookingPage() {
           {/* Chọn khung giờ */}
           {selectedDate && slots.length > 0 && (
             <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
-              <h2 className="font-semibold text-black mb-3">4. Chọn khung giờ</h2>
+              <h2 className="font-semibold text-black mb-3">{t("step4")}</h2>
               <div className="grid grid-cols-2 gap-2">
                 {slots.map((slot) => {
                   const booked = isBooked(slot);
@@ -290,7 +292,7 @@ export default function GuestBookingPage() {
                     >
                       <p className="font-medium">{slot.label}</p>
                       <p className="text-xs mt-0.5">
-                        {booked ? "Đã đặt" : `${slot.price.toLocaleString("vi-VN")}đ`}
+                        {booked ? t("booked") : `${slot.price.toLocaleString("vi-VN")}đ`}
                       </p>
                     </button>
                   );
@@ -302,25 +304,25 @@ export default function GuestBookingPage() {
           {/* Thông tin khách */}
           {selectedSlot && (
             <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
-              <h2 className="font-semibold text-black mb-3">5. Thông tin của bạn</h2>
+              <h2 className="font-semibold text-black mb-3">{t("step5")}</h2>
               <div className="space-y-3">
                 <input
                   type="text"
-                  placeholder="Họ và tên *"
+                  placeholder={t("namePlaceholder")}
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:border-emerald-400"
                 />
                 <input
                   type="tel"
-                  placeholder="Số điện thoại * (dùng để tra cứu lịch)"
+                  placeholder={t("phonePlaceholder")}
                   value={guestPhone}
                   onChange={(e) => setGuestPhone(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:border-emerald-400"
                 />
                 <input
                   type="email"
-                  placeholder="Email (không bắt buộc)"
+                  placeholder={t("emailPlaceholder")}
                   value={guestEmail}
                   onChange={(e) => setGuestEmail(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:border-emerald-400"
@@ -329,10 +331,10 @@ export default function GuestBookingPage() {
 
               {/* Tổng kết */}
               <div className="mt-4 p-4 bg-white rounded-xl border border-gray-200">
-                <p className="text-sm text-gray-600">Sân: <span className="font-medium text-black">{selectedCourt?.name}</span></p>
-                <p className="text-sm text-gray-600">Ngày: <span className="font-medium text-black">{new Date(selectedDate).toLocaleDateString("vi-VN")}</span></p>
-                <p className="text-sm text-gray-600">Giờ: <span className="font-medium text-black">{selectedSlot.label}</span></p>
-                <p className="text-sm text-gray-600 mt-1">Thanh toán tại sân: <span className="font-semibold text-emerald-600 text-base">{selectedSlot.price.toLocaleString("vi-VN")}đ</span></p>
+                <p className="text-sm text-gray-600">{t("court")}: <span className="font-medium text-black">{selectedCourt?.name}</span></p>
+                <p className="text-sm text-gray-600">{t("date")}: <span className="font-medium text-black">{new Date(selectedDate).toLocaleDateString("vi-VN")}</span></p>
+                <p className="text-sm text-gray-600">{t("time")}: <span className="font-medium text-black">{selectedSlot.label}</span></p>
+                <p className="text-sm text-gray-600 mt-1">{t("payAtVenue")}: <span className="font-semibold text-emerald-600 text-base">{selectedSlot.price.toLocaleString("vi-VN")}đ</span></p>
               </div>
             </div>
           )}
@@ -345,7 +347,7 @@ export default function GuestBookingPage() {
               disabled={loading}
               className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-4 rounded-xl font-semibold transition-colors"
             >
-              {loading ? "Đang xử lý..." : "Xác nhận đặt sân"}
+              {loading ? t("processing") : t("confirmBooking")}
             </button>
           )}
         </div>

@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { useTranslations } from "next-intl";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Facility { id: number; name: string; address: string; description: string; isActive: boolean; courtCount: number; staffCount: number; sports: { id: number; name: string }[] }
@@ -13,15 +14,15 @@ interface WageConfig { id: number; staffId: number; wageType: string; wageRate: 
 interface Service { id: number; name: string; type: string; price: string; stockQuantity: number; isActive: boolean }
 interface Invoice { id: number; createdAt: string; finalTotal: string; paymentMethod: string; staffName: string; customerName: string; courtName: string; items: { name: string; quantity: number; price: string }[] }
 
-const TABS = [
-  { id: "overview",    label: "Tổng quan",   icon: "📊" },
-  { id: "facilities",  label: "Cơ sở",       icon: "🏟️" },
-  { id: "staff",       label: "Nhân viên",   icon: "👥" },
-  { id: "attendance",  label: "Chấm công",   icon: "📅" },
-  { id: "salary",      label: "Lương",       icon: "💰" },
-  { id: "occupancy",   label: "Lấp đầy",     icon: "📈" },
-  { id: "invoices",    label: "Hóa đơn",     icon: "🧾" },
-  { id: "services",    label: "Dịch vụ",     icon: "🛒" },
+const TAB_IDS = [
+  { id: "overview",   labelKey: "tabOverview",    icon: "📊" },
+  { id: "facilities", labelKey: "tabFacilities",  icon: "🏟️" },
+  { id: "staff",      labelKey: "tabStaff",       icon: "👥" },
+  { id: "attendance", labelKey: "tabAttendance",  icon: "📅" },
+  { id: "salary",     labelKey: "tabSalary",      icon: "💰" },
+  { id: "occupancy",  labelKey: "tabOccupancy",   icon: "📈" },
+  { id: "invoices",   labelKey: "tabInvoices",    icon: "🧾" },
+  { id: "services",   labelKey: "tabServices",    icon: "🛒" },
 ];
 
 const CARD = "border border-gray-300 rounded-2xl p-5 mb-4";
@@ -33,16 +34,17 @@ const BTN_W = "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px
 
 // ─── Overview Tab ────────────────────────────────────────────────────────────
 function OverviewTab() {
+  const t = useTranslations("owner");
   const [stats, setStats] = useState<any>(null);
   useEffect(() => { fetch("/api/owner/stats").then(r => r.json()).then(setStats); }, []);
-  if (!stats) return <div className="text-gray-400 text-sm py-10 text-center">Đang tải...</div>;
+  if (!stats) return <div className="text-gray-400 text-sm py-10 text-center">{t("loading")}</div>;
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {[
-        { label: "Cơ sở", value: stats.facilityCount, icon: "🏟️", color: "text-emerald-600" },
-        { label: "Nhân viên", value: stats.staffCount, icon: "👥", color: "text-blue-600" },
-        { label: "Đặt sân tháng này", value: stats.monthlyBookings, icon: "📅", color: "text-purple-600" },
-        { label: "Doanh thu tháng này", value: Number(stats.monthlyRevenue).toLocaleString("vi-VN") + "đ", icon: "💰", color: "text-orange-600" },
+        { label: t("statFacilities"), value: stats.facilityCount, icon: "🏟️", color: "text-emerald-600" },
+        { label: t("statStaff"), value: stats.staffCount, icon: "👥", color: "text-blue-600" },
+        { label: t("statMonthlyBookings"), value: stats.monthlyBookings, icon: "📅", color: "text-purple-600" },
+        { label: t("statMonthlyRevenue"), value: Number(stats.monthlyRevenue).toLocaleString("vi-VN") + "đ", icon: "💰", color: "text-orange-600" },
       ].map(s => (
         <div key={s.label} className={`${CARD} text-center`} style={BG}>
           <div className="text-3xl mb-2">{s.icon}</div>
@@ -878,8 +880,10 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
 export default function OwnerDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const t = useTranslations("owner");
   const [activeTab, setActiveTab] = useState("overview");
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const TABS = TAB_IDS.map(tab => ({ ...tab, label: t(tab.labelKey as any) }));
 
   useEffect(() => {
     if (status === "unauthenticated") { router.push("/login"); return; }
@@ -894,7 +898,7 @@ export default function OwnerDashboard() {
 
   if (status === "loading") return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
-      <p className="text-gray-500">Đang tải...</p>
+      <p className="text-gray-500">{t("loading")}</p>
     </div>
   );
 
@@ -903,8 +907,8 @@ export default function OwnerDashboard() {
       <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-black">Trang quản lý chủ sân</h1>
-          <p className="text-gray-500 text-sm mt-1">Xin chào, {(session?.user as any)?.name}</p>
+          <h1 className="text-2xl font-bold text-black">{t("dashboard")}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t("greeting", { name: (session?.user as any)?.name })}</p>
         </div>
 
         {/* Tab navigation */}

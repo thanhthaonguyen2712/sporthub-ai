@@ -5,27 +5,25 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-const ROLES = [
-  {
-    id: "CUSTOMER",
-    icon: "👤",
-    label: "Khách hàng",
-    desc: "Tìm sân, đặt sân, tham gia nhóm & các giải đấu",
-    features: ["Tìm sân gần tôi", "Đặt sân & thanh toán online", "Tham gia nhóm / cáp kèo", "Khóa học thể thao"],
-  },
-  {
-    id: "OWNER",
-    icon: "🏟️",
-    label: "Chủ sân",
-    desc: "Quản lý cơ sở, nhân viên & doanh thu — và vẫn đặt sân được",
-    features: ["Tất cả tính năng của khách", "Đăng ký & quản lý cơ sở", "Quản lý nhân viên & lương", "Xem doanh thu & lấp đầy sân"],
-    highlight: true,
-  },
-];
-
 export default function RegisterPage() {
   const router = useRouter();
   const t = useTranslations("auth");
+
+  const ROLES = [
+    {
+      id: "CUSTOMER",
+      label: t("customer"),
+      desc: t("customerDesc"),
+      features: [t("customerFeat1"), t("customerFeat2"), t("customerFeat3"), t("customerFeat4")],
+    },
+    {
+      id: "OWNER",
+      label: t("owner"),
+      desc: t("ownerDesc"),
+      features: [t("ownerFeat1"), t("ownerFeat2"), t("ownerFeat3"), t("ownerFeat4")],
+      highlight: true,
+    },
+  ];
 
   const [role, setRole] = useState<"CUSTOMER" | "OWNER">("CUSTOMER");
   const [form, setForm] = useState({ fullName: "", email: "", phone: "", password: "", confirmPassword: "" });
@@ -73,7 +71,7 @@ export default function RegisterPage() {
 
         <div className="border border-gray-300 rounded-2xl p-8 shadow-lg" style={{ background: "#E0EEE0" }}>
           <h1 className="text-black text-2xl font-bold mb-1">{t("registerTitle")}</h1>
-          <p className="text-gray-600 text-sm mb-6">Chọn loại tài khoản phù hợp với bạn</p>
+          <p className="text-gray-600 text-sm mb-6">{t("chooseAccountType")}</p>
 
           {/* Chọn loại tài khoản */}
           <div className="grid grid-cols-2 gap-3 mb-6">
@@ -105,7 +103,7 @@ export default function RegisterPage() {
                 {role === r.id && (
                   <div className="mt-2 text-xs font-semibold text-emerald-600 flex items-center gap-1">
                     <span className="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white text-[10px]">✓</span>
-                    Đã chọn
+                    {t("selected")}
                   </div>
                 )}
               </button>
@@ -115,7 +113,7 @@ export default function RegisterPage() {
           {/* Note cho owner */}
           {role === "OWNER" && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-5 text-xs text-emerald-700">
-              🏟️ Tài khoản chủ sân có đầy đủ tính năng của khách hàng — bạn vẫn có thể tìm sân & đặt sân để chơi thể thao.
+              {t("ownerNote")}
             </div>
           )}
 
@@ -142,7 +140,7 @@ export default function RegisterPage() {
 
             <button type="submit" disabled={loading}
               className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white font-semibold py-3 rounded-xl transition-all duration-200 text-sm mt-2">
-              {loading ? t("registering") : `Tạo tài khoản ${role === "OWNER" ? "Chủ sân" : "Khách hàng"}`}
+              {loading ? t("registering") : role === "OWNER" ? t("createOwnerAccount") : t("createCustomerAccount")}
             </button>
           </form>
 
