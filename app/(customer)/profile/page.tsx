@@ -1,25 +1,50 @@
 "use client";
 import { useSession, signOut } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { useTranslations } from "next-intl";
 
-const menuItems = [
-  { id: "info", icon: "👤", label: "Thông tin cá nhân" },
-  { id: "bookings", icon: "📋", label: "Lịch đặt sân" },
-  { id: "wallet", icon: "💰", label: "Ví SportHub" },
-  { id: "courses", icon: "🎓", label: "Khóa học" },
-  { id: "membership", icon: "💎", label: "Gói hội viên" },
-  { id: "vouchers", icon: "🎁", label: "Ưu đãi của tôi" },
-  { id: "groups", icon: "👥", label: "Nhóm của tôi" },
-  { id: "password", icon: "🔒", label: "Đổi mật khẩu" },
-  { id: "settings", icon: "⚙️", label: "Cài đặt" },
-];
 
 export default function ProfilePage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
+  const t = useTranslations("profile");
   const [active, setActive] = useState(searchParams.get("tab") || "info");
+  const menuItems = [
+  { id: "info", icon: "👤", label: t("info") },
+  { id: "bookings", icon: "📋", label: t("bookings") },
+  { id: "wallet", icon: "💰", label: t("wallet") },
+  { id: "courses", icon: "🎓", label: t("courses") },
+  { id: "membership", icon: "💎", label: t("membership") },
+  { id: "vouchers", icon: "🎁", label: t("vouchers") },
+  { id: "groups", icon: "👥", label: t("groups") },
+  { id: "password", icon: "🔒", label: t("password") },
+  { id: "settings", icon: "⚙️", label: t("settings") },
+];
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/user/profile").then(r => r.json()).then(d => {
+      if (d.avatar) setAvatarUrl(d.avatar);
+    });
+  }, []);
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/user/avatar", { method: "POST", body: form });
+    const data = await res.json();
+    setAvatarUploading(false);
+    if (res.ok) setAvatarUrl(data.avatarUrl);
+    else alert(data.error || "Upload thất bại");
+  }
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState("");
@@ -48,12 +73,22 @@ export default function ProfilePage() {
           <aside className="w-64 flex-shrink-0">
             <div className="border border-gray-300 rounded-2xl p-5 mb-4 text-center" style={{ background: "#E0EEE0" }}>
               <div className="relative inline-block mb-3">
-                <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center text-2xl font-bold mx-auto text-white">
-                  {session?.user?.name?.[0]?.toUpperCase() || "U"}
-                </div>
-                <button className="absolute bottom-0 right-0 w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-xs border-2 border-white transition-colors">
-                  📷
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="avatar" className="w-20 h-20 rounded-full object-cover mx-auto border-2 border-emerald-300" />
+                ) : (
+                  <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center text-2xl font-bold mx-auto text-white">
+                    {session?.user?.name?.[0]?.toUpperCase() || "U"}
+                  </div>
+                )}
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="absolute bottom-0 right-0 w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-xs border-2 border-white transition-colors disabled:opacity-50"
+                  title="Thay ảnh đại diện"
+                >
+                  {avatarUploading ? "⏳" : "📷"}
                 </button>
+                <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
               </div>
               <p className="font-semibold text-black text-sm">{session?.user?.name}</p>
               <p className="text-gray-600 text-xs mt-0.5">{session?.user?.email}</p>
@@ -75,11 +110,11 @@ export default function ProfilePage() {
               ))}
               <button onClick={() => signOut({ callbackUrl: "/" })}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-gray-300 text-left" >
-                 Đăng xuất
+                 {t("logout")}
               </button>
               <button onClick={() => setShowDeleteConfirm(true)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-700 hover:bg-red-50 transition-colors border-t border-gray-300 text-left">
-                Xóa tài khoản
+                {t("deleteAccount")}
               </button>
             </nav>
           </aside>
@@ -140,6 +175,7 @@ export default function ProfilePage() {
 /* ─── THÔNG TIN CÁ NHÂN ─── */
 function SectionInfo({ session }: { session: any }) {
   const [editing, setEditing] = useState(false);
+  const t = useTranslations("profile");
   const [form, setForm] = useState({ fullName: "", phone: "" });
   const [dob, setDob] = useState({ day: "", month: "", year: "" });
   const [saving, setSaving] = useState(false);
@@ -188,10 +224,10 @@ function SectionInfo({ session }: { session: any }) {
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-black">Thông tin cá nhân</h2>
+        <h2 className="text-lg font-semibold text-black">{t("info")}</h2>
         <button onClick={() => setEditing(!editing)}
           className="text-sm text-emerald-600 hover:text-emerald-700 border border-emerald-400 px-3 py-1.5 rounded-lg transition-colors">
-          {editing ? "Hủy" : "✏️ Chỉnh sửa"}
+          {editing ? t("cancel") : t("edit")}
         </button>
       </div>
 
@@ -255,7 +291,7 @@ function SectionInfo({ session }: { session: any }) {
       {editing && (
         <button onClick={handleSave} disabled={saving}
           className="mt-5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
-          {saving ? "Đang lưu..." : "Lưu thay đổi"}
+          {saving ? t("saving") : t("save")}
         </button>
       )}
     </div>
@@ -759,7 +795,6 @@ function SectionWallet() {
 }
 
 /* ─── KHÓA HỌC ─── */
-/* ─── KHÓA HỌC ─── */
 function SectionCourses() {
   const [tab, setTab] = useState<"mine" | "public">("mine");
   const [courses, setCourses] = useState<any[]>([]);
@@ -1223,7 +1258,6 @@ function SectionVouchers() {
 }
 
 /* ─── NHÓM ─── */
-/* ─── NHÓM ─── */
 function SectionGroups() {
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1583,19 +1617,6 @@ function SectionSettings() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Ngôn ngữ */}
-      <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-        <h2 className="text-lg font-semibold text-black mb-5">Ngôn ngữ</h2>
-        <div className="flex gap-3">
-          {[{ value: "vi", label: "🇻🇳 Tiếng Việt" }, { value: "en", label: "🇬🇧 English" }].map((l) => (
-            <button key={l.value} onClick={() => setSettings((s) => ({ ...s, language: l.value }))}
-              className={`px-4 py-2 rounded-xl text-sm border transition-colors ${settings.language === l.value ? "bg-emerald-100 border-emerald-400 text-emerald-700 font-medium" : "border-gray-300 text-gray-600 hover:border-gray-400 bg-white"}`}>
-              {l.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Nút lưu */}

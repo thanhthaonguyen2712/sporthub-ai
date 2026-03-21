@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
+import { useTranslations } from "next-intl";
 
 interface Court {
   id: number;
@@ -42,6 +43,7 @@ export default function BookingPage() {
   const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "QR">("WALLET");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const t = useTranslations("booking");
 
   const courtPrice = Number(priceParam) || 0;
   const serviceTotal = selectedServices.reduce((sum, item) => {
@@ -161,16 +163,16 @@ export default function BookingPage() {
         <div className="max-w-lg mx-auto px-6 py-20 text-center">
           <div className="border border-gray-300 rounded-2xl p-10" style={{ background: "#E0EEE0" }}>
             <div className="text-6xl mb-4">🎉</div>
-            <h2 className="text-2xl font-bold text-black mb-2">Đặt sân thành công!</h2>
-            <p className="text-gray-600 text-sm mb-6">Email xác nhận đã được gửi về hộp thư của bạn.</p>
+            <h2 className="text-2xl font-bold text-black mb-2">{t("success")}</h2>
+            <p className="text-gray-600 text-sm mb-6">{t("successMsg")}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => router.push("/profile?tab=bookings")}
                 className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
-                Xem lịch đặt sân
+                {t("viewBookings")}
               </button>
               <button onClick={() => router.push("/")}
                 className="bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 px-6 py-2.5 rounded-xl text-sm transition-colors">
-                Về trang chủ
+                {t("backHome")}
               </button>
             </div>
           </div>
@@ -183,32 +185,32 @@ export default function BookingPage() {
     <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
       <Navbar />
       <div className="max-w-2xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-black mb-6">Xác nhận đặt sân</h1>
+        <h1 className="text-2xl font-bold text-black mb-6">{t("confirm")}</h1>
 
         {/* Thông tin sân */}
         <div className="border border-gray-300 rounded-2xl p-5 mb-4" style={{ background: "#E0EEE0" }}>
-          <h2 className="font-semibold text-black mb-3">📋 Thông tin đặt sân</h2>
+          <h2 className="font-semibold text-black mb-3">📋 {t("courtInfo")}</h2>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-600">Cơ sở</span>
+              <span className="text-gray-600">{t("facility")}</span>
               <span className="font-medium text-black">{court?.facility.name}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Sân</span>
+              <span className="text-gray-600">{t("court")}</span>
               <span className="font-medium text-black">{court?.name} · {court?.category.name}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Ngày</span>
+              <span className="text-gray-600">{t("date")}</span>
               <span className="font-medium text-black">
                 {date ? new Date(date).toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }) : ""}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Giờ</span>
+              <span className="text-gray-600">{t("time")}</span>
               <span className="font-medium text-black">{startTime} – {endTime}</span>
             </div>
             <div className="flex justify-between border-t border-gray-300 pt-2 mt-2">
-              <span className="text-gray-600">Tiền sân</span>
+              <span className="text-gray-600">{t("courtFee")}</span>
               <span className="font-semibold text-emerald-600">{courtPrice.toLocaleString("vi-VN")}đ</span>
             </div>
           </div>
@@ -217,7 +219,7 @@ export default function BookingPage() {
         {/* Dịch vụ kèm */}
         {services.length > 0 && (
           <div className="border border-gray-300 rounded-2xl p-5 mb-4" style={{ background: "#E0EEE0" }}>
-            <h2 className="font-semibold text-black mb-3">🛒 Dịch vụ kèm theo</h2>
+            <h2 className="font-semibold text-black mb-3">🛒 {t("services")}</h2>
             <div className="space-y-3">
               {services.map((svc) => {
                 const selected = selectedServices.find((s) => s.id === svc.id);
@@ -230,14 +232,14 @@ export default function BookingPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-black">{svc.name}</p>
-                        <p className="text-xs text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ/{svc.type === "RENTAL" ? "lần thuê" : "cái"}</p>
+                        <p className="text-xs text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ/{svc.type === "RENTAL" ? t("rental") : t("piece")}</p>
                       </div>
                     </div>
                     {selected && (
                       <div className="flex items-center gap-2">
-                        <button onClick={() => updateQty(svc.id, selected.quantity - 1)} className="w-7 h-7 bg-gray-200 rounded-full text-sm font-bold hover:bg-gray-300">-</button>
+                        <button onClick={(e) => { e.stopPropagation(); updateQty(svc.id, selected.quantity - 1); }} className="w-7 h-7 bg-gray-200 rounded-full text-sm font-bold hover:bg-gray-300">-</button>
                         <span className="text-sm font-medium w-5 text-center">{selected.quantity}</span>
-                        <button onClick={() => updateQty(svc.id, selected.quantity + 1)} className="w-7 h-7 bg-gray-200 rounded-full text-sm font-bold hover:bg-gray-300">+</button>
+                        <button onClick={(e) => { e.stopPropagation(); updateQty(svc.id, selected.quantity + 1); }} className="w-7 h-7 bg-gray-200 rounded-full text-sm font-bold hover:bg-gray-300">+</button>
                       </div>
                     )}
                   </div>
@@ -249,15 +251,15 @@ export default function BookingPage() {
 
         {/* Voucher */}
         <div className="border border-gray-300 rounded-2xl p-5 mb-4" style={{ background: "#E0EEE0" }}>
-          <h2 className="font-semibold text-black mb-3">🎁 Mã giảm giá</h2>
+          <h2 className="font-semibold text-black mb-3">🎁 {t("voucher")}</h2>
           <div className="flex gap-2">
             <input type="text" value={voucherCode}
               onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-              placeholder="Nhập mã voucher..."
+              placeholder={t("voucherPlaceholder")}
               className="flex-1 bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
             <button onClick={applyVoucher}
               className="bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors">
-              Áp dụng
+              {t("apply")}
             </button>
           </div>
           {voucherMsg && (
@@ -267,27 +269,27 @@ export default function BookingPage() {
 
         {/* Tổng tiền + Thanh toán */}
         <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
-          <h2 className="font-semibold text-black mb-3">💳 Thanh toán</h2>
+          <h2 className="font-semibold text-black mb-3">💳 {t("payment")}</h2>
 
           <div className="space-y-2 text-sm mb-4">
             <div className="flex justify-between">
-              <span className="text-gray-600">Tiền sân</span>
+              <span className="text-gray-600">{t("courtFee")}</span>
               <span>{courtPrice.toLocaleString("vi-VN")}đ</span>
             </div>
             {serviceTotal > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Dịch vụ</span>
+                <span className="text-gray-600">{t("service")}</span>
                 <span>{serviceTotal.toLocaleString("vi-VN")}đ</span>
               </div>
             )}
             {discount > 0 && (
               <div className="flex justify-between text-emerald-600">
-                <span>Giảm giá</span>
+                <span>{t("discount")}</span>
                 <span>-{discount.toLocaleString("vi-VN")}đ</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-base border-t border-gray-300 pt-2 mt-2">
-              <span>Tổng cộng</span>
+              <span>{t("total")}</span>
               <span className="text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span>
             </div>
           </div>
@@ -300,12 +302,12 @@ export default function BookingPage() {
               <div className="flex items-center gap-3">
                 <input type="radio" checked={paymentMethod === "WALLET"} onChange={() => setPaymentMethod("WALLET")} className="accent-emerald-500" />
                 <div>
-                  <p className="text-sm font-medium text-black">💰 Ví SportHub</p>
-                  <p className="text-xs text-gray-500">Số dư: {walletBalance.toLocaleString("vi-VN")}đ</p>
+                  <p className="text-sm font-medium text-black">💰 {t("walletSportHub")}</p>
+                  <p className="text-xs text-gray-500">{t("walletBalance")} {walletBalance.toLocaleString("vi-VN")}đ</p>
                 </div>
               </div>
               <span className={`text-xs px-2 py-1 rounded-full ${walletBalance >= finalTotal ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
-                {walletBalance >= finalTotal ? "Đủ số dư" : "Không đủ"}
+                {walletBalance >= finalTotal ? t("sufficient") : t("insufficient")}
               </span>
             </div>
 
@@ -316,8 +318,8 @@ export default function BookingPage() {
               <div className="flex items-center gap-2">
                 <img src="/vnpay.png" className="w-8 h-8 object-contain rounded" alt="VNPay" />
                 <div>
-                  <p className="text-sm font-medium text-black">Thanh toán VNPay</p>
-                  <p className="text-xs text-gray-500">ATM, Visa, QR Code</p>
+                  <p className="text-sm font-medium text-black">{t("vnpayPayment")}</p>
+                  <p className="text-xs text-gray-500">{t("atm")}</p>
                 </div>
               </div>
             </div>
@@ -326,8 +328,8 @@ export default function BookingPage() {
           {/* Cảnh báo số dư ví */}
           {paymentMethod === "WALLET" && walletBalance < finalTotal && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4 text-xs text-yellow-700">
-              ⚠️ Số dư ví không đủ. Vui lòng nạp thêm tiền.
-              <button onClick={() => router.push("/profile?tab=wallet")} className="ml-2 underline font-medium">Nạp tiền ngay</button>
+              ⚠️ {t("insufficientMsg")}
+              <button onClick={() => router.push("/profile?tab=wallet")} className="ml-2 underline font-medium">{t("topupNow")}</button>
             </div>
           )}
 
@@ -339,14 +341,14 @@ export default function BookingPage() {
                 ? "bg-blue-500 hover:bg-blue-400 text-white"
                 : "bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white"
             }`}>
-            {loading ? "Đang xử lý..." : paymentMethod === "QR"
-              ? `Thanh toán VNPay · ${finalTotal.toLocaleString("vi-VN")}đ`
-              : `Xác nhận đặt sân · ${finalTotal.toLocaleString("vi-VN")}đ`}
+            {loading ? t("processing") : paymentMethod === "QR"
+            ? `${t("vnpayBtn")} · ${finalTotal.toLocaleString("vi-VN")}đ`
+            : `${t("confirmBtn")} · ${finalTotal.toLocaleString("vi-VN")}đ`}
           </button>
         </div>
 
         <button onClick={() => router.back()} className="mt-5 text-sm text-gray-500 hover:text-black transition-colors">
-          ← Quay lại
+          {t("back")}
         </button>
       </div>
     </div>

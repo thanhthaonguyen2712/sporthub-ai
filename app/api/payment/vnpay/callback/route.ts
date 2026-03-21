@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  
+
   const vnpParams: Record<string, string> = {};
   searchParams.forEach((value, key) => {
     if (key !== "vnp_SecureHash" && key !== "vnp_SecureHashType" && key !== "booking") {

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, phone, fullName, password } = await req.json();
+    const { email, phone, fullName, password, role } = await req.json();
 
     // 1. Kiểm tra đủ thông tin không
     if (!email || !phone || !fullName || !password) {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         phone,
         fullName,
         password: hashedPassword,
-        role: "CUSTOMER",
+        role: role === "OWNER" ? "OWNER" : "CUSTOMER",
         wallet: {
           create: {
             balance: 0,

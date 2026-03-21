@@ -171,6 +171,11 @@ export default function Navbar() {
                     <Link href="/profile?tab=bookings" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
                       📋 {t("bookings")}
                     </Link>
+                    {(session.user as any)?.role === "OWNER" && (
+                      <Link href="/owner/dashboard" className="block px-4 py-2.5 text-emerald-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
+                        🏟️ Quản lý sân
+                      </Link>
+                    )}
                     <button
                       onClick={() => { signOut({ callbackUrl: "/" }); setMenuOpen(false); }}
                       className="w-full text-left px-4 py-2.5 text-red-400 hover:bg-slate-700 text-sm transition-colors border-t border-slate-700">

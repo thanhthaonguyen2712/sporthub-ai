@@ -185,6 +185,8 @@ model User {
   notifPush   Boolean  @default(true)  @map("notif_push")
   language    String   @default("vi")
   notifications   Notification[]
+  wageConfigs    StaffWageConfig[]   @relation("StaffWageConfigs")
+  salaryRecords  StaffSalaryRecord[] @relation("StaffSalaryRecords")
 
   @@map("users")
 }
@@ -237,6 +239,8 @@ model Facility {
   facilityStaff   FacilityStaff[]
   inventoryShifts InventoryShift[]
   courses         Course[]
+  wageConfigs     StaffWageConfig[]
+  salaryRecords   StaffSalaryRecord[]
 
   @@map("facilities")
 }
@@ -645,5 +649,45 @@ model Notification {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+// 29. CẤU HÌNH LƯƠNG NHÂN VIÊN
+model StaffWageConfig {
+  id         Int      @id @default(autoincrement())
+  staffId    Int      @map("staff_id")
+  facilityId Int      @map("facility_id")
+  wageType   String   @map("wage_type") // "HOURLY" | "DAILY"
+  wageRate   Decimal  @map("wage_rate") @db.Decimal(10, 2)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  staff      User     @relation("StaffWageConfigs", fields: [staffId], references: [id], onDelete: Cascade)
+  facility   Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, facilityId])
+  @@map("staff_wage_configs")
+}
+
+// 30. BẢNG LƯƠNG THÁNG
+model StaffSalaryRecord {
+  id          Int       @id @default(autoincrement())
+  staffId     Int       @map("staff_id")
+  facilityId  Int       @map("facility_id")
+  month       Int
+  year        Int
+  totalHours  Decimal   @map("total_hours") @db.Decimal(6, 2)
+  wageRate    Decimal   @map("wage_rate") @db.Decimal(10, 2)
+  wageType    String    @map("wage_type")
+  baseSalary  Decimal   @map("base_salary") @db.Decimal(12, 2)
+  bonus       Decimal   @default(0) @db.Decimal(12, 2)
+  finalSalary Decimal   @map("final_salary") @db.Decimal(12, 2)
+  isPaid      Boolean   @default(false) @map("is_paid")
+  paidAt      DateTime? @map("paid_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  staff       User      @relation("StaffSalaryRecords", fields: [staffId], references: [id], onDelete: Cascade)
+  facility    Facility  @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, facilityId, month, year])
+  @@map("staff_salary_records")
 }
 

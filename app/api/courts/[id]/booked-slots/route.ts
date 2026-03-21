@@ -14,21 +14,30 @@ export async function GET(
       return NextResponse.json({ error: "Thiếu ngày" }, { status: 400 });
     }
 
-    const bookings = await prisma.booking.findMany({
-      where: {
-        courtId: Number(id),
-        bookingDate: new Date(date),
-        status: { notIn: ["CANCELLED"] },
-      },
-      select: {
-        startTime: true,
-        endTime: true,
-      },
-    });
+    const [bookings, guestBookings] = await Promise.all([
+      prisma.booking.findMany({
+        where: {
+          courtId: Number(id),
+          bookingDate: new Date(date),
+          status: { notIn: ["CANCELLED"] },
+        },
+        select: { startTime: true, endTime: true },
+      }),
+      prisma.guestBooking.findMany({
+        where: {
+          courtId: Number(id),
+          bookingDate: new Date(date),
+          status: { notIn: ["CANCELLED", "EXPIRED"] },
+        },
+        select: { startTime: true, endTime: true },
+      }),
+    ]);
+
+    const allBookings = [...bookings, ...guestBookings];
 
     // Trả về danh sách slot đã đặt dạng ["07:00", "08:00", ...]
     const bookedSlots: string[] = [];
-    for (const b of bookings) {
+    for (const b of allBookings) {
       const start = b.startTime.toISOString().slice(11, 16);
       const end = b.endTime.toISOString().slice(11, 16);
       // Generate tất cả slot trong khoảng start-end

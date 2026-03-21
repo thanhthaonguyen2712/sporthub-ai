@@ -5,38 +5,48 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+const ROLES = [
+  {
+    id: "CUSTOMER",
+    icon: "👤",
+    label: "Khách hàng",
+    desc: "Tìm sân, đặt sân, tham gia nhóm & các giải đấu",
+    features: ["Tìm sân gần tôi", "Đặt sân & thanh toán online", "Tham gia nhóm / cáp kèo", "Khóa học thể thao"],
+  },
+  {
+    id: "OWNER",
+    icon: "🏟️",
+    label: "Chủ sân",
+    desc: "Quản lý cơ sở, nhân viên & doanh thu — và vẫn đặt sân được",
+    features: ["Tất cả tính năng của khách", "Đăng ký & quản lý cơ sở", "Quản lý nhân viên & lương", "Xem doanh thu & lấp đầy sân"],
+    highlight: true,
+  },
+];
+
 export default function RegisterPage() {
   const router = useRouter();
   const t = useTranslations("auth");
-  const [form, setForm] = useState({
-    fullName: "", email: "", phone: "", password: "", confirmPassword: "",
-  });
+
+  const [role, setRole] = useState<"CUSTOMER" | "OWNER">("CUSTOMER");
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "", password: "", confirmPassword: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
-    if (form.password !== form.confirmPassword) {
-      setError(t("passwordMismatch"));
-      return;
-    }
+    if (form.password !== form.confirmPassword) { setError(t("passwordMismatch")); return; }
 
     setLoading(true);
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullName: form.fullName, email: form.email, phone: form.phone, password: form.password }),
+      body: JSON.stringify({ fullName: form.fullName, email: form.email, phone: form.phone, password: form.password, role }),
     });
     const data = await res.json();
     setLoading(false);
-
-    if (!res.ok) {
-      setError(data.error || t("registerFailed"));
-    } else {
-      router.push("/login?registered=true");
-    }
+    if (!res.ok) setError(data.error || t("registerFailed"));
+    else router.push("/login?registered=true");
   }
 
   const fields = [
@@ -48,14 +58,12 @@ export default function RegisterPage() {
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-10" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
-      <div className="relative w-full max-w-md px-6">
+    <div className="min-h-screen flex items-center justify-center py-10 px-4" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
+      <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-3">
-            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
-              <img src="/logo.png" className="w-10 h-10 rounded-xl" alt="SportHub Logo" />
-            </div>
+            <img src="/logo.png" className="w-10 h-10 rounded-xl" alt="SportHub Logo" />
             <span className="text-black text-2xl font-bold tracking-tight">
               Sport<span className="text-emerald-600">Hub</span>
             </span>
@@ -63,10 +71,53 @@ export default function RegisterPage() {
           <p className="text-gray-600 text-sm">{t("registerFree")}</p>
         </div>
 
-        {/* Card */}
         <div className="border border-gray-300 rounded-2xl p-8 shadow-lg" style={{ background: "#E0EEE0" }}>
           <h1 className="text-black text-2xl font-bold mb-1">{t("registerTitle")}</h1>
-          <p className="text-gray-600 text-sm mb-6">{t("registerSubtitle2")}</p>
+          <p className="text-gray-600 text-sm mb-6">Chọn loại tài khoản phù hợp với bạn</p>
+
+          {/* Chọn loại tài khoản */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            {ROLES.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setRole(r.id as "CUSTOMER" | "OWNER")}
+                className={`text-left p-4 rounded-xl border-2 transition-all ${
+                  role === r.id
+                    ? r.highlight
+                      ? "border-emerald-500 bg-emerald-50"
+                      : "border-emerald-500 bg-emerald-50"
+                    : "border-gray-300 bg-white hover:border-gray-400"
+                }`}
+              >
+                <div className="text-2xl mb-1.5">{r.icon}</div>
+                <p className={`text-sm font-semibold mb-1 ${role === r.id ? "text-emerald-700" : "text-gray-800"}`}>
+                  {r.label}
+                </p>
+                <p className="text-xs text-gray-500 leading-relaxed mb-2">{r.desc}</p>
+                <ul className="space-y-0.5">
+                  {r.features.map((f) => (
+                    <li key={f} className="text-xs text-gray-500 flex items-center gap-1">
+                      <span className={role === r.id ? "text-emerald-500" : "text-gray-400"}>✓</span> {f}
+                    </li>
+                  ))}
+                </ul>
+                {role === r.id && (
+                  <div className="mt-2 text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                    <span className="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white text-[10px]">✓</span>
+                    Đã chọn
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Note cho owner */}
+          {role === "OWNER" && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-5 text-xs text-emerald-700">
+              🏟️ Tài khoản chủ sân có đầy đủ tính năng của khách hàng — bạn vẫn có thể tìm sân & đặt sân để chơi thể thao.
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-100 border border-red-300 text-red-600 text-sm px-4 py-3 rounded-xl mb-5">
@@ -91,7 +142,7 @@ export default function RegisterPage() {
 
             <button type="submit" disabled={loading}
               className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white font-semibold py-3 rounded-xl transition-all duration-200 text-sm mt-2">
-              {loading ? t("registering") : t("createAccount")}
+              {loading ? t("registering") : `Tạo tài khoản ${role === "OWNER" ? "Chủ sân" : "Khách hàng"}`}
             </button>
           </form>
 
