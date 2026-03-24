@@ -58,11 +58,11 @@ export default function GuestInvoicePage() {
   const t = useTranslations("guestBooking");
 
   const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-    PENDING:   { label: t("statusPending"),   color: "text-yellow-700 bg-yellow-50 border-yellow-300", icon: "⏳" },
-    CONFIRMED: { label: t("statusConfirmed"), color: "text-emerald-700 bg-emerald-50 border-emerald-300", icon: "✅" },
-    PAID:      { label: t("statusPaid"),      color: "text-blue-700 bg-blue-50 border-blue-300", icon: "💳" },
-    CANCELLED: { label: t("statusCancelled"), color: "text-red-700 bg-red-50 border-red-300", icon: "❌" },
-    EXPIRED:   { label: t("statusExpired"),   color: "text-gray-600 bg-gray-100 border-gray-300", icon: "🕐" },
+    PENDING:   { label: t("statusPending"),   color: "text-yellow-700 bg-yellow-50 border-yellow-300", icon: "" },
+    CONFIRMED: { label: t("statusConfirmed"), color: "text-emerald-700 bg-emerald-50 border-emerald-300", icon: "" },
+    PAID:      { label: t("statusPaid"),      color: "text-blue-700 bg-blue-50 border-blue-300", icon: "" },
+    CANCELLED: { label: t("statusCancelled"), color: "text-red-700 bg-red-50 border-red-300", icon: "" },
+    EXPIRED:   { label: t("statusExpired"),   color: "text-gray-600 bg-gray-100 border-gray-300", icon: "" },
   };
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -115,7 +115,7 @@ export default function GuestInvoicePage() {
       <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
         <Navbar />
         <div className="max-w-md mx-auto px-6 py-16 text-center">
-          <div className="text-5xl mb-4">🧾</div>
+          <div className="flex justify-center mb-4"><img src="/list.png" alt="" className="w-14 h-14" /></div>
           <h1 className="text-xl font-bold mb-2">{t("invoiceTitle")}</h1>
           <p className="text-gray-500 text-sm mb-6">{t("invoiceSubtitle", { id })}</p>
           <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
@@ -155,7 +155,7 @@ export default function GuestInvoicePage() {
       <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
         <Navbar />
         <div className="max-w-md mx-auto px-6 py-20 text-center">
-          <div className="text-5xl mb-4">❌</div>
+          <div className="flex justify-center mb-4"><img src="/delete.png" alt="" className="w-14 h-14" /></div>
           <h1 className="text-xl font-bold mb-2">{t("invoiceNotFound")}</h1>
           <p className="text-gray-500 text-sm mb-6">{error}</p>
           <button
@@ -173,7 +173,7 @@ export default function GuestInvoicePage() {
   if (!booking) return null;
 
   const statusInfo = STATUS_CONFIG[isExpired && booking.status !== "CANCELLED" ? "EXPIRED" : booking.status]
-    || { label: booking.status, color: "text-gray-600 bg-gray-100 border-gray-300", icon: "📋" };
+    || { label: booking.status, color: "text-gray-600 bg-gray-100 border-gray-300", icon: "" };
 
   return (
     <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>

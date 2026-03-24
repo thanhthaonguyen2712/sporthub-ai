@@ -159,7 +159,7 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
         {!att ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200">
-              <span className="text-3xl">⏳</span>
+              <img src="/infor.png" alt="" className="w-8 h-8 opacity-60" />
               <div>
                 <p className="font-semibold text-gray-700">Chưa check-in</p>
                 <p className="text-xs text-gray-400">Phải ở trong phạm vi 300m của cơ sở</p>
@@ -167,7 +167,7 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
             </div>
             <button onClick={() => handleAttendance("POST")} disabled={loading}
               className={BTN_G + " w-full py-3 text-base"}>
-              {loading ? "Đang xử lý..." : "✅ Check-in bắt đầu ca"}
+              {loading ? "Đang xử lý..." : "Check-in bắt đầu ca"}
             </button>
           </div>
         ) : att.status === "WORKING" ? (
@@ -188,7 +188,7 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
           </div>
         ) : (
           <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 space-y-1">
-            <p className="font-semibold text-blue-700">✅ Đã hoàn thành ca hôm nay</p>
+            <p className="font-semibold text-blue-700">Đã hoàn thành ca hôm nay</p>
             <p className="text-xs text-blue-600">Check-in: {att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}</p>
             <p className="text-xs text-blue-600">Check-out: {att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}</p>
             <p className="text-xs font-semibold text-blue-700">Tổng giờ làm: {att.totalHours ?? 0}h</p>
@@ -247,7 +247,7 @@ function TodayBookingsTab({ facilityId }: { facilityId: number }) {
         <p className="text-center text-gray-400 py-10">Đang tải...</p>
       ) : bookings.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <div className="text-4xl mb-3">📅</div>
+          <div className="flex justify-center mb-3"><img src="/calendar.png" alt="" className="w-10 h-10 opacity-40" /></div>
           <p>Không có lịch đặt sân ngày này</p>
         </div>
       ) : (
@@ -288,7 +288,7 @@ function TodayBookingsTab({ facilityId }: { facilityId: number }) {
                 )}
               </div>
               <div className="flex gap-2 mt-2">
-                {b.isWalkIn && <span className="text-xs text-gray-400">📋 Walk-in tại quầy</span>}
+                {b.isWalkIn && <span className="text-xs text-gray-400">Walk-in tại quầy</span>}
                 {(b as any).createdByStaff && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">Đặt hộ</span>}
               </div>
             </div>
@@ -328,7 +328,7 @@ function CourtSlotPicker({
         </div>
         <div className="flex gap-1">
           {weekend && !holiday && <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">Cuối tuần</span>}
-          {holiday && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">🎌 Ngày lễ +15%</span>}
+          {holiday && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">Ngày lễ +15%</span>}
         </div>
       </div>
 
@@ -488,7 +488,7 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
 
   if(success) return (
     <div className="max-w-md mx-auto text-center py-12">
-      <div className="text-5xl mb-4">✅</div>
+      <div className="flex justify-center mb-4"><img src="/check-out.png" alt="" className="w-14 h-14" /></div>
       <h2 className="text-xl font-bold text-black mb-2">Đặt hộ thành công!</h2>
       <p className="text-gray-600 mb-1">Mã đặt sân: <span className="font-semibold text-emerald-600">#{success.bookingId}</span></p>
       <p className="text-gray-600 mb-6">Mã hóa đơn: <span className="font-semibold text-blue-600">#{success.invoiceId}</span></p>
@@ -626,7 +626,7 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
 
           {error&&<p className="text-red-500 text-sm text-center">{error}</p>}
           <button onClick={handleSubmit} disabled={loading} className={BTN_G+" w-full py-3.5 text-base"}>
-            {loading?"Đang xử lý...":"🧾 Xác nhận đặt hộ"}
+            {loading?"Đang xử lý...":"Xác nhận đặt hộ"}
           </button>
         </>
       )}
@@ -672,8 +672,8 @@ function InventoryTab() {
   return (
     <div>
       <div className="flex gap-2 mb-4">
-        <button onClick={() => setActiveView("stock")} className={activeView === "stock" ? BTN_G : BTN_W}>📦 Tồn kho</button>
-        <button onClick={() => setActiveView("logs")} className={activeView === "logs" ? BTN_G : BTN_W}>📋 Lịch sử</button>
+        <button onClick={() => setActiveView("stock")} className={activeView === "stock" ? BTN_G : BTN_W}>Tồn kho</button>
+        <button onClick={() => setActiveView("logs")} className={activeView === "logs" ? BTN_G : BTN_W}>Lịch sử</button>
         <button onClick={() => setShowForm(!showForm)} className={BTN_G + " ml-auto"}>+ Nhập/Xuất kho</button>
       </div>
 
@@ -688,7 +688,7 @@ function InventoryTab() {
             <select className={INPUT} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
               <option value="IMPORT">📥 Nhập kho</option>
               <option value="EXPORT">📤 Xuất kho</option>
-              <option value="DAMAGE">⚠️ Hàng hỏng</option>
+              <option value="DAMAGE">Hàng hỏng</option>
             </select>
             <input className={INPUT} type="number" placeholder="Số lượng" value={form.quantity}
               onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
@@ -736,7 +736,7 @@ function InventoryTab() {
         <div className="space-y-2">
           {data.logs.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
-              <div className="text-4xl mb-3">📋</div>
+              <div className="flex justify-center mb-3"><img src="/list.png" alt="" className="w-10 h-10 opacity-40" /></div>
               <p>Chưa có lịch sử kho</p>
             </div>
           ) : data.logs.map(log => (
@@ -891,7 +891,7 @@ function POSTab() {
             )}
 
             <button onClick={saveServices} disabled={saving || addedServices.length === 0} className={BTN_G + " w-full py-3"}>
-              {saving ? "Đang lưu..." : "✅ Cập nhật hóa đơn"}
+              {saving ? "Đang lưu..." : "Cập nhật hóa đơn"}
             </button>
           </div>
         ) : (
@@ -972,7 +972,7 @@ function POSTab() {
 const REPORT_TYPES = [
   { value: "FACILITY",         label: "🏟️ Sự cố sân / cơ sở hạ tầng", desc: "Hệ thống điện, nước, mái che, mặt sân..." },
   { value: "EQUIPMENT",        label: "🔧 Thiết bị hỏng hóc",          desc: "Lưới, đèn, máy bơm, thiết bị thể thao..." },
-  { value: "INVENTORY_DAMAGE", label: "📦 Hàng hóa hỏng",              desc: "Hàng trong kho bị hỏng, hết hạn, thất thoát..." },
+  { value: "INVENTORY_DAMAGE", label: "Hàng hóa hỏng",              desc: "Hàng trong kho bị hỏng, hết hạn, thất thoát..." },
 ];
 
 const STATUS_STYLE: Record<string, string> = {
@@ -1024,11 +1024,11 @@ function ReportTab() {
       <div className="flex gap-2 mb-4">
         <button onClick={() => setView("form")}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${view === "form" ? "bg-red-500 text-white" : BTN_W}`}>
-          🚨 Báo cáo mới
+          Báo cáo mới
         </button>
         <button onClick={() => setView("history")}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${view === "history" ? "bg-emerald-500 text-white" : BTN_W}`}>
-          📋 Lịch sử ({history.length})
+          Lịch sử ({history.length})
         </button>
       </div>
 
@@ -1039,7 +1039,7 @@ function ReportTab() {
 
           {success && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-4 text-sm text-emerald-700 font-medium">
-              ✅ Báo cáo đã được gửi thành công!
+              Báo cáo đã được gửi thành công!
             </div>
           )}
 
@@ -1074,14 +1074,14 @@ function ReportTab() {
 
           <button onClick={handleSubmit} disabled={loading}
             className="w-full bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
-            {loading ? "Đang gửi..." : "🚨 Gửi báo cáo"}
+            {loading ? "Đang gửi..." : "Gửi báo cáo"}
           </button>
         </div>
       ) : (
         <div className="space-y-3">
           {history.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
-              <div className="text-4xl mb-3">📋</div>
+              <div className="flex justify-center mb-3"><img src="/list.png" alt="" className="w-10 h-10 opacity-40" /></div>
               <p>Chưa có báo cáo nào</p>
             </div>
           ) : history.map(r => {
@@ -1145,12 +1145,12 @@ export default function StaffDashboard() {
   const facility = info.facilityStaff?.facility;
 
   const TABS = [
-    { id: "attendance", label: "Chấm công",    icon: "⏱" },
-    { id: "pos",        label: "Bán hàng",     icon: "🏪" },
-    { id: "bookings",   label: "Lịch hôm nay", icon: "📅" },
-    { id: "invoice",    label: "Đặt hộ",       icon: "🧾" },
-    ...(isWarehouse ? [{ id: "inventory", label: "Kho hàng", icon: "📦" }] : []),
-    { id: "report",     label: "Báo cáo",      icon: "🚨" },
+    { id: "attendance", label: "Chấm công",    icon: "" },
+    { id: "pos",        label: "Bán hàng",     icon: "" },
+    { id: "bookings",   label: "Lịch hôm nay", icon: "" },
+    { id: "invoice",    label: "Đặt hộ",       icon: "" },
+    ...(isWarehouse ? [{ id: "inventory", label: "Kho hàng", icon: "" }] : []),
+    { id: "report",     label: "Báo cáo",      icon: "" },
   ];
 
   return (
@@ -1159,7 +1159,7 @@ export default function StaffDashboard() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-black">
-            {isWarehouse ? "📦 Quản lý kho" : "👤 Trang nhân viên"}
+            {isWarehouse ? "Quản lý kho" : "Trang nhân viên"}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             Xin chào, {(session?.user as any)?.name}
@@ -1167,7 +1167,7 @@ export default function StaffDashboard() {
           </p>
           {!facility && (
             <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2 text-xs text-yellow-700">
-              ⚠️ Bạn chưa được gắn vào cơ sở nào. Liên hệ chủ sân để được thêm vào.
+              Bạn chưa được gắn vào cơ sở nào. Liên hệ chủ sân để được thêm vào.
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendUserEmail, emailMembershipUpgraded } from "@/lib/email";
 
 const MEMBERSHIP_PRICES: Record<string, number> = {
   SILVER: 199000,
@@ -69,6 +70,22 @@ export async function POST(req: NextRequest) {
         },
       });
     });
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true } });
+    prisma.notification.create({
+      data: {
+        userId,
+        title: `Nâng cấp gói hội viên ${tier} thành công`,
+        content: `Gói ${tier} có hiệu lực đến ${endDate.toLocaleDateString("vi-VN")}. Đã trừ ${price.toLocaleString("vi-VN")}đ từ ví.`,
+        type: "MEMBERSHIP",
+        link: "/profile?tab=membership",
+      },
+    }).catch(() => {});
+    sendUserEmail(
+      userId,
+      `Nâng cấp gói hội viên ${tier} thành công — SportHub AI`,
+      emailMembershipUpgraded(user?.fullName ?? "", tier, price, endDate.toLocaleDateString("vi-VN"))
+    );
 
     return NextResponse.json({ success: true, message: `Nâng cấp lên ${tier} thành công!` });
   } catch (error) {

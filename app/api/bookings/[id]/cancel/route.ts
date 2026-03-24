@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendUserEmail, emailBookingCancelled } from "@/lib/email";
 
 export async function POST(
   req: NextRequest,
@@ -82,11 +83,32 @@ export async function POST(
         }
       }
     });
+    const userId = Number((session.user as any).id);
+    const refunded = booking.paymentStatus === "PAID";
+    prisma.notification.create({
+      data: {
+        userId,
+        title: refunded ? "Hủy sân & hoàn tiền thành công" : "Hủy đặt sân thành công",
+        content: refunded
+          ? `Đã hủy booking #${bookingId}. Hoàn ${refundAmount.toLocaleString("vi-VN")}đ về ví.`
+          : `Đã hủy booking #${bookingId} thành công.`,
+        type: "BOOKING",
+        link: "/profile?tab=bookings",
+      },
+    }).catch(() => {});
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true } });
+    sendUserEmail(
+      userId,
+      "Hủy đặt sân thành công — SportHub AI",
+      emailBookingCancelled(user?.fullName ?? "", bookingId, refunded, refundAmount)
+    );
+
     return NextResponse.json({
       success: true,
-      refunded: booking.paymentStatus === "PAID",
+      refunded,
       refundAmount,
-      message: booking.paymentStatus === "PAID"
+      message: refunded
         ? `Hủy thành công! Hoàn ${refundAmount.toLocaleString("vi-VN")}đ về ví.`
         : "Hủy sân thành công!",
     });

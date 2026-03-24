@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendUserEmail, emailCourseEnrolled } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,13 +27,28 @@ export async function POST(req: NextRequest) {
 
     if (paymentMethod === "WALLET") {
       const wallet = await prisma.wallet.findUnique({ where: { userId } });
-      if (!wallet || Number(wallet.balance) < Number(course.price)) {
-        return NextResponse.json({ error: "Số dư ví không đủ!" }, { status: 400 });
+      if (!wallet || wallet.status !== "ACTIVE") {
+        return NextResponse.json({ error: "Ví không hợp lệ hoặc bị khóa!" }, { status: 400 });
       }
+      if (Number(wallet.balance) < Number(course.price)) {
+        return NextResponse.json({
+          error: `Số dư ví không đủ! Cần ${Number(course.price).toLocaleString("vi-VN")}đ, hiện có ${Number(wallet.balance).toLocaleString("vi-VN")}đ`,
+        }, { status: 400 });
+      }
+
+      const now = new Date();
+      const nextPaymentDate = new Date(now);
+      nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
 
       await prisma.$transaction(async (tx) => {
         await tx.courseEnrollment.create({
-          data: { courseId: Number(courseId), userId, status: "ACTIVE", paidAt: new Date() },
+          data: {
+            courseId: Number(courseId),
+            userId,
+            status: "ACTIVE",
+            paidAt: now,
+            nextPaymentDate,
+          },
         });
         await tx.wallet.update({
           where: { id: wallet.id },
@@ -47,6 +63,30 @@ export async function POST(req: NextRequest) {
           },
         });
       });
+
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true } });
+      prisma.notification.create({
+        data: {
+          userId,
+          title: `Đăng ký khóa học thành công`,
+          content: `Bạn đã đăng ký khóa "${course.title}". Học phí ${Number(course.price).toLocaleString("vi-VN")}đ đã được trừ. Kỳ thanh toán tiếp theo: ${nextPaymentDate.toLocaleDateString("vi-VN")}.`,
+          type: "COURSE",
+          link: "/profile?tab=courses",
+        },
+      }).catch(() => {});
+      sendUserEmail(
+        userId,
+        `Đăng ký khóa học thành công — ${course.title}`,
+        emailCourseEnrolled(
+          user?.fullName ?? "",
+          course.title,
+          course.schedule,
+          new Date(course.startDate).toLocaleDateString("vi-VN"),
+          new Date(course.endDate).toLocaleDateString("vi-VN"),
+          Number(course.price),
+          nextPaymentDate.toLocaleDateString("vi-VN")
+        )
+      );
 
       return NextResponse.json({ success: true, message: "Đăng ký thành công!" });
     }

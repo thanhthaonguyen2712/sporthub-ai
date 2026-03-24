@@ -581,13 +581,14 @@ model Course {
 
 // 24. ĐĂNG KÝ KHÓA HỌC
 model CourseEnrollment {
-  id        Int      @id @default(autoincrement())
-  courseId  Int      @map("course_id")
-  userId    Int      @map("user_id")
-  status    EnrollmentStatus @default(PENDING)
-  progress  Int      @default(0) // % tiến độ
-  paidAt    DateTime? @map("paid_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id              Int      @id @default(autoincrement())
+  courseId        Int      @map("course_id")
+  userId          Int      @map("user_id")
+  status          EnrollmentStatus @default(PENDING)
+  progress        Int      @default(0) // % tiến độ
+  paidAt          DateTime? @map("paid_at")
+  nextPaymentDate DateTime? @map("next_payment_date") // Ngày đóng học phí tháng tiếp theo
+  createdAt       DateTime @default(now()) @map("created_at")
 
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

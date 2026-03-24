@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendUserEmail, emailBookingConfirmed } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +21,18 @@ export async function POST(req: NextRequest) {
       serviceIds, // [{ id, quantity }]
       voucherCode,
     } = body;
+
+    // 0. Kiểm tra khung giờ không nằm trong quá khứ
+    const nowVN = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
+    const todayVN = nowVN.toISOString().split("T")[0];
+    if (bookingDate === todayVN) {
+      const [sh, sm] = startTime.split(":").map(Number);
+      const slotMinutes = sh * 60 + sm;
+      const nowMinutes = nowVN.getUTCHours() * 60 + nowVN.getUTCMinutes();
+      if (slotMinutes < nowMinutes) {
+        return NextResponse.json({ error: "Không thể đặt sân cho khung giờ đã qua!" }, { status: 400 });
+      }
+    }
 
     // 1. Kiểm tra sân tồn tại
     const court = await prisma.court.findUnique({
@@ -158,6 +171,34 @@ export async function POST(req: NextRequest) {
 
       return booking;
     });
+
+    // Gửi email xác nhận (fire & forget)
+    const userId = Number((session.user as any).id);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true } });
+    const courtInfo = await prisma.court.findUnique({ where: { id: Number(courtId) }, select: { name: true } });
+    prisma.notification.create({
+      data: {
+        userId,
+        title: "Đặt sân thành công",
+        content: `Sân ${courtInfo?.name ?? ""} ngày ${new Date(bookingDate).toLocaleDateString("vi-VN")} lúc ${startTime}–${endTime}. Đã thanh toán ${finalTotal.toLocaleString("vi-VN")}đ.`,
+        type: "BOOKING",
+        link: "/profile?tab=bookings",
+      },
+    }).catch(() => {});
+
+    sendUserEmail(
+      userId,
+      "Đặt sân thành công — SportHub AI",
+      emailBookingConfirmed(
+        user?.fullName ?? "",
+        result.id,
+        courtInfo?.name ?? `#${courtId}`,
+        new Date(bookingDate).toLocaleDateString("vi-VN"),
+        startTime,
+        endTime,
+        finalTotal
+      )
+    );
 
     return NextResponse.json({
       success: true,

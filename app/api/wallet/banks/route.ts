@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendUserEmail, emailWalletWithdraw } from "@/lib/email";
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+
+    const userId = Number((session.user as any).id);
+    const banks = await prisma.bankAccount.findMany({ where: { userId } });
+    return NextResponse.json(banks);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,6 +68,29 @@ export async function POST(req: NextRequest) {
         });
       }
     });
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true } }).catch(() => null);
+    const newBalance = Number(wallet.balance) - amount;
+    prisma.notification.create({
+      data: {
+        userId,
+        title: "Rút tiền thành công",
+        content: `Đã rút ${Number(amount).toLocaleString("vi-VN")}đ về ${bankName} - ${accountNumber}. Số dư còn: ${newBalance.toLocaleString("vi-VN")}đ.`,
+        type: "PAYMENT",
+        link: "/profile?tab=wallet",
+      },
+    }).catch(() => {});
+    sendUserEmail(
+      userId,
+      "Rút tiền ví thành công — SportHub AI",
+      emailWalletWithdraw(
+        (user as any)?.fullName ?? "",
+        amount,
+        bankName,
+        accountNumber,
+        newBalance
+      )
+    );
 
     return NextResponse.json({
       success: true,

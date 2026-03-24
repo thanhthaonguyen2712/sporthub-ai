@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import VietnamAddressInput from "@/components/VietnamAddressInput";
 import { useTranslations } from "next-intl";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -122,7 +123,13 @@ function FacilitiesTab() {
           <h3 className="font-semibold text-black mb-3">Đăng ký cơ sở mới</h3>
           <div className="space-y-2.5">
             <input className={INPUT} placeholder="Tên cơ sở *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            <input className={INPUT} placeholder="Địa chỉ *" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5">Địa chỉ *</p>
+              <VietnamAddressInput
+                key={showForm ? "open" : "closed"}
+                onChange={address => setForm(f => ({ ...f, address }))}
+              />
+            </div>
             <textarea className={INPUT} rows={2} placeholder="Mô tả" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             <div>
               <p className="text-xs text-gray-500 mb-1.5">Môn thể thao:</p>
@@ -547,8 +554,8 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
                     <td className="px-4 py-3 text-right font-bold text-emerald-600">{Number(r.finalSalary).toLocaleString("vi-VN")}đ</td>
                     <td className="px-4 py-3 text-center">
                       {r.isPaid
-                        ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">✅ Đã trả</span>
-                        : <span className="text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full">⏳ Chưa trả</span>}
+                        ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">Đã trả</span>
+                        : <span className="text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full">Chưa trả</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {!r.isPaid && <button onClick={() => paySalary(r.id)} className={BTN_G + " text-xs py-1.5"}>Thanh toán ví</button>}

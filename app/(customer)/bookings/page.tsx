@@ -101,7 +101,7 @@ export default function BookingPage() {
       setDiscount(0);
     } else {
       setDiscount(data.discount);
-      setVoucherMsg(`✅ Giảm ${data.discount.toLocaleString("vi-VN")}đ`);
+      setVoucherMsg(`Giảm ${data.discount.toLocaleString("vi-VN")}đ`);
     }
   }
 
@@ -189,7 +189,7 @@ export default function BookingPage() {
 
         {/* Thông tin sân */}
         <div className="border border-gray-300 rounded-2xl p-5 mb-4" style={{ background: "#E0EEE0" }}>
-          <h2 className="font-semibold text-black mb-3">📋 {t("courtInfo")}</h2>
+          <h2 className="font-semibold text-black mb-3">{t("courtInfo")}</h2>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">{t("facility")}</span>
@@ -219,7 +219,7 @@ export default function BookingPage() {
         {/* Dịch vụ kèm */}
         {services.length > 0 && (
           <div className="border border-gray-300 rounded-2xl p-5 mb-4" style={{ background: "#E0EEE0" }}>
-            <h2 className="font-semibold text-black mb-3">🛒 {t("services")}</h2>
+            <h2 className="font-semibold text-black mb-3">{t("services")}</h2>
             <div className="space-y-3">
               {services.map((svc) => {
                 const selected = selectedServices.find((s) => s.id === svc.id);
@@ -251,7 +251,10 @@ export default function BookingPage() {
 
         {/* Voucher */}
         <div className="border border-gray-300 rounded-2xl p-5 mb-4" style={{ background: "#E0EEE0" }}>
-          <h2 className="font-semibold text-black mb-3">🎁 {t("voucher")}</h2>
+          <h2 className="font-semibold text-black mb-3 flex items-center gap-2">
+            <img src="/giftbox.png" alt="" className="w-5 h-5" />
+            {t("voucher")}
+          </h2>
           <div className="flex gap-2">
             <input type="text" value={voucherCode}
               onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
@@ -269,7 +272,10 @@ export default function BookingPage() {
 
         {/* Tổng tiền + Thanh toán */}
         <div className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
-          <h2 className="font-semibold text-black mb-3">💳 {t("payment")}</h2>
+          <h2 className="font-semibold text-black mb-3 flex items-center gap-2">
+            <img src="/atm-card.png" alt="" className="w-5 h-5" />
+            {t("payment")}
+          </h2>
 
           <div className="space-y-2 text-sm mb-4">
             <div className="flex justify-between">
@@ -302,7 +308,10 @@ export default function BookingPage() {
               <div className="flex items-center gap-3">
                 <input type="radio" checked={paymentMethod === "WALLET"} onChange={() => setPaymentMethod("WALLET")} className="accent-emerald-500" />
                 <div>
-                  <p className="text-sm font-medium text-black">💰 {t("walletSportHub")}</p>
+                  <p className="text-sm font-medium text-black flex items-center gap-1.5">
+                    <img src="/wallet.png" alt="" className="w-4 h-4" />
+                    {t("walletSportHub")}
+                  </p>
                   <p className="text-xs text-gray-500">{t("walletBalance")} {walletBalance.toLocaleString("vi-VN")}đ</p>
                 </div>
               </div>
@@ -328,7 +337,7 @@ export default function BookingPage() {
           {/* Cảnh báo số dư ví */}
           {paymentMethod === "WALLET" && walletBalance < finalTotal && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4 text-xs text-yellow-700">
-              ⚠️ {t("insufficientMsg")}
+              {t("insufficientMsg")}
               <button onClick={() => router.push("/profile?tab=wallet")} className="ml-2 underline font-medium">{t("topupNow")}</button>
             </div>
           )}

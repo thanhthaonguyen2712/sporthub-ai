@@ -187,7 +187,7 @@ export default function GuestBookingPage() {
       <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
         <Navbar />
         <div className="max-w-lg mx-auto px-6 py-20 text-center">
-          <div className="text-6xl mb-4">✅</div>
+          <div className="flex justify-center mb-4"><img src="/check-out.png" alt="" className="w-16 h-16" /></div>
           <h1 className="text-2xl font-bold text-black mb-2">{t("successTitle")}</h1>
           <p className="text-gray-600 mb-1">{t("bookingCode")}: <span className="font-semibold text-emerald-600">#{bookingId}</span></p>
           <p className="text-gray-600 mb-6">{t("usePhoneMsg", { phone: guestPhone })}</p>

@@ -52,7 +52,7 @@ export default function ResetPasswordPage() {
 
         {success ? (
           <div className="text-center">
-            <div className="text-5xl mb-4">✅</div>
+            <div className="flex justify-center mb-4"><img src="/check-out.png" alt="" className="w-14 h-14" /></div>
             <p className="font-semibold text-black mb-2">Đặt lại mật khẩu thành công!</p>
             <p className="text-gray-500 text-sm mb-4">Đang chuyển về trang đăng nhập...</p>
           </div>

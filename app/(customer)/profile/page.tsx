@@ -12,15 +12,15 @@ export default function ProfilePage() {
   const t = useTranslations("profile");
   const [active, setActive] = useState(searchParams.get("tab") || "info");
   const menuItems = [
-  { id: "info", icon: "👤", label: t("info") },
-  { id: "bookings", icon: "📋", label: t("bookings") },
-  { id: "wallet", icon: "💰", label: t("wallet") },
-  { id: "courses", icon: "🎓", label: t("courses") },
-  { id: "membership", icon: "💎", label: t("membership") },
-  { id: "vouchers", icon: "🎁", label: t("vouchers") },
-  { id: "groups", icon: "👥", label: t("groups") },
-  { id: "password", icon: "🔒", label: t("password") },
-  { id: "settings", icon: "⚙️", label: t("settings") },
+  { id: "info", icon: <img src="/infor.png" className="w-5 h-5 flex-shrink-0" alt="info" />, label: t("info") },
+  { id: "bookings", icon: <img src="/calendar.png" className="w-5 h-5 flex-shrink-0" alt="bookings" />, label: t("bookings") },
+  { id: "wallet", icon: <img src="/wallet.png" className="w-5 h-5 flex-shrink-0" alt="wallet" />, label: t("wallet") },
+  { id: "courses", icon: <img src="/education.png" className="w-5 h-5 flex-shrink-0" alt="courses" />, label: t("courses") },
+  { id: "membership", icon: <img src="/diamon.png" className="w-5 h-5 flex-shrink-0" alt="membership" />, label: t("membership") },
+  { id: "vouchers", icon: <img src="/giftbox.png" className="w-5 h-5 flex-shrink-0" alt="vouchers" />, label: t("vouchers") },
+  { id: "groups", icon: <img src="/teamwork.png" className="w-5 h-5 flex-shrink-0" alt="groups" />, label: t("groups") },
+  { id: "password", icon: <img src="/password-manager.png" className="w-5 h-5 flex-shrink-0" alt="password" />, label: t("password") },
+  { id: "settings", icon: <img src="/settings.png" className="w-5 h-5 flex-shrink-0" alt="settings" />, label: t("settings") },
 ];
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -86,7 +86,7 @@ export default function ProfilePage() {
                   className="absolute bottom-0 right-0 w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-xs border-2 border-white transition-colors disabled:opacity-50"
                   title="Thay ảnh đại diện"
                 >
-                  {avatarUploading ? "⏳" : "📷"}
+                  {avatarUploading ? "..." : "+"}
                 </button>
                 <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
               </div>
@@ -110,10 +110,12 @@ export default function ProfilePage() {
               ))}
               <button onClick={() => signOut({ callbackUrl: "/" })}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-gray-300 text-left" >
+                <img src="/check-out.png" className="w-5 h-5 flex-shrink-0" alt="logout" />
                  {t("logout")}
               </button>
               <button onClick={() => setShowDeleteConfirm(true)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-700 hover:bg-red-50 transition-colors border-t border-gray-300 text-left">
+                <img src="/delete.png" className="w-5 h-5 flex-shrink-0" alt="delete" />
                 {t("deleteAccount")}
               </button>
             </nav>
@@ -137,7 +139,7 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <div className="text-center mb-4">
-              <div className="text-4xl mb-2">⚠️</div>
+              <div className="flex justify-center mb-2"><img src="/delete.png" alt="" className="w-10 h-10" /></div>
               <h3 className="font-bold text-black text-lg">Xóa tài khoản</h3>
               <p className="text-gray-500 text-sm mt-1">Hành động này không thể hoàn tác! Tất cả dữ liệu sẽ bị xóa vĩnh viễn.</p>
             </div>
@@ -211,7 +213,7 @@ function SectionInfo({ session }: { session: any }) {
     const data = await res.json();
     setSaving(false);
     if (res.ok) {
-      setMsg("✅ Lưu thành công!");
+      setMsg("Lưu thành công!");
       setEditing(false);
       // Reload trang để cập nhật session
       setTimeout(() => window.location.reload(), 800);
@@ -283,7 +285,7 @@ function SectionInfo({ session }: { session: any }) {
       </div>
 
       {msg && (
-        <p className={`mt-3 text-sm px-3 py-2 rounded-lg ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <p className={`mt-3 text-sm px-3 py-2 rounded-lg ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </p>
       )}
@@ -361,7 +363,7 @@ function SectionBookings() {
         <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-24 bg-white/50 rounded-xl animate-pulse" />)}</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          <div className="text-4xl mb-2">📋</div>
+          <div className="flex justify-center mb-2"><img src="/list.png" alt="" className="w-10 h-10 opacity-40" /></div>
           <p className="text-sm">Chưa có lịch đặt sân nào</p>
           <a href="/" className="inline-block mt-3 text-emerald-600 text-sm hover:underline">Đặt sân ngay →</a>
         </div>
@@ -504,7 +506,10 @@ function SectionWallet() {
     <div className="space-y-4">
       {/* Card số dư */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-        <h2 className="text-lg font-semibold text-black mb-4">💰 Ví SportHub</h2>
+        <h2 className="text-lg font-semibold text-black mb-4 flex items-center gap-2">
+          <img src="/wallet.png" alt="Ví" className="w-5 h-5" />
+          Ví SportHub
+        </h2>
         {loading ? (
           <div className="h-16 bg-white/50 rounded-xl animate-pulse" />
         ) : (
@@ -591,7 +596,10 @@ function SectionWallet() {
       {showTopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="font-bold text-black text-lg mb-4">💰 Nạp tiền vào ví</h3>
+            <h3 className="font-bold text-black text-lg mb-4 flex items-center gap-2">
+              <img src="/wallet.png" alt="Ví" className="w-5 h-5" />
+              Nạp tiền vào ví
+            </h3>
 
             {/* Hiển thị số tiền */}
             <div className="bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-center mb-3">
@@ -844,7 +852,7 @@ function SectionCourses() {
       setShowCreate(false);
       setForm({ title: "", description: "", sport: "", level: "BEGINNER", price: "", maxStudents: "10", schedule: "", startDate: "", endDate: "", isPublic: true });
       fetch(`/api/courses?type=public`).then((r) => r.json()).then((d) => setCourses(Array.isArray(d) ? d : []));
-      setMsg("✅ Tạo khóa học thành công!");
+      setMsg("Tạo khóa học thành công!");
       setTimeout(() => setMsg(""), 3000);
     } else {
       setMsg(data.error);
@@ -858,7 +866,7 @@ function SectionCourses() {
   return (
     <div className="space-y-4">
       {msg && (
-        <div className={`px-4 py-2 rounded-xl text-sm ${msg.includes("✅") || msg.includes("thành công") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <div className={`px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") || msg.includes("thành công") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </div>
       )}
@@ -970,7 +978,12 @@ function SectionCourses() {
                 </button>
                 <button onClick={() => handleEnroll(selected.course.id)} disabled={enrolling}
                   className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                  {enrolling ? "Đang đăng ký..." : "💰 Đăng ký ngay"}
+                  {enrolling ? "Đang đăng ký..." : (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <img src="/wallet.png" alt="" className="w-4 h-4" />
+                      Đăng ký ngay
+                    </span>
+                  )}
                 </button>
               </div>
             )}
@@ -1087,7 +1100,7 @@ function SectionMembership() {
     });
     const data = await res.json();
     setUpgrading("");
-    setMsg(res.ok ? `✅ ${data.message}` : data.error);
+    setMsg(res.ok ? data.message : data.error);
     if (res.ok) {
       setMembership((m: any) => ({ ...m, tier, status: "ACTIVE" }));
     }
@@ -1097,7 +1110,7 @@ function SectionMembership() {
   if (!confirm("Xác nhận hủy gói hội viên? Bạn sẽ về gói FREE ngay lập tức.")) return;
   const res = await fetch("/api/membership", { method: "DELETE" });
   const data = await res.json();
-  setMsg(res.ok ? `✅ ${data.message}` : data.error);
+  setMsg(res.ok ? data.message : data.error);
   if (res.ok) setMembership((m: any) => ({ ...m, tier: "FREE", status: "CANCELLED" }));
   setTimeout(() => setMsg(""), 4000);
 }
@@ -1123,7 +1136,7 @@ function SectionMembership() {
       <h2 className="text-lg font-semibold text-black mb-4">Gói hội viên</h2>
 
       {msg && (
-        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </div>
       )}
@@ -1212,7 +1225,7 @@ function SectionVouchers() {
       <h2 className="text-lg font-semibold text-black mb-4">Ưu đãi của tôi</h2>
 
       {msg && (
-        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </div>
       )}
@@ -1221,7 +1234,7 @@ function SectionVouchers() {
         <div className="space-y-3">{[1,2].map((i) => <div key={i} className="h-16 bg-white/50 rounded-xl animate-pulse" />)}</div>
       ) : vouchers.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          <div className="text-4xl mb-2">🎁</div>
+          <div className="flex justify-center mb-2"><img src="/giftbox.png" alt="" className="w-10 h-10" /></div>
           <p className="text-sm">Bạn chưa có voucher nào</p>
         </div>
       ) : (
@@ -1242,7 +1255,7 @@ function SectionVouchers() {
                   disabled={isExpired}
                   onClick={() => {
                     navigator.clipboard.writeText(v.code);
-                    setMsg(`✅ Đã copy mã ${v.code}!`);
+                    setMsg(`Đã copy mã ${v.code}!`);
                     setTimeout(() => setMsg(""), 2000);
                   }}
                   className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${isExpired ? "bg-gray-200 text-gray-500 cursor-not-allowed" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
@@ -1292,7 +1305,7 @@ function SectionGroups() {
       setShowCreate(false);
       setGroupName(""); setGroupDesc("");
       loadGroups();
-      setMsg("✅ Tạo nhóm thành công!");
+      setMsg("Tạo nhóm thành công!");
     } else {
       setMsg(data.error);
     }
@@ -1307,7 +1320,7 @@ function SectionGroups() {
       body: JSON.stringify({ email: inviteEmail }),
     });
     const data = await res.json();
-    setMsg(res.ok ? `✅ ${data.message}` : data.error);
+    setMsg(res.ok ? data.message : data.error);
     if (res.ok) {
       setInviteEmail("");
       // Reload group detail
@@ -1349,7 +1362,7 @@ function SectionGroups() {
       </div>
 
       {msg && (
-        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </div>
       )}
@@ -1470,7 +1483,7 @@ function SectionGroups() {
                   </button>
                 </div>
                 {msg && (
-                  <p className={`text-xs mt-2 ${msg.includes("✅") ? "text-emerald-600" : "text-red-500"}`}>{msg}</p>
+                  <p className={`text-xs mt-2 ${msg.includes("thành công") || msg.startsWith("Đã") ? "text-emerald-600" : "text-red-500"}`}>{msg}</p>
                 )}
               </div>
             )}
@@ -1504,7 +1517,7 @@ function SectionPassword() {
     });
     const data = await res.json();
     setLoading(false);
-    setMsg(res.ok ? `✅ ${data.message}` : data.error);
+    setMsg(res.ok ? data.message : data.error);
     if (res.ok) setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     setTimeout(() => setMsg(""), 4000);
   }
@@ -1520,7 +1533,7 @@ function SectionPassword() {
       <h2 className="text-lg font-semibold text-black mb-6">Đổi mật khẩu</h2>
 
       {msg && (
-        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </div>
       )}
@@ -1579,14 +1592,14 @@ function SectionSettings() {
     });
     const data = await res.json();
     setSaving(false);
-    setMsg(res.ok ? `✅ ${data.message}` : data.error);
+    setMsg(res.ok ? data.message : data.error);
     setTimeout(() => setMsg(""), 3000);
   }
 
   return (
     <div className="space-y-4">
       {msg && (
-        <div className={`px-4 py-2 rounded-xl text-sm ${msg.includes("✅") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <div className={`px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </div>
       )}

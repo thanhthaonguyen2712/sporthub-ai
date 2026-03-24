@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
+import { sendUserEmail, emailWalletTopup, emailBookingConfirmed } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -37,20 +38,37 @@ export async function GET(req: NextRequest) {
      const { courtId, bookingDate, startTime, endTime, totalPrice, serviceIds, userId, isTopup } = bookingData;
     // Nếu là nạp tiền ví
         if (isTopup) {
+    const topupAmount = Number(vnpParams["vnp_Amount"]) / 100;
     const wallet = await prisma.wallet.findUnique({ where: { userId: Number(userId) } });
     if (wallet) {
         await prisma.wallet.update({
         where: { id: wallet.id },
-        data: { balance: { increment: Number(vnpParams["vnp_Amount"]) / 100 } },
+        data: { balance: { increment: topupAmount } },
         });
         await prisma.walletTransaction.create({
         data: {
             walletId: wallet.id,
-            amount: Number(vnpParams["vnp_Amount"]) / 100,
+            amount: topupAmount,
             type: "DEPOSIT",
             description: "Nạp tiền qua VNPay",
         },
         });
+        const user = await prisma.user.findUnique({ where: { id: Number(userId) }, select: { fullName: true } });
+        const newBalance = Number(wallet.balance) + topupAmount;
+        prisma.notification.create({
+          data: {
+            userId: Number(userId),
+            title: "Nạp tiền ví thành công",
+            content: `Đã nạp ${topupAmount.toLocaleString("vi-VN")}đ qua VNPay. Số dư: ${newBalance.toLocaleString("vi-VN")}đ.`,
+            type: "PAYMENT",
+            link: "/profile?tab=wallet",
+          },
+        }).catch(() => {});
+        sendUserEmail(
+          Number(userId),
+          "Nạp tiền ví thành công — SportHub AI",
+          emailWalletTopup(user?.fullName ?? "", topupAmount, newBalance)
+        );
     }
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?tab=wallet&topup=success`);
         }
@@ -81,6 +99,31 @@ export async function GET(req: NextRequest) {
 
         return newBooking;
       });
+
+      const courtInfo = await prisma.court.findUnique({ where: { id: Number(courtId) }, select: { name: true } });
+      const userInfo = await prisma.user.findUnique({ where: { id: Number(userId) }, select: { fullName: true } });
+      prisma.notification.create({
+        data: {
+          userId: Number(userId),
+          title: "Đặt sân thành công",
+          content: `Sân ${courtInfo?.name ?? ""} ngày ${new Date(bookingDate).toLocaleDateString("vi-VN")} lúc ${startTime}–${endTime}. Đã thanh toán ${Number(totalPrice).toLocaleString("vi-VN")}đ qua VNPay.`,
+          type: "BOOKING",
+          link: "/profile?tab=bookings",
+        },
+      }).catch(() => {});
+      sendUserEmail(
+        Number(userId),
+        "Đặt sân thành công — SportHub AI",
+        emailBookingConfirmed(
+          userInfo?.fullName ?? "",
+          booking.id,
+          courtInfo?.name ?? `#${courtId}`,
+          new Date(bookingDate).toLocaleDateString("vi-VN"),
+          startTime,
+          endTime,
+          Number(totalPrice)
+        )
+      );
 
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/booking-success?id=${booking.id}`);
     } catch (error) {

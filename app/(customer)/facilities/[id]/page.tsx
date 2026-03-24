@@ -78,8 +78,18 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
   const holiday = isHoliday(selectedDate);
   const weekend = isWeekend(selectedDate);
 
+  // Tính giờ hiện tại theo giờ Việt Nam (UTC+7)
+  const nowVN = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
+  const todayVN = nowVN.toISOString().split("T")[0];
+  const nowMinutes = nowVN.getUTCHours() * 60 + nowVN.getUTCMinutes();
+  const isToday = selectedDate === todayVN;
+
+  function isPastSlot(slotTime: string): boolean {
+    return isToday && toMinutes(slotTime) < nowMinutes;
+  }
+
   function toggleSlot(slotTime: string) {
-    if (booked.includes(slotTime)) return;
+    if (booked.includes(slotTime) || isPastSlot(slotTime)) return;
     setSelectedSlots((prev) =>
       prev.includes(slotTime) ? prev.filter((s) => s !== slotTime) : [...prev, slotTime]
     );
@@ -111,7 +121,7 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
         </div>
         <div className="flex gap-1 shrink-0">
           {weekend && !holiday && <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">Cuối tuần</span>}
-          {holiday && <span className="text-[11px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">🎌 Ngày lễ +15%</span>}
+          {holiday && <span className="text-[11px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">Ngày lễ +15%</span>}
         </div>
       </div>
 
@@ -139,18 +149,28 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#B0C4DE" }}></span>
           <span className="text-black">Đang chọn</span>
         </span>
+        {isToday && (
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded inline-block" style={{ background: "#D1D5DB", border: "1px solid #9CA3AF" }}></span>
+            <span className="text-black">Đã qua</span>
+          </span>
+        )}
       </div>
 
       {/* Slots */}
       <div className="flex flex-wrap gap-2 mb-3">
         {ALL_SLOTS.map((slot) => {
           const isBooked = booked.includes(slot.time);
+          const isPast = isPastSlot(slot.time);
           const isSelected = selectedSlots.includes(slot.time);
 
           let bgStyle: React.CSSProperties = { fontWeight: "bold" };
           let cls = "border rounded-lg text-xs font-medium transition-all text-left ";
 
-          if (isBooked) {
+          if (isPast) {
+            bgStyle = { ...bgStyle, background: "#D1D5DB", borderColor: "#9CA3AF", color: "#6B7280" };
+            cls += "cursor-not-allowed opacity-60 ";
+          } else if (isBooked) {
             bgStyle = { ...bgStyle, background: "#EED5D2", borderColor: "#FFB5C5", color: "#000" };
             cls += "cursor-not-allowed ";
           } else if (isSelected) {
@@ -170,7 +190,7 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
           const pad = slot.isPeak ? "px-4 py-2.5" : "px-2.5 py-2";
 
           return (
-            <button key={slot.time} onClick={() => toggleSlot(slot.time)} disabled={isBooked}
+            <button key={slot.time} onClick={() => toggleSlot(slot.time)} disabled={isBooked || isPast}
               className={`${cls} ${pad}`} style={bgStyle}>
               <div className="font-semibold text-[11px]">{slot.label}</div>
               <div className="text-[10px] opacity-70 mt-0.5">{getSlotPriceLabel(slot, selectedDate)}</div>
@@ -183,7 +203,7 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
       {selectedSlots.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
           <div>
-            <p className="text-xs text-gray-500">{selectedSlots.length} slot · {totalMinutes} phút{holiday ? " · 🎌 Ngày lễ" : ""}</p>
+            <p className="text-xs text-gray-500">{selectedSlots.length} slot · {totalMinutes} phút{holiday ? " · Ngày lễ" : ""}</p>
             <p className="font-bold text-emerald-600 text-lg">{totalPrice.toLocaleString("vi-VN")}đ</p>
           </div>
           <button onClick={() => {
@@ -254,9 +274,9 @@ export default function FacilityDetailPage() {
     : sportGroups;
 
   const tabs = [
-    { id: "courts", label: `🏸 Danh sách sân (${facility.courts.length})` },
-    { id: "services", label: `🛒 Dịch vụ (${facility.services.length})` },
-    { id: "reviews", label: `⭐ Đánh giá (${facility.reviews.length})` },
+    { id: "courts", icon: <img src="/list.png" className="w-4 h-4 inline-block" alt="list" />, label: `Danh sách sân (${facility.courts.length})` },
+    { id: "services", icon: <img src="/shopping-cart.png" className="w-4 h-4 inline-block" alt="cart" />, label: `Dịch vụ (${facility.services.length})` },
+    { id: "reviews", icon: <img src="/star.png" className="w-4 h-4 inline-block" alt="star" />, label: `Đánh giá (${facility.reviews.length})` },
   ];
 
   return (
@@ -272,7 +292,7 @@ export default function FacilityDetailPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-black mb-1">{facility.name}</h1>
-              <p className="text-gray-500 text-sm mb-2">📍 {facility.address}</p>
+              <p className="text-gray-500 text-sm mb-2 flex items-center gap-1"><img src="/placeholder.png" className="w-4 h-4 inline-block" alt="location" /> {facility.address}</p>
               <div className="flex gap-2 flex-wrap mb-2">
                 {facility.sports.map((s) => (
                   <span key={s.id} className="flex items-center gap-1 bg-white border border-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full">
@@ -281,9 +301,9 @@ export default function FacilityDetailPage() {
                 ))}
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span>🏸 {facility.courts.length} sân</span>
-                <span>📞 {facility.owner.phone}</span>
-                {facility.avgRating && <span>⭐ {facility.avgRating}</span>}
+                <span>{facility.courts.length} sân</span>
+                <span className="flex items-center gap-1"><img src="/call.png" className="w-4 h-4 inline-block" alt="call" /> {facility.owner.phone}</span>
+                {facility.avgRating && <span className="flex items-center gap-1"><img src="/star.png" alt="" className="w-3 h-3" />{facility.avgRating}</span>}
               </div>
               {facility.description && <p className="text-gray-600 text-sm mt-2">{facility.description}</p>}
             </div>
@@ -305,7 +325,7 @@ export default function FacilityDetailPage() {
                   : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
               }`}
             >
-              {tab.label}
+              <span className="flex items-center gap-1">{tab.icon} {tab.label}</span>
             </button>
           ))}
         </div>
@@ -314,7 +334,7 @@ export default function FacilityDetailPage() {
         {activeTab === "courts" && (
           <div>
             <div className="flex items-center gap-3 mb-5">
-              <label className="text-sm font-medium text-gray-700">📅 Chọn ngày:</label>
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-1"><img src="/calendar.png" className="w-4 h-4 inline-block" alt="calendar" /> Chọn ngày:</label>
               <input
                 type="date"
                 value={selectedDate}
@@ -400,7 +420,7 @@ export default function FacilityDetailPage() {
           <div className="space-y-4">
             {facility.reviews.length === 0 ? (
               <div className="text-center py-16 text-gray-500 border border-gray-300 rounded-2xl" style={{ background: "#E0EEE0" }}>
-                <div className="text-5xl mb-3">⭐</div>
+                <div className="flex justify-center mb-3"><img src="/star.png" alt="" className="w-12 h-12 opacity-40" /></div>
                 <p className="text-sm">Chưa có đánh giá nào</p>
                 <p className="text-xs mt-1 text-gray-400">Hãy là người đầu tiên đánh giá!</p>
               </div>
@@ -409,7 +429,7 @@ export default function FacilityDetailPage() {
                 <div key={r.id} className="border border-gray-300 rounded-xl p-4" style={{ background: "#E0EEE0" }}>
                   <div className="flex items-center justify-between mb-2">
                     <p className="font-semibold text-black text-sm">{r.customer.fullName}</p>
-                    <span className="text-yellow-500 text-sm">{"⭐".repeat(r.rating)}</span>
+                    <span className="flex items-center gap-0.5">{Array.from({ length: r.rating }).map((_, i) => <img key={i} src="/star.png" alt="" className="w-3.5 h-3.5" />)}</span>
                   </div>
                   {r.comment && <p className="text-gray-600 text-sm">{r.comment}</p>}
                   <p className="text-gray-400 text-xs mt-2">{new Date(r.createdAt).toLocaleDateString("vi-VN")}</p>

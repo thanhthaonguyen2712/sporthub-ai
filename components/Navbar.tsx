@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import LocaleSwitcher from "./LocaleSwitcher";
 import { useLocale, useTranslations } from "next-intl";
@@ -66,8 +66,13 @@ export default function Navbar() {
     if (link) router.push(link);
   }
 
-  const typeIcon: Record<string, string> = {
-    BOOKING: "📋", PAYMENT: "💰", SYSTEM: "🔔", PROMOTION: "🎁", COURSE: "📚", MEMBERSHIP: "💎"
+  const typeIcon: Record<string, React.ReactNode> = {
+    BOOKING:   <img src="/list.png"      alt="" className="w-4 h-4 mt-0.5 flex-shrink-0" />,
+    PAYMENT:   <img src="/wallet.png"    alt="" className="w-4 h-4 mt-0.5 flex-shrink-0" />,
+    SYSTEM:    <img src="/bell.png"      alt="" className="w-4 h-4 mt-0.5 flex-shrink-0" />,
+    PROMOTION: <img src="/giftbox.png"   alt="" className="w-4 h-4 mt-0.5 flex-shrink-0" />,
+    COURSE:    <img src="/education.png" alt="" className="w-4 h-4 mt-0.5 flex-shrink-0" />,
+    MEMBERSHIP:<img src="/diamon.png"    alt="" className="w-4 h-4 mt-0.5 flex-shrink-0" />,
   };
 
   return (
@@ -94,7 +99,7 @@ export default function Navbar() {
                 <button
                   onClick={() => setNotifOpen(!notifOpen)}
                   className="relative w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors">
-                  <span className="text-lg">🔔</span>
+                  <img src="/bell.png" alt="Thông báo" className="w-5 h-5" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                       {unreadCount > 9 ? "9+" : unreadCount}
@@ -105,7 +110,10 @@ export default function Navbar() {
                 {notifOpen && (
                   <div className="absolute right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-50">
                     <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-                      <p className="text-white text-sm font-semibold">🔔 Thông báo</p>
+                      <p className="text-white text-sm font-semibold flex items-center gap-1.5">
+                        <img src="/bell.png" alt="" className="w-4 h-4" />
+                        Thông báo
+                      </p>
                       {unreadCount > 0 && (
                         <button onClick={markAllRead} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
                           Đọc tất cả
@@ -115,7 +123,7 @@ export default function Navbar() {
                     <div className="max-h-80 overflow-y-auto">
                       {notifications.length === 0 ? (
                         <div className="text-center py-8 text-slate-500">
-                          <div className="text-3xl mb-2">🔔</div>
+                          <div className="flex justify-center mb-2"><img src="/bell.png" alt="" className="w-8 h-8 opacity-40" /></div>
                           <p className="text-xs">Chưa có thông báo nào</p>
                         </div>
                       ) : (
@@ -124,7 +132,9 @@ export default function Navbar() {
                             onClick={() => markRead(n.id, n.link)}
                             className={`px-4 py-3 border-b border-slate-700/50 cursor-pointer hover:bg-slate-700/50 transition-colors ${!n.isRead ? "bg-slate-700/30" : ""}`}>
                             <div className="flex items-start gap-2">
-                              <span className="text-base mt-0.5">{typeIcon[n.type] || "🔔"}</span>
+                              <span className="text-base mt-0.5 flex-shrink-0">
+                                {typeIcon[n.type] ?? <img src="/bell.png" alt="" className="w-4 h-4 mt-0.5" />}
+                              </span>
                               <div className="flex-1 min-w-0">
                                 <p className={`text-sm ${!n.isRead ? "text-white font-medium" : "text-slate-300"}`}>
                                   {n.title}
