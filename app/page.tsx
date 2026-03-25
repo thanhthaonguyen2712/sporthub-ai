@@ -324,7 +324,7 @@ export default function HomePage() {
             ))}
           </div>) : displayedFacilities.length === 0 ? (
             <div className="text-center py-20 text-gray-500">
-              <div className="text-5xl mb-4">🔍</div>
+              <div className="flex justify-center mb-4"><img src="/list.png" className="w-12 h-12 opacity-40" alt="" /></div>
               <p>{t("noResult")}</p>
           </div>
         ) : (
@@ -338,7 +338,7 @@ export default function HomePage() {
                 <div className="w-full h-36 bg-white rounded-xl mb-4 flex items-center justify-center border border-gray-200">
                   {facility.sports[0]?.icon
                     ? <img src={facility.sports[0].icon} className="w-16 h-16 opacity-80" />
-                    : <span className="text-4xl">🏟️</span>
+                    : <img src="/placeholder.png" className="w-12 h-12 opacity-30" alt="" />
                   }
                 </div>
                 <h3 className="font-semibold text-black group-hover:text-emerald-600 transition-colors mb-1 line-clamp-1">

@@ -17,7 +17,7 @@ export default function LocaleSwitcher({ currentLocale }: { currentLocale: strin
   return (
     <div className="flex gap-1">
       {[
-        { value: "vi", label: "🇻🇳" },
+        { value: "vi", label: "vi" },
         { value: "en", label: "eng" },
       ].map((l) => (
         <button

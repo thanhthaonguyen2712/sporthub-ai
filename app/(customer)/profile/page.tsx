@@ -308,13 +308,43 @@ function SectionBookings() {
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState<number | null>(null);
   const [toast, setToast] = useState("");
+  const [reviewedIds, setReviewedIds] = useState<number[]>([]);
+  const [reviewModal, setReviewModal] = useState<{ facilityId: number; facilityName: string } | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   function loadBookings() {
     fetch("/api/bookings/myschedule")
       .then((r) => r.json())
       .then((data) => { setBookings(Array.isArray(data) ? data : []); setLoading(false); });
   }
-  useEffect(() => { loadBookings(); }, []);
+  useEffect(() => {
+    loadBookings();
+    fetch("/api/reviews").then(r => r.json()).then(d => setReviewedIds(d.reviewed || []));
+  }, []);
+
+  async function submitReview() {
+    if (!reviewRating || !reviewModal) return;
+    setReviewSubmitting(true);
+    const res = await fetch("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ facilityId: reviewModal.facilityId, rating: reviewRating, comment: reviewComment }),
+    });
+    const data = await res.json();
+    setReviewSubmitting(false);
+    if (res.ok) {
+      setReviewedIds(prev => [...prev, reviewModal.facilityId]);
+      setReviewModal(null);
+      setReviewRating(0);
+      setReviewComment("");
+      setToast("Đánh giá của bạn đã được gửi thành công!");
+    } else {
+      setToast(data.error || "Có lỗi xảy ra!");
+    }
+    setTimeout(() => setToast(""), 4000);
+  }
 
   async function handleCancel(bookingId: number) {
     setCancellingId(bookingId);
@@ -384,8 +414,8 @@ function SectionBookings() {
                 </span>
               </div>
               <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
-                <span>📅 {new Date(b.bookingDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
-                <span>🕐 {b.startTime} – {b.endTime}</span>
+                <span className="flex items-center gap-1"><img src="/calendar.png" className="w-3.5 h-3.5" alt="" />{new Date(b.bookingDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+                <span>{b.startTime} – {b.endTime}</span>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-emerald-600 font-bold text-sm">{Number(b.totalPrice).toLocaleString("vi-VN")}đ</span>
@@ -398,6 +428,13 @@ function SectionBookings() {
                         Hủy
                       </button>
                     )}
+                  {b.status === "COMPLETED" && b.facility?.id && !reviewedIds.includes(b.facility.id) && (
+                    <button
+                      onClick={() => { setReviewModal({ facilityId: b.facility.id, facilityName: b.facility.name }); setReviewRating(0); setReviewComment(""); }}
+                      className="text-xs text-amber-600 hover:text-amber-700 border border-amber-300 hover:border-amber-500 px-2 py-0.5 rounded-lg transition-colors">
+                      <img src="/star.png" className="w-3.5 h-3.5 inline mr-0.5" alt="" />Đánh giá
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -414,12 +451,55 @@ function SectionBookings() {
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="font-bold text-black text-lg mb-2">Xác nhận hủy sân</h3>
             <p className="text-gray-600 text-sm mb-1">Bạn có chắc muốn hủy lịch đặt sân này?</p>
-            <p className="text-emerald-600 text-xs mb-5">✅ Tiền sẽ được hoàn về ví SportHub ngay lập tức.</p>
+            <p className="text-emerald-600 text-xs mb-5">Tiền sẽ được hoàn về ví SportHub ngay lập tức.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowConfirm(null)} className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Không hủy</button>
               <button onClick={() => handleCancel(showConfirm)} disabled={cancellingId === showConfirm}
                 className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
                 {cancellingId === showConfirm ? "Đang hủy..." : "Xác nhận hủy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal đánh giá sân */}
+      {reviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="text-center mb-4">
+              <div className="flex justify-center mb-2"><img src="/star.png" alt="" className="w-10 h-10" /></div>
+              <h3 className="font-bold text-black text-lg">Đánh giá cơ sở</h3>
+              <p className="text-gray-500 text-sm mt-1">{reviewModal.facilityName}</p>
+            </div>
+            {/* Chọn sao */}
+            <div className="flex justify-center gap-2 mb-4">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button key={star} onClick={() => setReviewRating(star)}
+                  className={`transition-transform hover:scale-110 ${star <= reviewRating ? "opacity-100" : "opacity-30"}`}>
+                  <img src="/star.png" className="w-8 h-8" alt={`${star} sao`} />
+                </button>
+              ))}
+            </div>
+            {reviewRating > 0 && (
+              <p className="text-center text-xs text-gray-500 mb-3">
+                {["", "Rất tệ", "Tệ", "Bình thường", "Tốt", "Tuyệt vời"][reviewRating]}
+              </p>
+            )}
+            <textarea
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              placeholder="Chia sẻ trải nghiệm của bạn... (không bắt buộc)"
+              rows={3}
+              className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 resize-none mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setReviewModal(null)}
+                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                Hủy
+              </button>
+              <button onClick={submitReview} disabled={reviewSubmitting || reviewRating === 0}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+                {reviewSubmitting ? "Đang gửi..." : "Gửi đánh giá"}
               </button>
             </div>
           </div>
@@ -517,7 +597,7 @@ function SectionWallet() {
             <p className="text-sm opacity-80 mb-1">Số dư hiện tại</p>
             <p className="text-3xl font-bold">{Number(wallet?.balance || 0).toLocaleString("vi-VN")}đ</p>
             <span className={`inline-block mt-3 text-xs px-2 py-0.5 rounded-full ${wallet?.status === "ACTIVE" ? "bg-white/20" : "bg-red-300/40"}`}>
-              {wallet?.status === "ACTIVE" ? "✅ Hoạt động" : "🔒 Bị khóa"}
+              {wallet?.status === "ACTIVE" ? "Hoạt động" : "Bị khóa"}
             </span>
           </div>
         )}
@@ -543,7 +623,7 @@ function SectionWallet() {
       {/* Lịch sử giao dịch */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-lg font-semibold text-black">📜 Lịch sử giao dịch</h2>
+          <h2 className="text-lg font-semibold text-black">Lịch sử giao dịch</h2>
           <div className="flex gap-2 flex-wrap">
             {["Tất cả", "Nạp tiền", "Thanh toán", "Hoàn tiền", "Rút tiền"].map((tab) => (
               <button key={tab} onClick={() => setTxFilter(tab)}
@@ -561,7 +641,7 @@ function SectionWallet() {
           <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-14 bg-white/50 rounded-xl animate-pulse" />)}</div>
         ) : transactions.length === 0 ? (
           <div className="text-center py-10 text-gray-500">
-            <div className="text-4xl mb-2">📭</div>
+            <div className="flex justify-center mb-2"><img src="/wallet.png" className="w-10 h-10 opacity-40" alt="" /></div>
             <p className="text-sm">Chưa có giao dịch nào</p>
           </div>
         ) : (
@@ -882,7 +962,7 @@ function SectionCourses() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-5">
-          {[{ key: "mine", label: "📚 Khóa học của tôi" }, { key: "public", label: "🌐 Khóa học đang mở" }].map((t) => (
+          {[{ key: "mine", label: "Khóa học của tôi" }, { key: "public", label: "Khóa học đang mở" }].map((t) => (
             <button key={t.key} onClick={() => setTab(t.key as any)}
               className={`text-sm px-4 py-2 rounded-xl border transition-colors ${tab === t.key ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"}`}>
               {t.label}
@@ -894,7 +974,7 @@ function SectionCourses() {
           <div className="space-y-3">{[1,2].map((i) => <div key={i} className="h-20 bg-white/50 rounded-xl animate-pulse" />)}</div>
         ) : courses.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            <div className="text-4xl mb-2">📚</div>
+            <div className="flex justify-center mb-2"><img src="/education.png" className="w-10 h-10 opacity-40" alt="" /></div>
             <p className="text-sm">{tab === "mine" ? "Bạn chưa đăng ký khóa học nào" : "Chưa có khóa học nào"}</p>
           </div>
         ) : (
@@ -909,7 +989,7 @@ function SectionCourses() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <p className="font-semibold text-black text-sm">{course.title}</p>
-                      <p className="text-gray-500 text-xs mt-0.5">🏸 {course.sport} · {levelLabel[course.level]}</p>
+                      <p className="text-gray-500 text-xs mt-0.5">{course.sport} · {levelLabel[course.level]}</p>
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                       enrollment?.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700"
@@ -920,7 +1000,7 @@ function SectionCourses() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>👨‍🏫 {course.coach?.fullName}</span>
+                    <span>{course.coach?.fullName}</span>
                     <span className="text-emerald-600 font-bold">{Number(course.price).toLocaleString("vi-VN")}đ</span>
                   </div>
                   {enrollment && enrollment.progress > 0 && (
@@ -960,7 +1040,7 @@ function SectionCourses() {
 
             {/* Thông tin HLV */}
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
-              <p className="text-xs text-gray-500 mb-1">👨‍🏫 Huấn luyện viên</p>
+              <p className="text-xs text-gray-500 mb-1">Huấn luyện viên</p>
               <p className="font-semibold text-black text-sm">{selected.course.coach?.fullName}</p>
               <p className="text-xs text-gray-500">{selected.course.coach?.phone} · {selected.course.coach?.email}</p>
             </div>
@@ -1116,9 +1196,9 @@ function SectionMembership() {
 }
 
   const tiers = [
-    { name: "SILVER", label: "Silver", price: "199.000đ/tháng", icon: "🥈", color: "from-gray-100 to-gray-200", perks: ["Giảm 10% khi đặt sân", "Ưu tiên đặt giờ cao điểm"] },
-    { name: "GOLD", label: "Gold", price: "399.000đ/tháng", icon: "🥇", color: "from-yellow-50 to-yellow-100", perks: ["Giảm 20% khi đặt sân", "1 buổi PT miễn phí/tháng"] },
-    { name: "PLATINUM", label: "Platinum", price: "699.000đ/tháng", icon: "💎", color: "from-blue-50 to-purple-100", perks: ["Giảm 30% khi đặt sân", "Không giới hạn PT"] },
+    { name: "SILVER", label: "Silver", price: "199.000đ/tháng", iconBg: "bg-gray-400", color: "from-gray-100 to-gray-200", perks: ["Giảm 10% khi đặt sân", "Ưu tiên đặt giờ cao điểm"] },
+    { name: "GOLD", label: "Gold", price: "399.000đ/tháng", iconBg: "bg-yellow-500", color: "from-yellow-50 to-yellow-100", perks: ["Giảm 20% khi đặt sân", "1 buổi PT miễn phí/tháng"] },
+    { name: "PLATINUM", label: "Platinum", price: "699.000đ/tháng", iconBg: "bg-purple-500", color: "from-blue-50 to-purple-100", perks: ["Giảm 30% khi đặt sân", "Không giới hạn PT"] },
   ];
 
   const tierColors: Record<string, string> = {
@@ -1157,7 +1237,7 @@ function SectionMembership() {
             {getEffectiveTier(membership) !== "FREE" && (
               <div className="mt-2">
                 {membership?.status === "CANCELLED" ? (
-                  <span className="text-xs text-orange-500">⚠️ Đã hủy gia hạn — còn hiệu lực đến {new Date(membership.endDate).toLocaleDateString("vi-VN")}</span>
+                  <span className="text-xs text-orange-500">Đã hủy gia hạn — còn hiệu lực đến {new Date(membership.endDate).toLocaleDateString("vi-VN")}</span>
                 ) : (
                   <button onClick={handleCancel}
                     className="text-xs text-red-500 hover:text-red-700 underline transition-colors">
@@ -1167,9 +1247,7 @@ function SectionMembership() {
               </div>
             )}
           </div>
-          <span className="text-4xl">
-            {membership?.tier === "SILVER" ? "🥈" : membership?.tier === "GOLD" ? "🥇" : membership?.tier === "PLATINUM" ? "💎" : "🥉"}
-          </span>
+          <img src="/diamon.png" className="w-10 h-10 opacity-80" alt="tier" />
         </div>
       </div>
 
@@ -1179,7 +1257,7 @@ function SectionMembership() {
           const isCurrent = membership?.tier === pkg.name;
           return (
             <div key={pkg.name} className={`bg-gradient-to-br ${pkg.color} border rounded-xl p-4 text-center ${isCurrent ? "border-emerald-400" : "border-gray-200"}`}>
-              <div className="text-2xl mb-2">{pkg.icon}</div>
+              <div className={`w-8 h-8 rounded-full ${pkg.iconBg} mx-auto mb-2 flex items-center justify-center text-white text-xs font-bold`}>{pkg.label[0]}</div>
               <p className="font-semibold text-sm text-black mb-1">{pkg.label}</p>
               <p className="text-emerald-600 text-xs mb-3">{pkg.price}</p>
               {pkg.perks.map((p) => <p key={p} className="text-gray-500 text-xs mb-1">✓ {p}</p>)}
@@ -1191,7 +1269,7 @@ function SectionMembership() {
                     ? "bg-emerald-100 text-emerald-700 cursor-default"
                     : "bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white"
                 }`}>
-                {isCurrent ? "✅ Đang dùng" : upgrading === pkg.name ? "Đang xử lý..." : "Nâng cấp"}
+                {isCurrent ? "Đang dùng" : upgrading === pkg.name ? "Đang xử lý..." : "Nâng cấp"}
               </button>
             </div>
           );
@@ -1259,7 +1337,7 @@ function SectionVouchers() {
                     setTimeout(() => setMsg(""), 2000);
                   }}
                   className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${isExpired ? "bg-gray-200 text-gray-500 cursor-not-allowed" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
-                  {isExpired ? "Hết hạn" : "📋 Copy mã"}
+                  {isExpired ? "Hết hạn" : "Copy mã"}
                 </button>
               </div>
             );
@@ -1371,7 +1449,7 @@ function SectionGroups() {
         <div className="space-y-3">{[1,2].map((i) => <div key={i} className="h-16 bg-white/50 rounded-xl animate-pulse" />)}</div>
       ) : groups.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          <div className="text-5xl mb-3">👥</div>
+          <div className="flex justify-center mb-3"><img src="/group.png" className="w-12 h-12 opacity-40" alt="" /></div>
           <p className="text-sm">Bạn chưa tham gia nhóm nào</p>
           <p className="text-xs mt-2 text-gray-400">Tạo nhóm để rủ bạn bè cùng đặt sân</p>
         </div>
@@ -1386,11 +1464,11 @@ function SectionGroups() {
                   {g.description && <p className="text-gray-500 text-xs mt-0.5">{g.description}</p>}
                 </div>
                 <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
-                  👥 {g._count.members} thành viên
+                  <img src="/group.png" className="w-3.5 h-3.5 inline mr-0.5" alt="" />{g._count.members} thành viên
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                {g.ownerId === myId ? "👑 Bạn là trưởng nhóm" : `👤 Trưởng nhóm: ${g.owner.fullName}`}
+                {g.ownerId === myId ? "Bạn là trưởng nhóm" : `Trưởng nhóm: ${g.owner.fullName}`}
               </p>
             </div>
           ))}
@@ -1459,7 +1537,7 @@ function SectionGroups() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {m.role === "OWNER" && <span className="text-xs text-yellow-600">👑</span>}
+                    {m.role === "OWNER" && <span className="text-xs text-yellow-600 font-semibold">Trưởng</span>}
                     {showDetail.ownerId === myId && m.userId !== myId && (
                       <button onClick={() => handleRemove(showDetail.id, m.userId)}
                         className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
@@ -1491,7 +1569,7 @@ function SectionGroups() {
             {/* Nút đặt sân nhóm */}
             <button onClick={() => { setShowDetail(null); window.location.href = "/"; }}
               className="mt-4 w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-              🏸 Đặt sân cho nhóm
+              Đặt sân cho nhóm
             </button>
           </div>
         </div>
@@ -1553,7 +1631,7 @@ function SectionPassword() {
               <button
                 onClick={() => setShow((s) => ({ ...s, [field.showKey]: !s[field.showKey as keyof typeof s] }))}
                 className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 text-sm">
-                {show[field.showKey as keyof typeof show] ? "🙈" : "👁️"}
+                {show[field.showKey as keyof typeof show] ? "Ẩn" : "Hiện"}
               </button>
             </div>
           </div>
@@ -1635,7 +1713,7 @@ function SectionSettings() {
       {/* Nút lưu */}
       <button onClick={handleSave} disabled={saving}
         className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-medium transition-colors">
-        {saving ? "Đang lưu..." : "💾 Lưu cài đặt"}
+        {saving ? "Đang lưu..." : "Lưu cài đặt"}
       </button>
     </div>
   );

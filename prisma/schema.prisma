@@ -371,7 +371,8 @@ model Booking {
   court         Court         @relation(fields: [courtId], references: [id])
   voucherId     Int?          @map("voucher_id")
   voucher       Voucher?      @relation(fields: [voucherId], references: [id])
-  invoice Invoice?
+  invoice   Invoice?
+  matchPost MatchPost?
 
   @@map("booking")
 }
@@ -426,6 +427,11 @@ model MatchPost {
   facility        Facility      @relation(fields: [facilityId], references: [id])
   categoryId      Int           @map("category_id")
   category        SportCategory @relation(fields: [categoryId], references: [id])
+  bookingId       Int?          @unique @map("booking_id")
+  booking         Booking?      @relation(fields: [bookingId], references: [id])
+  courtName       String?       @map("court_name")
+  pricePerPerson  Decimal?      @map("price_per_person") @db.Decimal(10, 2)
+  totalPrice      Decimal?      @map("total_price") @db.Decimal(10, 2)
 
   @@map("match_posts")
 }

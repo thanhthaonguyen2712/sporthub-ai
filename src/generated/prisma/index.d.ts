@@ -16665,6 +16665,7 @@ export namespace Prisma {
     court?: boolean | CourtDefaultArgs<ExtArgs>
     voucher?: boolean | Booking$voucherArgs<ExtArgs>
     invoice?: boolean | Booking$invoiceArgs<ExtArgs>
+    matchPost?: boolean | Booking$matchPostArgs<ExtArgs>
   }, ExtArgs["result"]["booking"]>
 
 
@@ -16695,6 +16696,7 @@ export namespace Prisma {
     court?: boolean | CourtDefaultArgs<ExtArgs>
     voucher?: boolean | Booking$voucherArgs<ExtArgs>
     invoice?: boolean | Booking$invoiceArgs<ExtArgs>
+    matchPost?: boolean | Booking$matchPostArgs<ExtArgs>
   }
 
   export type $BookingPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -16705,6 +16707,7 @@ export namespace Prisma {
       court: Prisma.$CourtPayload<ExtArgs>
       voucher: Prisma.$VoucherPayload<ExtArgs> | null
       invoice: Prisma.$InvoicePayload<ExtArgs> | null
+      matchPost: Prisma.$MatchPostPayload<ExtArgs> | null
     }
     scalars: $Extensions.GetPayloadResult<{
       id: number
@@ -17068,6 +17071,7 @@ export namespace Prisma {
     court<T extends CourtDefaultArgs<ExtArgs> = {}>(args?: Subset<T, CourtDefaultArgs<ExtArgs>>): Prisma__CourtClient<$Result.GetResult<Prisma.$CourtPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
     voucher<T extends Booking$voucherArgs<ExtArgs> = {}>(args?: Subset<T, Booking$voucherArgs<ExtArgs>>): Prisma__VoucherClient<$Result.GetResult<Prisma.$VoucherPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     invoice<T extends Booking$invoiceArgs<ExtArgs> = {}>(args?: Subset<T, Booking$invoiceArgs<ExtArgs>>): Prisma__InvoiceClient<$Result.GetResult<Prisma.$InvoicePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+    matchPost<T extends Booking$matchPostArgs<ExtArgs> = {}>(args?: Subset<T, Booking$matchPostArgs<ExtArgs>>): Prisma__MatchPostClient<$Result.GetResult<Prisma.$MatchPostPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -17529,6 +17533,25 @@ export namespace Prisma {
      */
     include?: InvoiceInclude<ExtArgs> | null
     where?: InvoiceWhereInput
+  }
+
+  /**
+   * Booking.matchPost
+   */
+  export type Booking$matchPostArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MatchPost
+     */
+    select?: MatchPostSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the MatchPost
+     */
+    omit?: MatchPostOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: MatchPostInclude<ExtArgs> | null
+    where?: MatchPostWhereInput
   }
 
   /**
@@ -19640,6 +19663,9 @@ export namespace Prisma {
     creatorId: number | null
     facilityId: number | null
     categoryId: number | null
+    bookingId: number | null
+    pricePerPerson: Decimal | null
+    totalPrice: Decimal | null
   }
 
   export type MatchPostSumAggregateOutputType = {
@@ -19649,6 +19675,9 @@ export namespace Prisma {
     creatorId: number | null
     facilityId: number | null
     categoryId: number | null
+    bookingId: number | null
+    pricePerPerson: Decimal | null
+    totalPrice: Decimal | null
   }
 
   export type MatchPostMinAggregateOutputType = {
@@ -19666,6 +19695,10 @@ export namespace Prisma {
     creatorId: number | null
     facilityId: number | null
     categoryId: number | null
+    bookingId: number | null
+    courtName: string | null
+    pricePerPerson: Decimal | null
+    totalPrice: Decimal | null
   }
 
   export type MatchPostMaxAggregateOutputType = {
@@ -19683,6 +19716,10 @@ export namespace Prisma {
     creatorId: number | null
     facilityId: number | null
     categoryId: number | null
+    bookingId: number | null
+    courtName: string | null
+    pricePerPerson: Decimal | null
+    totalPrice: Decimal | null
   }
 
   export type MatchPostCountAggregateOutputType = {
@@ -19700,6 +19737,10 @@ export namespace Prisma {
     creatorId: number
     facilityId: number
     categoryId: number
+    bookingId: number
+    courtName: number
+    pricePerPerson: number
+    totalPrice: number
     _all: number
   }
 
@@ -19711,6 +19752,9 @@ export namespace Prisma {
     creatorId?: true
     facilityId?: true
     categoryId?: true
+    bookingId?: true
+    pricePerPerson?: true
+    totalPrice?: true
   }
 
   export type MatchPostSumAggregateInputType = {
@@ -19720,6 +19764,9 @@ export namespace Prisma {
     creatorId?: true
     facilityId?: true
     categoryId?: true
+    bookingId?: true
+    pricePerPerson?: true
+    totalPrice?: true
   }
 
   export type MatchPostMinAggregateInputType = {
@@ -19737,6 +19784,10 @@ export namespace Prisma {
     creatorId?: true
     facilityId?: true
     categoryId?: true
+    bookingId?: true
+    courtName?: true
+    pricePerPerson?: true
+    totalPrice?: true
   }
 
   export type MatchPostMaxAggregateInputType = {
@@ -19754,6 +19805,10 @@ export namespace Prisma {
     creatorId?: true
     facilityId?: true
     categoryId?: true
+    bookingId?: true
+    courtName?: true
+    pricePerPerson?: true
+    totalPrice?: true
   }
 
   export type MatchPostCountAggregateInputType = {
@@ -19771,6 +19826,10 @@ export namespace Prisma {
     creatorId?: true
     facilityId?: true
     categoryId?: true
+    bookingId?: true
+    courtName?: true
+    pricePerPerson?: true
+    totalPrice?: true
     _all?: true
   }
 
@@ -19875,6 +19934,10 @@ export namespace Prisma {
     creatorId: number
     facilityId: number
     categoryId: number
+    bookingId: number | null
+    courtName: string | null
+    pricePerPerson: Decimal | null
+    totalPrice: Decimal | null
     _count: MatchPostCountAggregateOutputType | null
     _avg: MatchPostAvgAggregateOutputType | null
     _sum: MatchPostSumAggregateOutputType | null
@@ -19911,9 +19974,14 @@ export namespace Prisma {
     creatorId?: boolean
     facilityId?: boolean
     categoryId?: boolean
+    bookingId?: boolean
+    courtName?: boolean
+    pricePerPerson?: boolean
+    totalPrice?: boolean
     creator?: boolean | UserDefaultArgs<ExtArgs>
     facility?: boolean | FacilityDefaultArgs<ExtArgs>
     category?: boolean | SportCategoryDefaultArgs<ExtArgs>
+    booking?: boolean | MatchPost$bookingArgs<ExtArgs>
   }, ExtArgs["result"]["matchPost"]>
 
 
@@ -19933,13 +20001,18 @@ export namespace Prisma {
     creatorId?: boolean
     facilityId?: boolean
     categoryId?: boolean
+    bookingId?: boolean
+    courtName?: boolean
+    pricePerPerson?: boolean
+    totalPrice?: boolean
   }
 
-  export type MatchPostOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "title" | "description" | "matchDate" | "startTime" | "endTime" | "level" | "status" | "requiredPlayers" | "joinedPlayers" | "createdAt" | "creatorId" | "facilityId" | "categoryId", ExtArgs["result"]["matchPost"]>
+  export type MatchPostOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "title" | "description" | "matchDate" | "startTime" | "endTime" | "level" | "status" | "requiredPlayers" | "joinedPlayers" | "createdAt" | "creatorId" | "facilityId" | "categoryId" | "bookingId" | "courtName" | "pricePerPerson" | "totalPrice", ExtArgs["result"]["matchPost"]>
   export type MatchPostInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     creator?: boolean | UserDefaultArgs<ExtArgs>
     facility?: boolean | FacilityDefaultArgs<ExtArgs>
     category?: boolean | SportCategoryDefaultArgs<ExtArgs>
+    booking?: boolean | MatchPost$bookingArgs<ExtArgs>
   }
 
   export type $MatchPostPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -19948,6 +20021,7 @@ export namespace Prisma {
       creator: Prisma.$UserPayload<ExtArgs>
       facility: Prisma.$FacilityPayload<ExtArgs>
       category: Prisma.$SportCategoryPayload<ExtArgs>
+      booking: Prisma.$BookingPayload<ExtArgs> | null
     }
     scalars: $Extensions.GetPayloadResult<{
       id: number
@@ -19964,6 +20038,10 @@ export namespace Prisma {
       creatorId: number
       facilityId: number
       categoryId: number
+      bookingId: number | null
+      courtName: string | null
+      pricePerPerson: Prisma.Decimal | null
+      totalPrice: Prisma.Decimal | null
     }, ExtArgs["result"]["matchPost"]>
     composites: {}
   }
@@ -20307,6 +20385,7 @@ export namespace Prisma {
     creator<T extends UserDefaultArgs<ExtArgs> = {}>(args?: Subset<T, UserDefaultArgs<ExtArgs>>): Prisma__UserClient<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
     facility<T extends FacilityDefaultArgs<ExtArgs> = {}>(args?: Subset<T, FacilityDefaultArgs<ExtArgs>>): Prisma__FacilityClient<$Result.GetResult<Prisma.$FacilityPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
     category<T extends SportCategoryDefaultArgs<ExtArgs> = {}>(args?: Subset<T, SportCategoryDefaultArgs<ExtArgs>>): Prisma__SportCategoryClient<$Result.GetResult<Prisma.$SportCategoryPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    booking<T extends MatchPost$bookingArgs<ExtArgs> = {}>(args?: Subset<T, MatchPost$bookingArgs<ExtArgs>>): Prisma__BookingClient<$Result.GetResult<Prisma.$BookingPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -20350,6 +20429,10 @@ export namespace Prisma {
     readonly creatorId: FieldRef<"MatchPost", 'Int'>
     readonly facilityId: FieldRef<"MatchPost", 'Int'>
     readonly categoryId: FieldRef<"MatchPost", 'Int'>
+    readonly bookingId: FieldRef<"MatchPost", 'Int'>
+    readonly courtName: FieldRef<"MatchPost", 'String'>
+    readonly pricePerPerson: FieldRef<"MatchPost", 'Decimal'>
+    readonly totalPrice: FieldRef<"MatchPost", 'Decimal'>
   }
     
 
@@ -20690,6 +20773,25 @@ export namespace Prisma {
      * Limit how many MatchPosts to delete.
      */
     limit?: number
+  }
+
+  /**
+   * MatchPost.booking
+   */
+  export type MatchPost$bookingArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Booking
+     */
+    select?: BookingSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the Booking
+     */
+    omit?: BookingOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: BookingInclude<ExtArgs> | null
+    where?: BookingWhereInput
   }
 
   /**
@@ -37384,7 +37486,11 @@ export namespace Prisma {
     createdAt: 'createdAt',
     creatorId: 'creatorId',
     facilityId: 'facilityId',
-    categoryId: 'categoryId'
+    categoryId: 'categoryId',
+    bookingId: 'bookingId',
+    courtName: 'courtName',
+    pricePerPerson: 'pricePerPerson',
+    totalPrice: 'totalPrice'
   };
 
   export type MatchPostScalarFieldEnum = (typeof MatchPostScalarFieldEnum)[keyof typeof MatchPostScalarFieldEnum]
@@ -37713,7 +37819,8 @@ export namespace Prisma {
 
   export const MatchPostOrderByRelevanceFieldEnum: {
     title: 'title',
-    description: 'description'
+    description: 'description',
+    courtName: 'courtName'
   };
 
   export type MatchPostOrderByRelevanceFieldEnum = (typeof MatchPostOrderByRelevanceFieldEnum)[keyof typeof MatchPostOrderByRelevanceFieldEnum]
@@ -38903,6 +39010,7 @@ export namespace Prisma {
     court?: XOR<CourtScalarRelationFilter, CourtWhereInput>
     voucher?: XOR<VoucherNullableScalarRelationFilter, VoucherWhereInput> | null
     invoice?: XOR<InvoiceNullableScalarRelationFilter, InvoiceWhereInput> | null
+    matchPost?: XOR<MatchPostNullableScalarRelationFilter, MatchPostWhereInput> | null
   }
 
   export type BookingOrderByWithRelationInput = {
@@ -38927,6 +39035,7 @@ export namespace Prisma {
     court?: CourtOrderByWithRelationInput
     voucher?: VoucherOrderByWithRelationInput
     invoice?: InvoiceOrderByWithRelationInput
+    matchPost?: MatchPostOrderByWithRelationInput
     _relevance?: BookingOrderByRelevanceInput
   }
 
@@ -38955,6 +39064,7 @@ export namespace Prisma {
     court?: XOR<CourtScalarRelationFilter, CourtWhereInput>
     voucher?: XOR<VoucherNullableScalarRelationFilter, VoucherWhereInput> | null
     invoice?: XOR<InvoiceNullableScalarRelationFilter, InvoiceWhereInput> | null
+    matchPost?: XOR<MatchPostNullableScalarRelationFilter, MatchPostWhereInput> | null
   }, "id">
 
   export type BookingOrderByWithAggregationInput = {
@@ -39159,9 +39269,14 @@ export namespace Prisma {
     creatorId?: IntFilter<"MatchPost"> | number
     facilityId?: IntFilter<"MatchPost"> | number
     categoryId?: IntFilter<"MatchPost"> | number
+    bookingId?: IntNullableFilter<"MatchPost"> | number | null
+    courtName?: StringNullableFilter<"MatchPost"> | string | null
+    pricePerPerson?: DecimalNullableFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: DecimalNullableFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
     creator?: XOR<UserScalarRelationFilter, UserWhereInput>
     facility?: XOR<FacilityScalarRelationFilter, FacilityWhereInput>
     category?: XOR<SportCategoryScalarRelationFilter, SportCategoryWhereInput>
+    booking?: XOR<BookingNullableScalarRelationFilter, BookingWhereInput> | null
   }
 
   export type MatchPostOrderByWithRelationInput = {
@@ -39179,14 +39294,20 @@ export namespace Prisma {
     creatorId?: SortOrder
     facilityId?: SortOrder
     categoryId?: SortOrder
+    bookingId?: SortOrderInput | SortOrder
+    courtName?: SortOrderInput | SortOrder
+    pricePerPerson?: SortOrderInput | SortOrder
+    totalPrice?: SortOrderInput | SortOrder
     creator?: UserOrderByWithRelationInput
     facility?: FacilityOrderByWithRelationInput
     category?: SportCategoryOrderByWithRelationInput
+    booking?: BookingOrderByWithRelationInput
     _relevance?: MatchPostOrderByRelevanceInput
   }
 
   export type MatchPostWhereUniqueInput = Prisma.AtLeast<{
     id?: number
+    bookingId?: number
     AND?: MatchPostWhereInput | MatchPostWhereInput[]
     OR?: MatchPostWhereInput[]
     NOT?: MatchPostWhereInput | MatchPostWhereInput[]
@@ -39203,10 +39324,14 @@ export namespace Prisma {
     creatorId?: IntFilter<"MatchPost"> | number
     facilityId?: IntFilter<"MatchPost"> | number
     categoryId?: IntFilter<"MatchPost"> | number
+    courtName?: StringNullableFilter<"MatchPost"> | string | null
+    pricePerPerson?: DecimalNullableFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: DecimalNullableFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
     creator?: XOR<UserScalarRelationFilter, UserWhereInput>
     facility?: XOR<FacilityScalarRelationFilter, FacilityWhereInput>
     category?: XOR<SportCategoryScalarRelationFilter, SportCategoryWhereInput>
-  }, "id">
+    booking?: XOR<BookingNullableScalarRelationFilter, BookingWhereInput> | null
+  }, "id" | "bookingId">
 
   export type MatchPostOrderByWithAggregationInput = {
     id?: SortOrder
@@ -39223,6 +39348,10 @@ export namespace Prisma {
     creatorId?: SortOrder
     facilityId?: SortOrder
     categoryId?: SortOrder
+    bookingId?: SortOrderInput | SortOrder
+    courtName?: SortOrderInput | SortOrder
+    pricePerPerson?: SortOrderInput | SortOrder
+    totalPrice?: SortOrderInput | SortOrder
     _count?: MatchPostCountOrderByAggregateInput
     _avg?: MatchPostAvgOrderByAggregateInput
     _max?: MatchPostMaxOrderByAggregateInput
@@ -39248,6 +39377,10 @@ export namespace Prisma {
     creatorId?: IntWithAggregatesFilter<"MatchPost"> | number
     facilityId?: IntWithAggregatesFilter<"MatchPost"> | number
     categoryId?: IntWithAggregatesFilter<"MatchPost"> | number
+    bookingId?: IntNullableWithAggregatesFilter<"MatchPost"> | number | null
+    courtName?: StringNullableWithAggregatesFilter<"MatchPost"> | string | null
+    pricePerPerson?: DecimalNullableWithAggregatesFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: DecimalNullableWithAggregatesFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
   }
 
   export type ReviewWhereInput = {
@@ -41420,6 +41553,7 @@ export namespace Prisma {
     court: CourtCreateNestedOneWithoutBookingsInput
     voucher?: VoucherCreateNestedOneWithoutBookingsInput
     invoice?: InvoiceCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostCreateNestedOneWithoutBookingInput
   }
 
   export type BookingUncheckedCreateInput = {
@@ -41440,6 +41574,7 @@ export namespace Prisma {
     courtId: number
     voucherId?: number | null
     invoice?: InvoiceUncheckedCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostUncheckedCreateNestedOneWithoutBookingInput
   }
 
   export type BookingUpdateInput = {
@@ -41459,6 +41594,7 @@ export namespace Prisma {
     court?: CourtUpdateOneRequiredWithoutBookingsNestedInput
     voucher?: VoucherUpdateOneWithoutBookingsNestedInput
     invoice?: InvoiceUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateInput = {
@@ -41479,6 +41615,7 @@ export namespace Prisma {
     courtId?: IntFieldUpdateOperationsInput | number
     voucherId?: NullableIntFieldUpdateOperationsInput | number | null
     invoice?: InvoiceUncheckedUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUncheckedUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingCreateManyInput = {
@@ -41671,9 +41808,13 @@ export namespace Prisma {
     requiredPlayers?: number
     joinedPlayers?: number
     createdAt?: Date | string
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
     creator: UserCreateNestedOneWithoutMatchPostsInput
     facility: FacilityCreateNestedOneWithoutMatchPostsInput
     category: SportCategoryCreateNestedOneWithoutMatchPostsInput
+    booking?: BookingCreateNestedOneWithoutMatchPostInput
   }
 
   export type MatchPostUncheckedCreateInput = {
@@ -41691,6 +41832,10 @@ export namespace Prisma {
     creatorId: number
     facilityId: number
     categoryId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostUpdateInput = {
@@ -41704,9 +41849,13 @@ export namespace Prisma {
     requiredPlayers?: IntFieldUpdateOperationsInput | number
     joinedPlayers?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     creator?: UserUpdateOneRequiredWithoutMatchPostsNestedInput
     facility?: FacilityUpdateOneRequiredWithoutMatchPostsNestedInput
     category?: SportCategoryUpdateOneRequiredWithoutMatchPostsNestedInput
+    booking?: BookingUpdateOneWithoutMatchPostNestedInput
   }
 
   export type MatchPostUncheckedUpdateInput = {
@@ -41724,6 +41873,10 @@ export namespace Prisma {
     creatorId?: IntFieldUpdateOperationsInput | number
     facilityId?: IntFieldUpdateOperationsInput | number
     categoryId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostCreateManyInput = {
@@ -41741,6 +41894,10 @@ export namespace Prisma {
     creatorId: number
     facilityId: number
     categoryId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostUpdateManyMutationInput = {
@@ -41754,6 +41911,9 @@ export namespace Prisma {
     requiredPlayers?: IntFieldUpdateOperationsInput | number
     joinedPlayers?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostUncheckedUpdateManyInput = {
@@ -41771,6 +41931,10 @@ export namespace Prisma {
     creatorId?: IntFieldUpdateOperationsInput | number
     facilityId?: IntFieldUpdateOperationsInput | number
     categoryId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type ReviewCreateInput = {
@@ -44220,6 +44384,11 @@ export namespace Prisma {
     isNot?: InvoiceWhereInput | null
   }
 
+  export type MatchPostNullableScalarRelationFilter = {
+    is?: MatchPostWhereInput | null
+    isNot?: MatchPostWhereInput | null
+  }
+
   export type BookingOrderByRelevanceInput = {
     fields: BookingOrderByRelevanceFieldEnum | BookingOrderByRelevanceFieldEnum[]
     sort: SortOrder
@@ -44474,6 +44643,11 @@ export namespace Prisma {
     not?: NestedEnumMatchStatusFilter<$PrismaModel> | $Enums.MatchStatus
   }
 
+  export type BookingNullableScalarRelationFilter = {
+    is?: BookingWhereInput | null
+    isNot?: BookingWhereInput | null
+  }
+
   export type MatchPostOrderByRelevanceInput = {
     fields: MatchPostOrderByRelevanceFieldEnum | MatchPostOrderByRelevanceFieldEnum[]
     sort: SortOrder
@@ -44495,6 +44669,10 @@ export namespace Prisma {
     creatorId?: SortOrder
     facilityId?: SortOrder
     categoryId?: SortOrder
+    bookingId?: SortOrder
+    courtName?: SortOrder
+    pricePerPerson?: SortOrder
+    totalPrice?: SortOrder
   }
 
   export type MatchPostAvgOrderByAggregateInput = {
@@ -44504,6 +44682,9 @@ export namespace Prisma {
     creatorId?: SortOrder
     facilityId?: SortOrder
     categoryId?: SortOrder
+    bookingId?: SortOrder
+    pricePerPerson?: SortOrder
+    totalPrice?: SortOrder
   }
 
   export type MatchPostMaxOrderByAggregateInput = {
@@ -44521,6 +44702,10 @@ export namespace Prisma {
     creatorId?: SortOrder
     facilityId?: SortOrder
     categoryId?: SortOrder
+    bookingId?: SortOrder
+    courtName?: SortOrder
+    pricePerPerson?: SortOrder
+    totalPrice?: SortOrder
   }
 
   export type MatchPostMinOrderByAggregateInput = {
@@ -44538,6 +44723,10 @@ export namespace Prisma {
     creatorId?: SortOrder
     facilityId?: SortOrder
     categoryId?: SortOrder
+    bookingId?: SortOrder
+    courtName?: SortOrder
+    pricePerPerson?: SortOrder
+    totalPrice?: SortOrder
   }
 
   export type MatchPostSumOrderByAggregateInput = {
@@ -44547,6 +44736,9 @@ export namespace Prisma {
     creatorId?: SortOrder
     facilityId?: SortOrder
     categoryId?: SortOrder
+    bookingId?: SortOrder
+    pricePerPerson?: SortOrder
+    totalPrice?: SortOrder
   }
 
   export type EnumMatchLevelWithAggregatesFilter<$PrismaModel = never> = {
@@ -47653,10 +47845,22 @@ export namespace Prisma {
     connect?: InvoiceWhereUniqueInput
   }
 
+  export type MatchPostCreateNestedOneWithoutBookingInput = {
+    create?: XOR<MatchPostCreateWithoutBookingInput, MatchPostUncheckedCreateWithoutBookingInput>
+    connectOrCreate?: MatchPostCreateOrConnectWithoutBookingInput
+    connect?: MatchPostWhereUniqueInput
+  }
+
   export type InvoiceUncheckedCreateNestedOneWithoutBookingInput = {
     create?: XOR<InvoiceCreateWithoutBookingInput, InvoiceUncheckedCreateWithoutBookingInput>
     connectOrCreate?: InvoiceCreateOrConnectWithoutBookingInput
     connect?: InvoiceWhereUniqueInput
+  }
+
+  export type MatchPostUncheckedCreateNestedOneWithoutBookingInput = {
+    create?: XOR<MatchPostCreateWithoutBookingInput, MatchPostUncheckedCreateWithoutBookingInput>
+    connectOrCreate?: MatchPostCreateOrConnectWithoutBookingInput
+    connect?: MatchPostWhereUniqueInput
   }
 
   export type EnumBookingStatusFieldUpdateOperationsInput = {
@@ -47715,6 +47919,16 @@ export namespace Prisma {
     update?: XOR<XOR<InvoiceUpdateToOneWithWhereWithoutBookingInput, InvoiceUpdateWithoutBookingInput>, InvoiceUncheckedUpdateWithoutBookingInput>
   }
 
+  export type MatchPostUpdateOneWithoutBookingNestedInput = {
+    create?: XOR<MatchPostCreateWithoutBookingInput, MatchPostUncheckedCreateWithoutBookingInput>
+    connectOrCreate?: MatchPostCreateOrConnectWithoutBookingInput
+    upsert?: MatchPostUpsertWithoutBookingInput
+    disconnect?: MatchPostWhereInput | boolean
+    delete?: MatchPostWhereInput | boolean
+    connect?: MatchPostWhereUniqueInput
+    update?: XOR<XOR<MatchPostUpdateToOneWithWhereWithoutBookingInput, MatchPostUpdateWithoutBookingInput>, MatchPostUncheckedUpdateWithoutBookingInput>
+  }
+
   export type NullableIntFieldUpdateOperationsInput = {
     set?: number | null
     increment?: number
@@ -47731,6 +47945,16 @@ export namespace Prisma {
     delete?: InvoiceWhereInput | boolean
     connect?: InvoiceWhereUniqueInput
     update?: XOR<XOR<InvoiceUpdateToOneWithWhereWithoutBookingInput, InvoiceUpdateWithoutBookingInput>, InvoiceUncheckedUpdateWithoutBookingInput>
+  }
+
+  export type MatchPostUncheckedUpdateOneWithoutBookingNestedInput = {
+    create?: XOR<MatchPostCreateWithoutBookingInput, MatchPostUncheckedCreateWithoutBookingInput>
+    connectOrCreate?: MatchPostCreateOrConnectWithoutBookingInput
+    upsert?: MatchPostUpsertWithoutBookingInput
+    disconnect?: MatchPostWhereInput | boolean
+    delete?: MatchPostWhereInput | boolean
+    connect?: MatchPostWhereUniqueInput
+    update?: XOR<XOR<MatchPostUpdateToOneWithWhereWithoutBookingInput, MatchPostUpdateWithoutBookingInput>, MatchPostUncheckedUpdateWithoutBookingInput>
   }
 
   export type BookingCreateNestedOneWithoutInvoiceInput = {
@@ -47857,6 +48081,12 @@ export namespace Prisma {
     connect?: SportCategoryWhereUniqueInput
   }
 
+  export type BookingCreateNestedOneWithoutMatchPostInput = {
+    create?: XOR<BookingCreateWithoutMatchPostInput, BookingUncheckedCreateWithoutMatchPostInput>
+    connectOrCreate?: BookingCreateOrConnectWithoutMatchPostInput
+    connect?: BookingWhereUniqueInput
+  }
+
   export type EnumMatchLevelFieldUpdateOperationsInput = {
     set?: $Enums.MatchLevel
   }
@@ -47887,6 +48117,16 @@ export namespace Prisma {
     upsert?: SportCategoryUpsertWithoutMatchPostsInput
     connect?: SportCategoryWhereUniqueInput
     update?: XOR<XOR<SportCategoryUpdateToOneWithWhereWithoutMatchPostsInput, SportCategoryUpdateWithoutMatchPostsInput>, SportCategoryUncheckedUpdateWithoutMatchPostsInput>
+  }
+
+  export type BookingUpdateOneWithoutMatchPostNestedInput = {
+    create?: XOR<BookingCreateWithoutMatchPostInput, BookingUncheckedCreateWithoutMatchPostInput>
+    connectOrCreate?: BookingCreateOrConnectWithoutMatchPostInput
+    upsert?: BookingUpsertWithoutMatchPostInput
+    disconnect?: BookingWhereInput | boolean
+    delete?: BookingWhereInput | boolean
+    connect?: BookingWhereUniqueInput
+    update?: XOR<XOR<BookingUpdateToOneWithWhereWithoutMatchPostInput, BookingUpdateWithoutMatchPostInput>, BookingUncheckedUpdateWithoutMatchPostInput>
   }
 
   export type UserCreateNestedOneWithoutReviewsInput = {
@@ -49163,6 +49403,7 @@ export namespace Prisma {
     court: CourtCreateNestedOneWithoutBookingsInput
     voucher?: VoucherCreateNestedOneWithoutBookingsInput
     invoice?: InvoiceCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostCreateNestedOneWithoutBookingInput
   }
 
   export type BookingUncheckedCreateWithoutCustomerInput = {
@@ -49182,6 +49423,7 @@ export namespace Prisma {
     courtId: number
     voucherId?: number | null
     invoice?: InvoiceUncheckedCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostUncheckedCreateNestedOneWithoutBookingInput
   }
 
   export type BookingCreateOrConnectWithoutCustomerInput = {
@@ -49236,8 +49478,12 @@ export namespace Prisma {
     requiredPlayers?: number
     joinedPlayers?: number
     createdAt?: Date | string
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
     facility: FacilityCreateNestedOneWithoutMatchPostsInput
     category: SportCategoryCreateNestedOneWithoutMatchPostsInput
+    booking?: BookingCreateNestedOneWithoutMatchPostInput
   }
 
   export type MatchPostUncheckedCreateWithoutCreatorInput = {
@@ -49254,6 +49500,10 @@ export namespace Prisma {
     createdAt?: Date | string
     facilityId: number
     categoryId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostCreateOrConnectWithoutCreatorInput = {
@@ -49476,6 +49726,7 @@ export namespace Prisma {
     court: CourtCreateNestedOneWithoutBookingsInput
     voucher?: VoucherCreateNestedOneWithoutBookingsInput
     invoice?: InvoiceCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostCreateNestedOneWithoutBookingInput
   }
 
   export type BookingUncheckedCreateWithoutStaffInput = {
@@ -49495,6 +49746,7 @@ export namespace Prisma {
     courtId: number
     voucherId?: number | null
     invoice?: InvoiceUncheckedCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostUncheckedCreateNestedOneWithoutBookingInput
   }
 
   export type BookingCreateOrConnectWithoutStaffInput = {
@@ -49909,6 +50161,10 @@ export namespace Prisma {
     creatorId?: IntFilter<"MatchPost"> | number
     facilityId?: IntFilter<"MatchPost"> | number
     categoryId?: IntFilter<"MatchPost"> | number
+    bookingId?: IntNullableFilter<"MatchPost"> | number | null
+    courtName?: StringNullableFilter<"MatchPost"> | string | null
+    pricePerPerson?: DecimalNullableFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: DecimalNullableFilter<"MatchPost"> | Decimal | DecimalJsLike | number | string | null
   }
 
   export type StaffAttendanceUpsertWithWhereUniqueWithoutStaffInput = {
@@ -50615,8 +50871,12 @@ export namespace Prisma {
     requiredPlayers?: number
     joinedPlayers?: number
     createdAt?: Date | string
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
     creator: UserCreateNestedOneWithoutMatchPostsInput
     facility: FacilityCreateNestedOneWithoutMatchPostsInput
+    booking?: BookingCreateNestedOneWithoutMatchPostInput
   }
 
   export type MatchPostUncheckedCreateWithoutCategoryInput = {
@@ -50633,6 +50893,10 @@ export namespace Prisma {
     createdAt?: Date | string
     creatorId: number
     facilityId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostCreateOrConnectWithoutCategoryInput = {
@@ -50887,8 +51151,12 @@ export namespace Prisma {
     requiredPlayers?: number
     joinedPlayers?: number
     createdAt?: Date | string
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
     creator: UserCreateNestedOneWithoutMatchPostsInput
     category: SportCategoryCreateNestedOneWithoutMatchPostsInput
+    booking?: BookingCreateNestedOneWithoutMatchPostInput
   }
 
   export type MatchPostUncheckedCreateWithoutFacilityInput = {
@@ -50905,6 +51173,10 @@ export namespace Prisma {
     createdAt?: Date | string
     creatorId: number
     categoryId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostCreateOrConnectWithoutFacilityInput = {
@@ -51695,6 +51967,7 @@ export namespace Prisma {
     staff?: UserCreateNestedOneWithoutStaffBookingsInput
     voucher?: VoucherCreateNestedOneWithoutBookingsInput
     invoice?: InvoiceCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostCreateNestedOneWithoutBookingInput
   }
 
   export type BookingUncheckedCreateWithoutCourtInput = {
@@ -51714,6 +51987,7 @@ export namespace Prisma {
     staffId?: number | null
     voucherId?: number | null
     invoice?: InvoiceUncheckedCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostUncheckedCreateNestedOneWithoutBookingInput
   }
 
   export type BookingCreateOrConnectWithoutCourtInput = {
@@ -52834,6 +53108,50 @@ export namespace Prisma {
     create: XOR<InvoiceCreateWithoutBookingInput, InvoiceUncheckedCreateWithoutBookingInput>
   }
 
+  export type MatchPostCreateWithoutBookingInput = {
+    title: string
+    description?: string | null
+    matchDate: Date | string
+    startTime: Date | string
+    endTime: Date | string
+    level: $Enums.MatchLevel
+    status?: $Enums.MatchStatus
+    requiredPlayers?: number
+    joinedPlayers?: number
+    createdAt?: Date | string
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
+    creator: UserCreateNestedOneWithoutMatchPostsInput
+    facility: FacilityCreateNestedOneWithoutMatchPostsInput
+    category: SportCategoryCreateNestedOneWithoutMatchPostsInput
+  }
+
+  export type MatchPostUncheckedCreateWithoutBookingInput = {
+    id?: number
+    title: string
+    description?: string | null
+    matchDate: Date | string
+    startTime: Date | string
+    endTime: Date | string
+    level: $Enums.MatchLevel
+    status?: $Enums.MatchStatus
+    requiredPlayers?: number
+    joinedPlayers?: number
+    createdAt?: Date | string
+    creatorId: number
+    facilityId: number
+    categoryId: number
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
+  }
+
+  export type MatchPostCreateOrConnectWithoutBookingInput = {
+    where: MatchPostWhereUniqueInput
+    create: XOR<MatchPostCreateWithoutBookingInput, MatchPostUncheckedCreateWithoutBookingInput>
+  }
+
   export type UserUpsertWithoutBookingsInput = {
     update: XOR<UserUpdateWithoutBookingsInput, UserUncheckedUpdateWithoutBookingsInput>
     create: XOR<UserCreateWithoutBookingsInput, UserUncheckedCreateWithoutBookingsInput>
@@ -53112,6 +53430,56 @@ export namespace Prisma {
     items?: InvoiceItemUncheckedUpdateManyWithoutInvoiceNestedInput
   }
 
+  export type MatchPostUpsertWithoutBookingInput = {
+    update: XOR<MatchPostUpdateWithoutBookingInput, MatchPostUncheckedUpdateWithoutBookingInput>
+    create: XOR<MatchPostCreateWithoutBookingInput, MatchPostUncheckedCreateWithoutBookingInput>
+    where?: MatchPostWhereInput
+  }
+
+  export type MatchPostUpdateToOneWithWhereWithoutBookingInput = {
+    where?: MatchPostWhereInput
+    data: XOR<MatchPostUpdateWithoutBookingInput, MatchPostUncheckedUpdateWithoutBookingInput>
+  }
+
+  export type MatchPostUpdateWithoutBookingInput = {
+    title?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    matchDate?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    level?: EnumMatchLevelFieldUpdateOperationsInput | $Enums.MatchLevel
+    status?: EnumMatchStatusFieldUpdateOperationsInput | $Enums.MatchStatus
+    requiredPlayers?: IntFieldUpdateOperationsInput | number
+    joinedPlayers?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    creator?: UserUpdateOneRequiredWithoutMatchPostsNestedInput
+    facility?: FacilityUpdateOneRequiredWithoutMatchPostsNestedInput
+    category?: SportCategoryUpdateOneRequiredWithoutMatchPostsNestedInput
+  }
+
+  export type MatchPostUncheckedUpdateWithoutBookingInput = {
+    id?: IntFieldUpdateOperationsInput | number
+    title?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    matchDate?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    level?: EnumMatchLevelFieldUpdateOperationsInput | $Enums.MatchLevel
+    status?: EnumMatchStatusFieldUpdateOperationsInput | $Enums.MatchStatus
+    requiredPlayers?: IntFieldUpdateOperationsInput | number
+    joinedPlayers?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    creatorId?: IntFieldUpdateOperationsInput | number
+    facilityId?: IntFieldUpdateOperationsInput | number
+    categoryId?: IntFieldUpdateOperationsInput | number
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+  }
+
   export type BookingCreateWithoutInvoiceInput = {
     bookingDate: Date | string
     startTime: Date | string
@@ -53128,6 +53496,7 @@ export namespace Prisma {
     staff?: UserCreateNestedOneWithoutStaffBookingsInput
     court: CourtCreateNestedOneWithoutBookingsInput
     voucher?: VoucherCreateNestedOneWithoutBookingsInput
+    matchPost?: MatchPostCreateNestedOneWithoutBookingInput
   }
 
   export type BookingUncheckedCreateWithoutInvoiceInput = {
@@ -53147,6 +53516,7 @@ export namespace Prisma {
     staffId?: number | null
     courtId: number
     voucherId?: number | null
+    matchPost?: MatchPostUncheckedCreateNestedOneWithoutBookingInput
   }
 
   export type BookingCreateOrConnectWithoutInvoiceInput = {
@@ -53286,6 +53656,7 @@ export namespace Prisma {
     staff?: UserUpdateOneWithoutStaffBookingsNestedInput
     court?: CourtUpdateOneRequiredWithoutBookingsNestedInput
     voucher?: VoucherUpdateOneWithoutBookingsNestedInput
+    matchPost?: MatchPostUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateWithoutInvoiceInput = {
@@ -53305,6 +53676,7 @@ export namespace Prisma {
     staffId?: NullableIntFieldUpdateOperationsInput | number | null
     courtId?: IntFieldUpdateOperationsInput | number
     voucherId?: NullableIntFieldUpdateOperationsInput | number | null
+    matchPost?: MatchPostUncheckedUpdateOneWithoutBookingNestedInput
   }
 
   export type UserUpsertWithoutInvoicesInput = {
@@ -53685,6 +54057,50 @@ export namespace Prisma {
     create: XOR<SportCategoryCreateWithoutMatchPostsInput, SportCategoryUncheckedCreateWithoutMatchPostsInput>
   }
 
+  export type BookingCreateWithoutMatchPostInput = {
+    bookingDate: Date | string
+    startTime: Date | string
+    endTime: Date | string
+    totalPrice: Decimal | DecimalJsLike | number | string
+    status?: $Enums.BookingStatus
+    paymentStatus?: $Enums.PaymentStatus
+    isWalkIn?: boolean
+    walkInName?: string | null
+    walkInPhone?: string | null
+    createdByStaff?: boolean
+    createdAt?: Date | string
+    customer?: UserCreateNestedOneWithoutBookingsInput
+    staff?: UserCreateNestedOneWithoutStaffBookingsInput
+    court: CourtCreateNestedOneWithoutBookingsInput
+    voucher?: VoucherCreateNestedOneWithoutBookingsInput
+    invoice?: InvoiceCreateNestedOneWithoutBookingInput
+  }
+
+  export type BookingUncheckedCreateWithoutMatchPostInput = {
+    id?: number
+    bookingDate: Date | string
+    startTime: Date | string
+    endTime: Date | string
+    totalPrice: Decimal | DecimalJsLike | number | string
+    status?: $Enums.BookingStatus
+    paymentStatus?: $Enums.PaymentStatus
+    isWalkIn?: boolean
+    walkInName?: string | null
+    walkInPhone?: string | null
+    createdByStaff?: boolean
+    createdAt?: Date | string
+    customerId?: number | null
+    staffId?: number | null
+    courtId: number
+    voucherId?: number | null
+    invoice?: InvoiceUncheckedCreateNestedOneWithoutBookingInput
+  }
+
+  export type BookingCreateOrConnectWithoutMatchPostInput = {
+    where: BookingWhereUniqueInput
+    create: XOR<BookingCreateWithoutMatchPostInput, BookingUncheckedCreateWithoutMatchPostInput>
+  }
+
   export type UserUpsertWithoutMatchPostsInput = {
     update: XOR<UserUpdateWithoutMatchPostsInput, UserUncheckedUpdateWithoutMatchPostsInput>
     create: XOR<UserCreateWithoutMatchPostsInput, UserUncheckedCreateWithoutMatchPostsInput>
@@ -53851,6 +54267,56 @@ export namespace Prisma {
     iconUrl?: NullableStringFieldUpdateOperationsInput | string | null
     courts?: CourtUncheckedUpdateManyWithoutCategoryNestedInput
     facilitySports?: FacilitySportUncheckedUpdateManyWithoutSportCategoryNestedInput
+  }
+
+  export type BookingUpsertWithoutMatchPostInput = {
+    update: XOR<BookingUpdateWithoutMatchPostInput, BookingUncheckedUpdateWithoutMatchPostInput>
+    create: XOR<BookingCreateWithoutMatchPostInput, BookingUncheckedCreateWithoutMatchPostInput>
+    where?: BookingWhereInput
+  }
+
+  export type BookingUpdateToOneWithWhereWithoutMatchPostInput = {
+    where?: BookingWhereInput
+    data: XOR<BookingUpdateWithoutMatchPostInput, BookingUncheckedUpdateWithoutMatchPostInput>
+  }
+
+  export type BookingUpdateWithoutMatchPostInput = {
+    bookingDate?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    totalPrice?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    status?: EnumBookingStatusFieldUpdateOperationsInput | $Enums.BookingStatus
+    paymentStatus?: EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
+    isWalkIn?: BoolFieldUpdateOperationsInput | boolean
+    walkInName?: NullableStringFieldUpdateOperationsInput | string | null
+    walkInPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    createdByStaff?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customer?: UserUpdateOneWithoutBookingsNestedInput
+    staff?: UserUpdateOneWithoutStaffBookingsNestedInput
+    court?: CourtUpdateOneRequiredWithoutBookingsNestedInput
+    voucher?: VoucherUpdateOneWithoutBookingsNestedInput
+    invoice?: InvoiceUpdateOneWithoutBookingNestedInput
+  }
+
+  export type BookingUncheckedUpdateWithoutMatchPostInput = {
+    id?: IntFieldUpdateOperationsInput | number
+    bookingDate?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    totalPrice?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    status?: EnumBookingStatusFieldUpdateOperationsInput | $Enums.BookingStatus
+    paymentStatus?: EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
+    isWalkIn?: BoolFieldUpdateOperationsInput | boolean
+    walkInName?: NullableStringFieldUpdateOperationsInput | string | null
+    walkInPhone?: NullableStringFieldUpdateOperationsInput | string | null
+    createdByStaff?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customerId?: NullableIntFieldUpdateOperationsInput | number | null
+    staffId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtId?: IntFieldUpdateOperationsInput | number
+    voucherId?: NullableIntFieldUpdateOperationsInput | number | null
+    invoice?: InvoiceUncheckedUpdateOneWithoutBookingNestedInput
   }
 
   export type UserCreateWithoutReviewsInput = {
@@ -54219,6 +54685,7 @@ export namespace Prisma {
     staff?: UserCreateNestedOneWithoutStaffBookingsInput
     court: CourtCreateNestedOneWithoutBookingsInput
     invoice?: InvoiceCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostCreateNestedOneWithoutBookingInput
   }
 
   export type BookingUncheckedCreateWithoutVoucherInput = {
@@ -54238,6 +54705,7 @@ export namespace Prisma {
     staffId?: number | null
     courtId: number
     invoice?: InvoiceUncheckedCreateNestedOneWithoutBookingInput
+    matchPost?: MatchPostUncheckedCreateNestedOneWithoutBookingInput
   }
 
   export type BookingCreateOrConnectWithoutVoucherInput = {
@@ -57485,6 +57953,10 @@ export namespace Prisma {
     createdAt?: Date | string
     facilityId: number
     categoryId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type StaffAttendanceCreateManyStaffInput = {
@@ -57716,6 +58188,7 @@ export namespace Prisma {
     court?: CourtUpdateOneRequiredWithoutBookingsNestedInput
     voucher?: VoucherUpdateOneWithoutBookingsNestedInput
     invoice?: InvoiceUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateWithoutCustomerInput = {
@@ -57735,6 +58208,7 @@ export namespace Prisma {
     courtId?: IntFieldUpdateOperationsInput | number
     voucherId?: NullableIntFieldUpdateOperationsInput | number | null
     invoice?: InvoiceUncheckedUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUncheckedUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateManyWithoutCustomerInput = {
@@ -57797,8 +58271,12 @@ export namespace Prisma {
     requiredPlayers?: IntFieldUpdateOperationsInput | number
     joinedPlayers?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     facility?: FacilityUpdateOneRequiredWithoutMatchPostsNestedInput
     category?: SportCategoryUpdateOneRequiredWithoutMatchPostsNestedInput
+    booking?: BookingUpdateOneWithoutMatchPostNestedInput
   }
 
   export type MatchPostUncheckedUpdateWithoutCreatorInput = {
@@ -57815,6 +58293,10 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     facilityId?: IntFieldUpdateOperationsInput | number
     categoryId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostUncheckedUpdateManyWithoutCreatorInput = {
@@ -57831,6 +58313,10 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     facilityId?: IntFieldUpdateOperationsInput | number
     categoryId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type StaffAttendanceUpdateWithoutStaffInput = {
@@ -58021,6 +58507,7 @@ export namespace Prisma {
     court?: CourtUpdateOneRequiredWithoutBookingsNestedInput
     voucher?: VoucherUpdateOneWithoutBookingsNestedInput
     invoice?: InvoiceUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateWithoutStaffInput = {
@@ -58040,6 +58527,7 @@ export namespace Prisma {
     courtId?: IntFieldUpdateOperationsInput | number
     voucherId?: NullableIntFieldUpdateOperationsInput | number | null
     invoice?: InvoiceUncheckedUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUncheckedUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateManyWithoutStaffInput = {
@@ -58335,6 +58823,10 @@ export namespace Prisma {
     createdAt?: Date | string
     creatorId: number
     facilityId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type FacilitySportCreateManySportCategoryInput = {
@@ -58378,8 +58870,12 @@ export namespace Prisma {
     requiredPlayers?: IntFieldUpdateOperationsInput | number
     joinedPlayers?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     creator?: UserUpdateOneRequiredWithoutMatchPostsNestedInput
     facility?: FacilityUpdateOneRequiredWithoutMatchPostsNestedInput
+    booking?: BookingUpdateOneWithoutMatchPostNestedInput
   }
 
   export type MatchPostUncheckedUpdateWithoutCategoryInput = {
@@ -58396,6 +58892,10 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     creatorId?: IntFieldUpdateOperationsInput | number
     facilityId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostUncheckedUpdateManyWithoutCategoryInput = {
@@ -58412,6 +58912,10 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     creatorId?: IntFieldUpdateOperationsInput | number
     facilityId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type FacilitySportUpdateWithoutSportCategoryInput = {
@@ -58457,6 +58961,10 @@ export namespace Prisma {
     createdAt?: Date | string
     creatorId: number
     categoryId: number
+    bookingId?: number | null
+    courtName?: string | null
+    pricePerPerson?: Decimal | DecimalJsLike | number | string | null
+    totalPrice?: Decimal | DecimalJsLike | number | string | null
   }
 
   export type FacilitySportCreateManyFacilityInput = {
@@ -58613,8 +59121,12 @@ export namespace Prisma {
     requiredPlayers?: IntFieldUpdateOperationsInput | number
     joinedPlayers?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     creator?: UserUpdateOneRequiredWithoutMatchPostsNestedInput
     category?: SportCategoryUpdateOneRequiredWithoutMatchPostsNestedInput
+    booking?: BookingUpdateOneWithoutMatchPostNestedInput
   }
 
   export type MatchPostUncheckedUpdateWithoutFacilityInput = {
@@ -58631,6 +59143,10 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     creatorId?: IntFieldUpdateOperationsInput | number
     categoryId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type MatchPostUncheckedUpdateManyWithoutFacilityInput = {
@@ -58647,6 +59163,10 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     creatorId?: IntFieldUpdateOperationsInput | number
     categoryId?: IntFieldUpdateOperationsInput | number
+    bookingId?: NullableIntFieldUpdateOperationsInput | number | null
+    courtName?: NullableStringFieldUpdateOperationsInput | string | null
+    pricePerPerson?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
   export type FacilitySportUpdateWithoutFacilityInput = {
@@ -58978,6 +59498,7 @@ export namespace Prisma {
     staff?: UserUpdateOneWithoutStaffBookingsNestedInput
     voucher?: VoucherUpdateOneWithoutBookingsNestedInput
     invoice?: InvoiceUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateWithoutCourtInput = {
@@ -58997,6 +59518,7 @@ export namespace Prisma {
     staffId?: NullableIntFieldUpdateOperationsInput | number | null
     voucherId?: NullableIntFieldUpdateOperationsInput | number | null
     invoice?: InvoiceUncheckedUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUncheckedUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateManyWithoutCourtInput = {
@@ -59264,6 +59786,7 @@ export namespace Prisma {
     staff?: UserUpdateOneWithoutStaffBookingsNestedInput
     court?: CourtUpdateOneRequiredWithoutBookingsNestedInput
     invoice?: InvoiceUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateWithoutVoucherInput = {
@@ -59283,6 +59806,7 @@ export namespace Prisma {
     staffId?: NullableIntFieldUpdateOperationsInput | number | null
     courtId?: IntFieldUpdateOperationsInput | number
     invoice?: InvoiceUncheckedUpdateOneWithoutBookingNestedInput
+    matchPost?: MatchPostUncheckedUpdateOneWithoutBookingNestedInput
   }
 
   export type BookingUncheckedUpdateManyWithoutVoucherInput = {

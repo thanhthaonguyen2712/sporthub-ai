@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
 interface Court {
   id: number;
   name: string;
-  category: { name: string; iconUrl: string };
+  category: { id: number; name: string; iconUrl: string };
   facility: { id: number; name: string; address: string };
 }
 
@@ -42,7 +42,10 @@ export default function BookingPage() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "QR">("WALLET");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [successBookingId, setSuccessBookingId] = useState<number | null>(null);
+  const [teammateStep, setTeammateStep] = useState<"ask" | "form" | "done">("ask");
+  const [tmForm, setTmForm] = useState({ requiredPlayers: "4", level: "BEGINNER", description: "" });
+  const [tmSubmitting, setTmSubmitting] = useState(false);
   const t = useTranslations("booking");
 
   const courtPrice = Number(priceParam) || 0;
@@ -62,7 +65,7 @@ export default function BookingPage() {
         setCourt({
           id: Number(courtId),
           name: courtData?.name || "Sân",
-          category: courtData?.category || { name: "", iconUrl: "" },
+          category: courtData?.category || { id: 0, name: "", iconUrl: "" },
           facility: { id: data.id, name: data.name, address: data.address },
         });
         const uniqueServices = (data.services || []).filter(
@@ -124,7 +127,7 @@ export default function BookingPage() {
     });
     const data = await res.json();
     setLoading(false);
-    if (res.ok) setSuccess(true);
+    if (res.ok) setSuccessBookingId(data.bookingId);
     else alert(data.error || "Đặt sân thất bại!");
   }
 
@@ -156,15 +159,183 @@ export default function BookingPage() {
     }
   }
 
-  if (success) {
+  async function handleTeammatePost() {
+    if (!successBookingId || !court) return;
+    setTmSubmitting(true);
+    const numRequired = Number(tmForm.requiredPlayers);
+    const pricePerPerson = numRequired > 1 ? Math.ceil(finalTotal / numRequired) : 0;
+    const res = await fetch("/api/match-posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        facilityId: court.facility.id,
+        categoryId: court.category.id,
+        matchDate: date,
+        startTime,
+        endTime,
+        level: tmForm.level,
+        requiredPlayers: numRequired,
+        description: tmForm.description,
+        bookingId: successBookingId,
+        courtName: court.name,
+        totalPrice: finalTotal,
+      }),
+    });
+    setTmSubmitting(false);
+    if (res.ok) setTeammateStep("done");
+    else {
+      const d = await res.json();
+      alert(d.error || "Không thể đăng bài!");
+    }
+  }
+
+  if (successBookingId !== null) {
+    const pricePerPerson = Number(tmForm.requiredPlayers) > 1
+      ? Math.ceil(finalTotal / Number(tmForm.requiredPlayers))
+      : 0;
+
+    if (teammateStep === "done") {
+      return (
+        <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
+          <Navbar />
+          <div className="max-w-lg mx-auto px-6 py-20 text-center">
+            <div className="border border-gray-300 rounded-2xl p-10" style={{ background: "#E0EEE0" }}>
+              <div className="flex justify-center mb-4"><img src="/group.png" className="w-16 h-16" alt="" /></div>
+              <h2 className="text-2xl font-bold text-black mb-2">Đã đăng tìm đồng đội!</h2>
+              <p className="text-gray-600 text-sm mb-6">Bài đăng của bạn đã được công khai. Người khác sẽ thấy và tham gia nhóm.</p>
+              <div className="flex gap-3 justify-center">
+                <button onClick={() => router.push("/profile?tab=bookings")}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
+                  {t("viewBookings")}
+                </button>
+                <button onClick={() => router.push("/")}
+                  className="bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 px-6 py-2.5 rounded-xl text-sm transition-colors">
+                  {t("backHome")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (teammateStep === "form") {
+      return (
+        <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
+          <Navbar />
+          <div className="max-w-lg mx-auto px-6 py-8">
+            <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <img src="/group.png" className="w-8 h-8" alt="" />
+                <h2 className="text-xl font-bold text-black">Tìm đồng đội</h2>
+              </div>
+
+              {/* Thông tin sân đã đặt */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-gray-700">
+                  <img src="/placeholder.png" className="w-4 h-4 flex-shrink-0" alt="" />
+                  <span className="font-medium">{court?.name}</span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-500">{court?.facility.name}</span>
+                </div>
+                <div className="text-gray-500 pl-6">{court?.facility.address}</div>
+                <div className="flex items-center gap-2 text-gray-700">
+                  <img src="/calendar.png" className="w-4 h-4 flex-shrink-0" alt="" />
+                  <span>
+                    {date ? new Date(date).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" }) : ""}
+                    {" · "}{startTime} – {endTime}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-700 border-t border-gray-100 pt-2">
+                  <img src="/atm-card.png" className="w-4 h-4 flex-shrink-0" alt="" />
+                  <span>Tổng đã trả: <span className="font-semibold text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span></span>
+                </div>
+              </div>
+
+              {/* Form */}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">Cần bao nhiêu người? (bao gồm bạn)</label>
+                  <input type="number" min="2" max="30"
+                    value={tmForm.requiredPlayers}
+                    onChange={(e) => setTmForm((f) => ({ ...f, requiredPlayers: e.target.value }))}
+                    className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                {/* Giá mỗi người */}
+                {pricePerPerson > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                    <p className="text-xs text-emerald-700 font-medium">
+                      Mỗi người trả: <span className="text-base font-bold">{pricePerPerson.toLocaleString("vi-VN")}đ</span>
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-0.5">
+                      = {finalTotal.toLocaleString("vi-VN")}đ ÷ {tmForm.requiredPlayers} người · Thanh toán qua ví SportHub
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">Trình độ</label>
+                  <select value={tmForm.level} onChange={(e) => setTmForm((f) => ({ ...f, level: e.target.value }))}
+                    className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400">
+                    <option value="BEGINNER">Người mới</option>
+                    <option value="INTERMEDIATE">Trung bình</option>
+                    <option value="PRO">Chuyên nghiệp</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">Mô tả (không bắt buộc)</label>
+                  <textarea value={tmForm.description}
+                    onChange={(e) => setTmForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="VD: Tìm 3 bạn cùng chơi cầu lông, vui vẻ là chính..."
+                    rows={3}
+                    className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button onClick={handleTeammatePost} disabled={tmSubmitting}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
+                    {tmSubmitting ? "Đang đăng..." : "Đăng tìm đồng đội"}
+                  </button>
+                  <button onClick={() => router.push("/profile?tab=bookings")}
+                    className="flex-1 bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 py-3 rounded-xl text-sm transition-colors">
+                    Bỏ qua
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // teammateStep === "ask"
     return (
       <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
         <Navbar />
         <div className="max-w-lg mx-auto px-6 py-20 text-center">
           <div className="border border-gray-300 rounded-2xl p-10" style={{ background: "#E0EEE0" }}>
-            <div className="text-6xl mb-4">🎉</div>
+            <div className="flex justify-center mb-4"><img src="/giftbox.png" className="w-16 h-16" alt="" /></div>
             <h2 className="text-2xl font-bold text-black mb-2">{t("success")}</h2>
             <p className="text-gray-600 text-sm mb-6">{t("successMsg")}</p>
+
+            {/* Tìm đồng đội CTA */}
+            <div className="bg-white border border-emerald-200 rounded-xl px-5 py-4 mb-6 text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <img src="/group.png" className="w-5 h-5" alt="" />
+                <span className="font-semibold text-black text-sm">Bạn muốn tìm đồng đội?</span>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">Đăng bài để mọi người cùng tham gia và chia sẻ chi phí sân.</p>
+              <button onClick={() => setTeammateStep("form")}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                <img src="/group.png" className="w-4 h-4" alt="" />
+                Tìm đồng đội
+              </button>
+            </div>
+
             <div className="flex gap-3 justify-center">
               <button onClick={() => router.push("/profile?tab=bookings")}
                 className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">

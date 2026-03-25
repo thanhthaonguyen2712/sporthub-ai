@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
 import {
   generateCourtSlots, getSlotPrice, getSlotPriceLabel,
@@ -227,9 +228,16 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
 export default function FacilityDetailPage() {
   const { id } = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const [facility, setFacility] = useState<Facility | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("courts");
+  const [hasReviewed, setHasReviewed] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewToast, setReviewToast] = useState("");
   const [selectedSport, setSelectedSport] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState(
   new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -241,6 +249,38 @@ export default function FacilityDetailPage() {
       .then((data) => { setFacility(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (session && id) {
+      fetch("/api/reviews")
+        .then((r) => r.json())
+        .then((d) => setHasReviewed((d.reviewed || []).includes(Number(id))));
+    }
+  }, [session, id]);
+
+  async function submitFacilityReview() {
+    if (!reviewRating) return;
+    setReviewSubmitting(true);
+    const res = await fetch("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ facilityId: Number(id), rating: reviewRating, comment: reviewComment }),
+    });
+    const data = await res.json();
+    setReviewSubmitting(false);
+    if (res.ok) {
+      setHasReviewed(true);
+      setShowReviewForm(false);
+      setReviewRating(0);
+      setReviewComment("");
+      setReviewToast("Cảm ơn bạn đã đánh giá!");
+      // Reload để hiển thị review mới
+      fetch(`/api/facilities/${id}`).then(r => r.json()).then(data => setFacility(data));
+    } else {
+      setReviewToast(data.error || "Có lỗi xảy ra!");
+    }
+    setTimeout(() => setReviewToast(""), 4000);
+  }
 
   if (loading) {
     return (
@@ -418,7 +458,73 @@ export default function FacilityDetailPage() {
         {/* Tab: Đánh giá */}
         {activeTab === "reviews" && (
           <div className="space-y-4">
-            {facility.reviews.length === 0 ? (
+            {/* Nút viết đánh giá */}
+            {session && !hasReviewed && !showReviewForm && (
+              <div className="border border-amber-200 rounded-xl p-4 flex items-center justify-between" style={{ background: "#fffbeb" }}>
+                <div>
+                  <p className="text-sm font-medium text-black">Bạn đã từng chơi tại đây?</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Chia sẻ trải nghiệm để giúp người khác tìm sân!</p>
+                </div>
+                <button
+                  onClick={() => setShowReviewForm(true)}
+                  className="bg-amber-500 hover:bg-amber-400 text-white text-sm px-4 py-2 rounded-xl transition-colors font-medium flex-shrink-0">
+                  <img src="/star.png" className="w-4 h-4 inline mr-1" alt="" />Viết đánh giá
+                </button>
+              </div>
+            )}
+            {session && hasReviewed && (
+              <div className="border border-emerald-200 rounded-xl p-3 text-center text-sm text-emerald-700" style={{ background: "#f0fdf4" }}>
+                Bạn đã đánh giá cơ sở này
+              </div>
+            )}
+
+            {/* Form đánh giá inline */}
+            {showReviewForm && (
+              <div className="border border-amber-300 rounded-2xl p-5" style={{ background: "#fffbeb" }}>
+                <h3 className="font-semibold text-black mb-3 flex items-center gap-2">
+                  <img src="/star.png" alt="" className="w-5 h-5" /> Viết đánh giá của bạn
+                </h3>
+                <div className="flex gap-2 mb-3">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button key={star} onClick={() => setReviewRating(star)}
+                      className={`transition-transform hover:scale-110 ${star <= reviewRating ? "opacity-100" : "opacity-30"}`}>
+                      <img src="/star.png" className="w-7 h-7" alt={`${star} sao`} />
+                    </button>
+                  ))}
+                  {reviewRating > 0 && (
+                    <span className="text-sm text-gray-500 ml-2 self-center">
+                      {["", "Rất tệ", "Tệ", "Bình thường", "Tốt", "Tuyệt vời"][reviewRating]}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Chia sẻ trải nghiệm của bạn... (không bắt buộc)"
+                  rows={3}
+                  className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 resize-none mb-3"
+                />
+                <div className="flex gap-3">
+                  <button onClick={() => { setShowReviewForm(false); setReviewRating(0); setReviewComment(""); }}
+                    className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                    Hủy
+                  </button>
+                  <button onClick={submitFacilityReview} disabled={reviewSubmitting || reviewRating === 0}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-300 text-white py-2 rounded-xl text-sm font-medium transition-colors">
+                    {reviewSubmitting ? "Đang gửi..." : "Gửi đánh giá"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Toast */}
+            {reviewToast && (
+              <div className={`px-4 py-3 rounded-xl text-sm font-medium text-white ${reviewToast.includes("Cảm ơn") || reviewToast.includes("thành công") ? "bg-emerald-500" : "bg-red-500"}`}>
+                {reviewToast}
+              </div>
+            )}
+
+            {facility.reviews.length === 0 && !showReviewForm ? (
               <div className="text-center py-16 text-gray-500 border border-gray-300 rounded-2xl" style={{ background: "#E0EEE0" }}>
                 <div className="flex justify-center mb-3"><img src="/star.png" alt="" className="w-12 h-12 opacity-40" /></div>
                 <p className="text-sm">Chưa có đánh giá nào</p>

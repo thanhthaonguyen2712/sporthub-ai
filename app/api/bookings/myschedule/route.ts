@@ -19,7 +19,7 @@ export async function GET() {
           include: {
             category: true,
             facility: {
-              select: { name: true, address: true },
+              select: { id: true, name: true, address: true },
             },
           },
         },
@@ -45,6 +45,7 @@ export async function GET() {
         iconUrl: b.court.category.iconUrl,
       },
       facility: {
+        id: b.court.facility.id,
         name: b.court.facility.name,
         address: b.court.facility.address,
       },

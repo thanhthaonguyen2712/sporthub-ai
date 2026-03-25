@@ -280,7 +280,11 @@ exports.Prisma.MatchPostScalarFieldEnum = {
   createdAt: 'createdAt',
   creatorId: 'creatorId',
   facilityId: 'facilityId',
-  categoryId: 'categoryId'
+  categoryId: 'categoryId',
+  bookingId: 'bookingId',
+  courtName: 'courtName',
+  pricePerPerson: 'pricePerPerson',
+  totalPrice: 'totalPrice'
 };
 
 exports.Prisma.ReviewScalarFieldEnum = {
@@ -528,7 +532,8 @@ exports.Prisma.BookingOrderByRelevanceFieldEnum = {
 
 exports.Prisma.MatchPostOrderByRelevanceFieldEnum = {
   title: 'title',
-  description: 'description'
+  description: 'description',
+  courtName: 'courtName'
 };
 
 exports.Prisma.ReviewOrderByRelevanceFieldEnum = {

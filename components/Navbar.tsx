@@ -6,12 +6,14 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import LocaleSwitcher from "./LocaleSwitcher";
 import { useLocale, useTranslations } from "next-intl";
+import TeammateModal from "./TeammateModal";
 
 export default function Navbar() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [teammateOpen, setTeammateOpen] = useState(false);
   const locale = useLocale();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -76,6 +78,7 @@ export default function Navbar() {
   };
 
   return (
+    <>
     <nav className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
@@ -94,6 +97,17 @@ export default function Navbar() {
             <div className="w-8 h-8 rounded-full bg-slate-700 animate-pulse" />
           ) : session ? (
             <>
+              {/* Tìm đồng đội */}
+              {(session.user as any)?.role !== "STAFF" && (session.user as any)?.role !== "WAREHOUSE_MANAGER" && (
+                <button
+                  onClick={() => setTeammateOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-colors"
+                >
+                  <img src="/group.png" alt="group" className="w-5 h-5 flex-shrink-0" />
+                  <span>Tìm đồng đội</span>
+                </button>
+              )}
+
               {/* Chuông thông báo */}
               <div className="relative" ref={notifRef}>
                 <button
@@ -220,5 +234,12 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
+    {teammateOpen && (
+      <TeammateModal
+        onClose={() => setTeammateOpen(false)}
+        currentUserId={session ? Number((session.user as any).id) : undefined}
+      />
+    )}
+    </>
   );
 }
