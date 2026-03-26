@@ -58,6 +58,12 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
   const [joining, setJoining] = useState<number | null>(null);
   const [toast, setToast] = useState("");
 
+  // Lọc tỉnh/thành
+  const [provinces, setProvinces] = useState<{ code: number; name: string }[]>([]);
+  const [filterProvince, setFilterProvince] = useState("");
+  const [provinceQuery, setProvinceQuery] = useState("");
+  const [showProvinceDrop, setShowProvinceDrop] = useState(false);
+
   // Danh sách cơ sở (list endpoint)
   const [facilities, setFacilities] = useState<any[]>([]);
   // Chi tiết cơ sở đang chọn (để lấy courts)
@@ -95,6 +101,10 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
     fetch("/api/facilities")
       .then((r) => r.json())
       .then((data) => setFacilities(Array.isArray(data) ? data : []));
+    fetch("https://provinces.open-api.vn/api/p/")
+      .then((r) => r.json())
+      .then((data) => setProvinces(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
   function loadPosts() {
@@ -273,6 +283,20 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
 
   const selectedFacilityObj = facilities.find((f: any) => String(f.id) === form.facilityId);
 
+  // Lọc bài đăng theo tỉnh/thành
+  const displayedPosts = filterProvince
+    ? posts.filter((p) =>
+        p.facility.address.toLowerCase().includes(filterProvince.toLowerCase())
+      )
+    : posts;
+
+  // Gợi ý tỉnh theo query
+  const provinceSuggestions = provinceQuery.trim()
+    ? provinces.filter((p) =>
+        p.name.toLowerCase().includes(provinceQuery.toLowerCase())
+      ).slice(0, 8)
+    : provinces.slice(0, 8);
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -304,7 +328,8 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
             }`}
           >
             <span className="flex items-center justify-center gap-1.5">
-              <img src="/list.png" className="w-4 h-4" alt="" /> Bài đăng ({posts.length})
+              <img src="/list.png" className="w-4 h-4" alt="" />
+              Bài đăng ({filterProvince ? `${displayedPosts.length}/${posts.length}` : posts.length})
             </span>
           </button>
           <button
@@ -322,27 +347,97 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {tab === "list" ? (
-            loading ? (
+            <>
+              {/* Filter tỉnh/thành */}
+              <div className="relative mb-3">
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                  <img src="/placeholder.png" className="w-4 h-4 flex-shrink-0 opacity-50" alt="" />
+                  <input
+                    type="text"
+                    placeholder="Lọc theo tỉnh / thành phố..."
+                    value={provinceQuery}
+                    onChange={(e) => {
+                      setProvinceQuery(e.target.value);
+                      setShowProvinceDrop(true);
+                      if (!e.target.value) setFilterProvince("");
+                    }}
+                    onFocus={() => setShowProvinceDrop(true)}
+                    onBlur={() => setTimeout(() => setShowProvinceDrop(false), 150)}
+                    className="flex-1 bg-transparent text-sm text-black placeholder-gray-400 focus:outline-none"
+                  />
+                  {filterProvince && (
+                    <button
+                      type="button"
+                      onClick={() => { setFilterProvince(""); setProvinceQuery(""); }}
+                      className="text-gray-400 hover:text-gray-600 text-xs font-medium flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {showProvinceDrop && provinceSuggestions.length > 0 && (
+                  <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto mt-1">
+                    {provinceSuggestions.map((p) => (
+                      <li
+                        key={p.code}
+                        onMouseDown={() => {
+                          setFilterProvince(p.name);
+                          setProvinceQuery(p.name);
+                          setShowProvinceDrop(false);
+                        }}
+                        className={`px-4 py-2 text-sm cursor-pointer transition-colors ${
+                          filterProvince === p.name
+                            ? "bg-emerald-50 text-emerald-700 font-medium"
+                            : "text-black hover:bg-gray-50"
+                        }`}
+                      >
+                        {p.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-28 bg-gray-100 rounded-xl animate-pulse" />
                 ))}
               </div>
-            ) : posts.length === 0 ? (
+            ) : displayedPosts.length === 0 ? (
               <div className="text-center py-16 text-gray-500">
                 <img src="/group.png" className="w-16 h-16 mx-auto opacity-30 mb-3" alt="" />
-                <p className="text-sm font-medium">Chưa có bài đăng nào</p>
-                <p className="text-xs text-gray-400 mt-1">Hãy là người đầu tiên tìm đồng đội!</p>
-                <button
-                  onClick={() => setTab("create")}
-                  className="mt-4 bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-5 py-2 rounded-xl transition-colors font-medium"
-                >
-                  + Đăng ngay
-                </button>
+                {filterProvince ? (
+                  <>
+                    <p className="text-sm font-medium">Không có bài đăng ở {filterProvince}</p>
+                    <button
+                      onClick={() => { setFilterProvince(""); setProvinceQuery(""); }}
+                      className="mt-3 text-xs text-emerald-600 underline"
+                    >
+                      Xem tất cả
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium">Chưa có bài đăng nào</p>
+                    <p className="text-xs text-gray-400 mt-1">Hãy là người đầu tiên tìm đồng đội!</p>
+                    <button
+                      onClick={() => setTab("create")}
+                      className="mt-4 bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-5 py-2 rounded-xl transition-colors font-medium"
+                    >
+                      + Đăng ngay
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
-                {posts.map((post) => (
+                {filterProvince && (
+                  <p className="text-xs text-gray-500 mb-1">
+                    {displayedPosts.length} bài đăng tại <span className="font-semibold text-emerald-600">{filterProvince}</span>
+                  </p>
+                )}
+                {displayedPosts.map((post) => (
                   <div
                     key={post.id}
                     className="border border-gray-200 rounded-xl p-4 hover:border-emerald-300 transition-colors"
@@ -423,7 +518,8 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
                   </div>
                 ))}
               </div>
-            )
+            )}
+            </>
           ) : (
             <form onSubmit={handleCreate} className="space-y-4">
               {/* Cơ sở */}

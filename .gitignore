@@ -13,12 +13,11 @@
 # testing
 /coverage
 
-# next.js
-apps/web/.next/
-apps/web/out/
-
-# production
-apps/web/build
+.next/
+out/
+build/
+src/generated/
+next-env.d.ts
 
 # misc
 .DS_Store
@@ -38,7 +37,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-apps/web/next-env.d.ts
 
-# Prisma generated
-apps/web/src/generated/
+
+

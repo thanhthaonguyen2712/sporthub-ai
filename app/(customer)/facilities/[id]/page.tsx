@@ -275,6 +275,19 @@ export default function FacilityDetailPage() {
   const [joinModal, setJoinModal] = useState<MatchPost | null>(null);
   const [joining, setJoining] = useState(false);
   const [joinToast, setJoinToast] = useState("");
+  // Form đăng tìm đồng đội trong tab
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    categoryId: "", courtId: "", courtName: "",
+    matchDate: new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0],
+    startTime: "", endTime: "",
+    level: "BEGINNER", requiredPlayers: "4", description: "", totalPrice: "",
+  });
+  const [createSelectedSlots, setCreateSelectedSlots] = useState<string[]>([]);
+  const [createBookedSlots, setCreateBookedSlots] = useState<string[]>([]);
+  const [createLoadingSlots, setCreateLoadingSlots] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createFilteredCourts, setCreateFilteredCourts] = useState<Court[]>([]);
 
   useEffect(() => {
     fetch(`/api/facilities/${id}`)
@@ -322,6 +335,112 @@ export default function FacilityDetailPage() {
       }
     } else {
       setJoinToast(data.error || "Tham gia thất bại!");
+    }
+    setTimeout(() => setJoinToast(""), 4000);
+  }
+
+  // Handlers cho form tạo bài tìm đồng đội trong tab
+  function handleCreateSportChange(categoryId: string) {
+    setCreateForm((f) => ({ ...f, categoryId, courtId: "", courtName: "", startTime: "", endTime: "", totalPrice: "" }));
+    setCreateSelectedSlots([]);
+    setCreateBookedSlots([]);
+    if (facility && categoryId) {
+      setCreateFilteredCourts(facility.courts.filter((c) => String(c.category.id) === categoryId));
+    } else {
+      setCreateFilteredCourts([]);
+    }
+  }
+
+  function handleCreateCourtChange(courtId: string) {
+    const court = createFilteredCourts.find((c) => String(c.id) === courtId);
+    setCreateForm((f) => ({ ...f, courtId, courtName: court?.name || "", startTime: "", endTime: "", totalPrice: "" }));
+    setCreateSelectedSlots([]);
+    if (courtId && createForm.matchDate) loadCreateBookedSlots(courtId, createForm.matchDate);
+  }
+
+  function handleCreateDateChange(matchDate: string) {
+    setCreateForm((f) => ({ ...f, matchDate, startTime: "", endTime: "", totalPrice: "" }));
+    setCreateSelectedSlots([]);
+    if (createForm.courtId && matchDate) loadCreateBookedSlots(createForm.courtId, matchDate);
+  }
+
+  async function loadCreateBookedSlots(courtId: string, date: string) {
+    setCreateLoadingSlots(true);
+    const data = await fetch(`/api/courts/${courtId}/booked-slots?date=${date}`).then((r) => r.json());
+    setCreateBookedSlots(data.bookedSlots || []);
+    setCreateLoadingSlots(false);
+  }
+
+  function toggleCreateSlot(slotTime: string, allSlots: CourtSlot[], sportName: string) {
+    if (createBookedSlots.includes(slotTime)) return;
+    const nowVN2 = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
+    const todayVN2 = nowVN2.toISOString().split("T")[0];
+    const nowMin2 = nowVN2.getUTCHours() * 60 + nowVN2.getUTCMinutes();
+    if (createForm.matchDate === todayVN2 && toMinutes(slotTime) < nowMin2) return;
+
+    const newSlots = createSelectedSlots.includes(slotTime)
+      ? createSelectedSlots.filter((s) => s !== slotTime)
+      : [...createSelectedSlots, slotTime];
+    setCreateSelectedSlots(newSlots);
+
+    if (newSlots.length === 0) {
+      setCreateForm((f) => ({ ...f, startTime: "", endTime: "", totalPrice: "" }));
+    } else {
+      const sorted = [...newSlots].sort((a, b) => toMinutes(a) - toMinutes(b));
+      const lastSlot = allSlots.find((s) => s.time === sorted[sorted.length - 1]);
+      const total = newSlots.reduce((sum, t) => {
+        const slot = allSlots.find((s) => s.time === t);
+        return sum + (slot ? getSlotPrice(slot, createForm.matchDate) : 0);
+      }, 0);
+      setCreateForm((f) => ({ ...f, startTime: sorted[0], endTime: lastSlot?.end || "", totalPrice: String(total) }));
+    }
+  }
+
+  async function handleCreateSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!session) { router.push("/login"); return; }
+    if (!createForm.categoryId || !createForm.courtId || !createForm.matchDate || !createForm.startTime || !createForm.endTime) {
+      setJoinToast("Vui lòng chọn sân và khung giờ!");
+      setTimeout(() => setJoinToast(""), 3000);
+      return;
+    }
+    setCreateSubmitting(true);
+    const res = await fetch("/api/match-posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        facilityId: Number(id),
+        categoryId: Number(createForm.categoryId),
+        matchDate: createForm.matchDate,
+        startTime: createForm.startTime,
+        endTime: createForm.endTime,
+        level: createForm.level,
+        requiredPlayers: Number(createForm.requiredPlayers),
+        description: createForm.description,
+        courtName: createForm.courtName,
+        totalPrice: createForm.totalPrice ? Number(createForm.totalPrice) : undefined,
+      }),
+    });
+    const data = await res.json();
+    setCreateSubmitting(false);
+    if (res.ok) {
+      setJoinToast("Đã đăng bài tìm đồng đội!");
+      setShowCreateForm(false);
+      setCreateForm({
+        categoryId: "", courtId: "", courtName: "",
+        matchDate: new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0],
+        startTime: "", endTime: "",
+        level: "BEGINNER", requiredPlayers: "4", description: "", totalPrice: "",
+      });
+      setCreateSelectedSlots([]);
+      setCreateBookedSlots([]);
+      setCreateFilteredCourts([]);
+      // Reload match posts
+      fetch(`/api/match-posts?facilityId=${id}&status=OPEN`)
+        .then((r) => r.json())
+        .then((d) => setMatchPosts(Array.isArray(d) ? d : []));
+    } else {
+      setJoinToast(data.error || "Có lỗi xảy ra!");
     }
     setTimeout(() => setJoinToast(""), 4000);
   }
@@ -506,6 +625,255 @@ export default function FacilityDetailPage() {
               <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium text-white ${joinToast.includes("thành công") ? "bg-emerald-500" : "bg-red-500"}`}>
                 {joinToast}
               </div>
+            )}
+
+            {/* Nút đăng bài */}
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold text-gray-700">
+                {matchPosts.length > 0 ? `${matchPosts.length} bài đăng đang mở` : "Chưa có bài đăng"}
+              </p>
+              {session && (
+                <button
+                  onClick={() => setShowCreateForm((v) => !v)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    showCreateForm
+                      ? "bg-gray-200 text-gray-600"
+                      : "bg-emerald-500 hover:bg-emerald-400 text-white"
+                  }`}
+                >
+                  {showCreateForm ? "✕ Đóng" : "+ Đăng tìm đồng đội"}
+                </button>
+              )}
+            </div>
+
+            {/* Form tạo bài */}
+            {showCreateForm && facility && (
+              <form
+                onSubmit={handleCreateSubmit}
+                className="border border-emerald-300 rounded-2xl p-5 mb-5 space-y-4"
+                style={{ background: "#f0fdf4" }}
+              >
+                <h3 className="font-bold text-black text-base flex items-center gap-2">
+                  <img src="/group.png" className="w-5 h-5" alt="" />
+                  Đăng tìm đồng đội tại {facility.name}
+                </h3>
+
+                {/* Môn thể thao + Trình độ */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">Môn thể thao *</label>
+                    <select
+                      value={createForm.categoryId}
+                      onChange={(e) => handleCreateSportChange(e.target.value)}
+                      required
+                      className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+                    >
+                      <option value="">-- Chọn môn --</option>
+                      {facility.sports.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">Trình độ *</label>
+                    <select
+                      value={createForm.level}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, level: e.target.value }))}
+                      className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+                    >
+                      <option value="BEGINNER">Người mới</option>
+                      <option value="INTERMEDIATE">Trung bình</option>
+                      <option value="PRO">Chuyên nghiệp</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Chọn sân cụ thể */}
+                {createForm.categoryId && (
+                  <div>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">Sân *</label>
+                    {createFilteredCourts.length === 0 ? (
+                      <p className="text-xs text-gray-400">Không có sân nào cho môn này</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {createFilteredCourts.map((court) => (
+                          <button
+                            key={court.id}
+                            type="button"
+                            onClick={() => handleCreateCourtChange(String(court.id))}
+                            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm text-left transition-colors ${
+                              createForm.courtId === String(court.id)
+                                ? "bg-emerald-500 text-white border-emerald-500"
+                                : "bg-white text-gray-700 border-gray-300 hover:border-emerald-400"
+                            }`}
+                          >
+                            <img src={court.category.iconUrl} className="w-5 h-5 flex-shrink-0" alt="" />
+                            <span className="font-medium truncate">{court.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Thông tin sân đã chọn */}
+                {createForm.courtId && (
+                  <div className="bg-white border border-emerald-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+                    <img src="/placeholder.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
+                    <div className="text-xs">
+                      <p className="font-semibold text-gray-800">{createForm.courtName} · {facility.name}</p>
+                      <p className="text-gray-500">{facility.address}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ngày chơi */}
+                {createForm.courtId && (
+                  <div>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">Ngày chơi *</label>
+                    <input
+                      type="date"
+                      value={createForm.matchDate}
+                      onChange={(e) => handleCreateDateChange(e.target.value)}
+                      min={new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0]}
+                      required
+                      className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                )}
+
+                {/* Slot picker */}
+                {createForm.courtId && createForm.matchDate && (() => {
+                  const sport = facility.sports.find((s) => String(s.id) === createForm.categoryId);
+                  const sportName = sport?.name || "";
+                  const allSlots = generateCourtSlots(sportName, createForm.matchDate);
+                  const nowVN3 = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
+                  const todayVN3 = nowVN3.toISOString().split("T")[0];
+                  const nowMin3 = nowVN3.getUTCHours() * 60 + nowVN3.getUTCMinutes();
+                  const isToday3 = createForm.matchDate === todayVN3;
+                  const holiday3 = isHoliday(createForm.matchDate);
+                  const weekend3 = isWeekend(createForm.matchDate);
+                  const totalCreatePrice = createSelectedSlots.reduce((sum, t) => {
+                    const slot = allSlots.find((s) => s.time === t);
+                    return sum + (slot ? getSlotPrice(slot, createForm.matchDate) : 0);
+                  }, 0);
+                  return (
+                    <div>
+                      <label className="text-xs text-gray-600 font-medium mb-2 block">Chọn khung giờ *</label>
+                      {/* Chú thích */}
+                      <div className="flex gap-2 flex-wrap text-xs mb-3">
+                        <span className="flex items-center gap-1">
+                          <span className="w-3 h-3 rounded inline-block" style={{ background: "#96CDCD", border: "1px solid #D1EEEE" }}></span>
+                          <span className="text-gray-600">Còn trống</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-3 h-3 rounded inline-block" style={{ background: "#EED5D2" }}></span>
+                          <span className="text-gray-600">Đã đặt</span>
+                        </span>
+                        {(weekend3 || holiday3) && (
+                          <span className="flex items-center gap-1">
+                            <span className="w-3 h-3 rounded inline-block" style={{ background: "#FFD580" }}></span>
+                            <span className="text-gray-600">Cao điểm sáng</span>
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <span className="w-3 h-3 rounded inline-block" style={{ background: "#9BCD9B" }}></span>
+                          <span className="text-gray-600">Cao điểm chiều</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-3 h-3 rounded inline-block" style={{ background: "#B0C4DE" }}></span>
+                          <span className="text-gray-600">Đang chọn</span>
+                        </span>
+                      </div>
+                      {createLoadingSlots ? (
+                        <div className="h-20 bg-gray-100 rounded-xl animate-pulse" />
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {allSlots.map((slot) => {
+                            const isBooked = createBookedSlots.includes(slot.time);
+                            const isPast = isToday3 && toMinutes(slot.time) < nowMin3;
+                            const isSelected = createSelectedSlots.includes(slot.time);
+                            let bgStyle: React.CSSProperties = { fontWeight: "bold" };
+                            let cls = "border rounded-lg text-xs font-medium transition-all text-left ";
+                            const pad = slot.isPeak ? "px-4 py-2.5" : "px-2.5 py-2";
+                            if (isPast) {
+                              bgStyle = { ...bgStyle, background: "#D1D5DB", borderColor: "#9CA3AF", color: "#6B7280" };
+                              cls += "cursor-not-allowed opacity-60 ";
+                            } else if (isBooked) {
+                              bgStyle = { ...bgStyle, background: "#EED5D2", borderColor: "#FFB5C5", color: "#000" };
+                              cls += "cursor-not-allowed ";
+                            } else if (isSelected) {
+                              bgStyle = { ...bgStyle, background: "#B0C4DE", borderColor: "#7a9cbf", color: "#000" };
+                              cls += "cursor-pointer ring-2 ring-blue-400";
+                            } else if (slot.isMorningPeak) {
+                              bgStyle = { ...bgStyle, background: "#FFD580", borderColor: "#FFC107", color: "#000" };
+                              cls += "cursor-pointer hover:opacity-80";
+                            } else if (slot.isPeak) {
+                              bgStyle = { ...bgStyle, background: "#9BCD9B", borderColor: "#a8e050", color: "#000" };
+                              cls += "cursor-pointer hover:opacity-80";
+                            } else {
+                              bgStyle = { ...bgStyle, background: "#96CDCD", borderColor: "#D1EEEE", color: "#000" };
+                              cls += "cursor-pointer hover:opacity-80";
+                            }
+                            return (
+                              <button key={slot.time} type="button"
+                                onClick={() => toggleCreateSlot(slot.time, allSlots, sportName)}
+                                disabled={isBooked || isPast}
+                                className={`${cls} ${pad}`} style={bgStyle}>
+                                <div className="font-semibold text-[11px]">{slot.label}</div>
+                                <div className="text-[10px] opacity-70 mt-0.5">{getSlotPriceLabel(slot, createForm.matchDate)}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {createSelectedSlots.length > 0 && (
+                        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500">{createSelectedSlots.length} slot · {createForm.startTime} – {createForm.endTime}</p>
+                            <p className="font-bold text-emerald-600">{totalCreatePrice.toLocaleString("vi-VN")}đ</p>
+                          </div>
+                          <button type="button" onClick={() => { setCreateSelectedSlots([]); setCreateForm((f) => ({ ...f, startTime: "", endTime: "", totalPrice: "" })); }}
+                            className="text-xs text-gray-400 hover:text-red-500 transition-colors">Xóa chọn</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Số người */}
+                <div>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">Cần bao nhiêu người? *</label>
+                  <input
+                    type="number"
+                    value={createForm.requiredPlayers}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, requiredPlayers: e.target.value }))}
+                    min="2" max="30" required
+                    className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Tổng số người cần (bao gồm bạn)</p>
+                </div>
+
+                {/* Mô tả */}
+                <div>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">Mô tả (không bắt buộc)</label>
+                  <textarea
+                    value={createForm.description}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="VD: Tìm 3 người chơi pickleball trình độ beginner, vui vẻ..."
+                    rows={2}
+                    className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={createSubmitting || !createForm.startTime}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  {createSubmitting ? "Đang đăng..." : "Đăng tìm đồng đội"}
+                </button>
+              </form>
             )}
 
             {matchPostsLoading ? (
