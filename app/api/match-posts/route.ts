@@ -8,9 +8,13 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const status = (searchParams.get("status") || "OPEN") as "OPEN" | "CLOSED" | "EXPIRED";
+    const facilityIdParam = searchParams.get("facilityId");
+
+    const where: Record<string, unknown> = { status };
+    if (facilityIdParam) where.facilityId = Number(facilityIdParam);
 
     const posts = await prisma.matchPost.findMany({
-      where: { status },
+      where,
       include: {
         facility: { select: { id: true, name: true, address: true } },
         category: { select: { id: true, name: true, iconUrl: true } },

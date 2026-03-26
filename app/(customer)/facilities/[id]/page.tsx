@@ -225,6 +225,32 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
   );
 }
 
+interface MatchPost {
+  id: number;
+  title: string;
+  description: string | null;
+  matchDate: string;
+  startTime: string;
+  endTime: string;
+  level: string;
+  status: string;
+  requiredPlayers: number;
+  joinedPlayers: number;
+  remaining: number;
+  facility: { id: number; name: string; address: string };
+  sport: { id: number; name: string; iconUrl: string };
+  creator: { id: number; fullName: string };
+  courtName: string | null;
+  pricePerPerson: number | null;
+  totalPrice: number | null;
+}
+
+const LEVEL_LABEL: Record<string, string> = {
+  BEGINNER: "Người mới",
+  INTERMEDIATE: "Trung bình",
+  PRO: "Chuyên nghiệp",
+};
+
 export default function FacilityDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -242,6 +268,13 @@ export default function FacilityDetailPage() {
   const [selectedDate, setSelectedDate] = useState(
   new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0]
 );
+  // Tìm đồng đội
+  const [matchPosts, setMatchPosts] = useState<MatchPost[]>([]);
+  const [matchPostsLoading, setMatchPostsLoading] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [joinModal, setJoinModal] = useState<MatchPost | null>(null);
+  const [joining, setJoining] = useState(false);
+  const [joinToast, setJoinToast] = useState("");
 
   useEffect(() => {
     fetch(`/api/facilities/${id}`)
@@ -255,8 +288,43 @@ export default function FacilityDetailPage() {
       fetch("/api/reviews")
         .then((r) => r.json())
         .then((d) => setHasReviewed((d.reviewed || []).includes(Number(id))));
+      fetch("/api/wallet")
+        .then((r) => r.json())
+        .then((d) => setWalletBalance(Number(d.balance) || 0));
     }
   }, [session, id]);
+
+  useEffect(() => {
+    if (activeTab === "teammate" && id) {
+      setMatchPostsLoading(true);
+      fetch(`/api/match-posts?facilityId=${id}&status=OPEN`)
+        .then((r) => r.json())
+        .then((data) => { setMatchPosts(Array.isArray(data) ? data : []); setMatchPostsLoading(false); })
+        .catch(() => setMatchPostsLoading(false));
+    }
+  }, [activeTab, id]);
+
+  async function handleJoin(post: MatchPost) {
+    if (!session) { router.push("/login"); return; }
+    setJoining(true);
+    const res = await fetch(`/api/match-posts/${post.id}/join`, { method: "POST" });
+    const data = await res.json();
+    setJoining(false);
+    setJoinModal(null);
+    if (res.ok) {
+      setJoinToast("Tham gia thành công!");
+      // Reload match posts
+      fetch(`/api/match-posts?facilityId=${id}&status=OPEN`)
+        .then((r) => r.json())
+        .then((data) => setMatchPosts(Array.isArray(data) ? data : []));
+      if (session) {
+        fetch("/api/wallet").then((r) => r.json()).then((d) => setWalletBalance(Number(d.balance) || 0));
+      }
+    } else {
+      setJoinToast(data.error || "Tham gia thất bại!");
+    }
+    setTimeout(() => setJoinToast(""), 4000);
+  }
 
   async function submitFacilityReview() {
     if (!reviewRating) return;
@@ -315,6 +383,7 @@ export default function FacilityDetailPage() {
 
   const tabs = [
     { id: "courts", icon: <img src="/list.png" className="w-4 h-4 inline-block" alt="list" />, label: `Danh sách sân (${facility.courts.length})` },
+    { id: "teammate", icon: <img src="/group.png" className="w-4 h-4 inline-block" alt="group" />, label: "Tìm đồng đội" },
     { id: "services", icon: <img src="/shopping-cart.png" className="w-4 h-4 inline-block" alt="cart" />, label: `Dịch vụ (${facility.services.length})` },
     { id: "reviews", icon: <img src="/star.png" className="w-4 h-4 inline-block" alt="star" />, label: `Đánh giá (${facility.reviews.length})` },
   ];
@@ -426,6 +495,186 @@ export default function FacilityDetailPage() {
                   ))}
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {/* Tab: Tìm đồng đội */}
+        {activeTab === "teammate" && (
+          <div>
+            {joinToast && (
+              <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium text-white ${joinToast.includes("thành công") ? "bg-emerald-500" : "bg-red-500"}`}>
+                {joinToast}
+              </div>
+            )}
+
+            {matchPostsLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => <div key={i} className="h-32 rounded-2xl animate-pulse" style={{ background: "#E0EEE0" }} />)}
+              </div>
+            ) : matchPosts.length === 0 ? (
+              <div className="text-center py-16 border border-gray-300 rounded-2xl" style={{ background: "#E0EEE0" }}>
+                <div className="flex justify-center mb-3"><img src="/group.png" alt="" className="w-12 h-12 opacity-40" /></div>
+                <p className="text-sm text-gray-500">Chưa có bài tìm đồng đội nào tại sân này</p>
+                <p className="text-xs text-gray-400 mt-1">Đặt sân và đăng bài để tìm người cùng chơi!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {matchPosts.map((post) => {
+                  const isCreator = session && Number((session.user as any).id) === post.creator.id;
+                  const canJoin = post.status === "OPEN" && !isCreator;
+                  const matchDateObj = new Date(post.matchDate);
+                  const dateLabel = matchDateObj.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+                  return (
+                    <div key={post.id} className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-3 gap-3">
+                        <div className="flex items-center gap-2">
+                          <img src={post.sport.iconUrl} className="w-6 h-6 flex-shrink-0" alt={post.sport.name} />
+                          <div>
+                            <p className="font-semibold text-black text-sm leading-tight">{post.title}</p>
+                            <p className="text-xs text-gray-500">{post.sport.name} · {LEVEL_LABEL[post.level] || post.level}</p>
+                          </div>
+                        </div>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${post.status === "OPEN" ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-500"}`}>
+                          {post.status === "OPEN" ? "Đang mở" : "Đủ người"}
+                        </span>
+                      </div>
+
+                      {/* Thông tin chi tiết */}
+                      <div className="bg-white rounded-xl px-4 py-3 space-y-2 text-sm mb-3">
+                        {/* Sân */}
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <img src="/list.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
+                          <span className="font-medium">{post.courtName || "Chưa rõ sân"}</span>
+                          <span className="text-gray-400">·</span>
+                          <span className="text-gray-500">{post.facility.name}</span>
+                        </div>
+                        {/* Địa chỉ */}
+                        <div className="flex items-center gap-2 text-gray-500 text-xs pl-6">
+                          <img src="/placeholder.png" className="w-3.5 h-3.5 flex-shrink-0 opacity-50" alt="" />
+                          {post.facility.address}
+                        </div>
+                        {/* Ngày + giờ */}
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <img src="/calendar.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
+                          <span>{dateLabel}</span>
+                          <span className="text-gray-400">·</span>
+                          <span className="font-medium">{post.startTime} – {post.endTime}</span>
+                        </div>
+                        {/* Số người */}
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <img src="/group.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
+                          <span>
+                            <span className="font-semibold text-emerald-600">{post.joinedPlayers}</span>
+                            <span className="text-gray-400">/{post.requiredPlayers} người tham gia</span>
+                            {post.remaining > 0 && (
+                              <span className="ml-1.5 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">còn {post.remaining} chỗ</span>
+                            )}
+                          </span>
+                        </div>
+                        {/* Giá mỗi người */}
+                        {post.pricePerPerson != null && post.pricePerPerson > 0 && (
+                          <div className="flex items-center gap-2 border-t border-gray-100 pt-2 mt-1">
+                            <img src="/atm-card.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
+                            <span className="text-gray-600">Mỗi người trả:</span>
+                            <span className="font-bold text-emerald-600">{post.pricePerPerson.toLocaleString("vi-VN")}đ</span>
+                            <span className="text-xs text-gray-400">(qua ví SportHub)</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Mô tả */}
+                      {post.description && (
+                        <p className="text-xs text-gray-500 mb-3 italic">"{post.description}"</p>
+                      )}
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-gray-400">Đăng bởi {post.creator.fullName}</p>
+                        {canJoin ? (
+                          <button
+                            onClick={() => { if (!session) { router.push("/login"); return; } setJoinModal(post); }}
+                            className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-5 py-2 rounded-xl font-medium transition-colors flex items-center gap-1.5">
+                            <img src="/group.png" className="w-4 h-4" alt="" />
+                            Tham gia
+                          </button>
+                        ) : isCreator ? (
+                          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-xl">Bài của bạn</span>
+                        ) : (
+                          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-xl">Đã đủ người</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Modal xác nhận tham gia */}
+            {joinModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+                  <div className="flex items-center gap-2 mb-4">
+                    <img src="/group.png" className="w-6 h-6" alt="" />
+                    <h3 className="font-bold text-black text-lg">Xác nhận tham gia</h3>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2 text-sm mb-4">
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <img src="/list.png" className="w-4 h-4 opacity-60" alt="" />
+                      <span className="font-medium">{joinModal.courtName || "Sân"}</span>
+                      <span className="text-gray-400">·</span>
+                      <span className="text-gray-500">{joinModal.facility.name}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 pl-6">{joinModal.facility.address}</div>
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <img src="/calendar.png" className="w-4 h-4 opacity-60" alt="" />
+                      <span>{new Date(joinModal.matchDate).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
+                      <span className="text-gray-400">·</span>
+                      <span className="font-medium">{joinModal.startTime} – {joinModal.endTime}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <img src="/group.png" className="w-4 h-4 opacity-60" alt="" />
+                      <span>{joinModal.joinedPlayers}/{joinModal.requiredPlayers} người · còn {joinModal.remaining} chỗ</span>
+                    </div>
+                  </div>
+
+                  {joinModal.pricePerPerson != null && joinModal.pricePerPerson > 0 ? (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-4">
+                      <p className="text-sm text-emerald-800 font-semibold mb-1">
+                        Phí tham gia: {joinModal.pricePerPerson.toLocaleString("vi-VN")}đ
+                      </p>
+                      <p className="text-xs text-emerald-700">
+                        Số dư ví: <span className={walletBalance >= joinModal.pricePerPerson ? "font-semibold text-emerald-600" : "font-semibold text-red-500"}>{walletBalance.toLocaleString("vi-VN")}đ</span>
+                      </p>
+                      {walletBalance < joinModal.pricePerPerson && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Số dư không đủ.{" "}
+                          <button onClick={() => { setJoinModal(null); router.push("/profile?tab=wallet"); }} className="underline font-medium">Nạp ví ngay</button>
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4">
+                      <p className="text-sm text-blue-700">Tham gia miễn phí</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button onClick={() => setJoinModal(null)}
+                      className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                      Hủy
+                    </button>
+                    <button
+                      onClick={() => handleJoin(joinModal)}
+                      disabled={joining || (joinModal.pricePerPerson != null && joinModal.pricePerPerson > 0 && walletBalance < joinModal.pricePerPerson)}
+                      className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                      {joining ? "Đang xử lý..." : "Xác nhận tham gia"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
