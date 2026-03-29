@@ -558,13 +558,42 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
                         : <span className="text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full">Chưa trả</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {!r.isPaid && <button onClick={() => paySalary(r.id)} className={BTN_G + " text-xs py-1.5"}>Thanh toán ví</button>}
+                      {!r.isPaid && (
+                        <button onClick={() => paySalary(r.id)}
+                          className="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-1">
+                          💸 Thanh toán
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {data.salaryRecords.length > 0 && (() => {
+            const totalPaid = data.salaryRecords.filter(r => r.isPaid).reduce((s, r) => s + Number(r.finalSalary), 0);
+            const totalUnpaid = data.salaryRecords.filter(r => !r.isPaid).reduce((s, r) => s + Number(r.finalSalary), 0);
+            return (
+              <div className="flex gap-3 mt-3 flex-wrap">
+                <div className="bg-white rounded-xl px-4 py-2.5 border border-red-200 flex-1 text-center">
+                  <p className="text-xs text-gray-500">Chưa thanh toán</p>
+                  <p className="font-bold text-red-500">{totalUnpaid.toLocaleString("vi-VN")}đ</p>
+                  <p className="text-xs text-gray-400">{data.salaryRecords.filter(r => !r.isPaid).length} nhân viên</p>
+                </div>
+                <div className="bg-white rounded-xl px-4 py-2.5 border border-emerald-200 flex-1 text-center">
+                  <p className="text-xs text-gray-500">Đã thanh toán</p>
+                  <p className="font-bold text-emerald-600">{totalPaid.toLocaleString("vi-VN")}đ</p>
+                  <p className="text-xs text-gray-400">{data.salaryRecords.filter(r => r.isPaid).length} nhân viên</p>
+                </div>
+                <div className="bg-white rounded-xl px-4 py-2.5 border border-blue-200 flex-1 text-center">
+                  <p className="text-xs text-gray-500">Tổng bảng lương</p>
+                  <p className="font-bold text-blue-600">{(totalPaid + totalUnpaid).toLocaleString("vi-VN")}đ</p>
+                  <p className="text-xs text-gray-400">{data.salaryRecords.length} nhân viên</p>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
@@ -609,6 +638,38 @@ function BarChart({ items, labelKey, valueKey, color = "#10b981" }: {
   );
 }
 
+// ─── Line Chart ───────────────────────────────────────────────────────────────
+function LineChart({ items, labelKey, valueKey, color = "#10b981", formatValue }: {
+  items: any[]; labelKey: string; valueKey: string; color?: string; formatValue?: (v: number) => string;
+}) {
+  if (items.length < 2) return <div className="text-center text-gray-400 py-6 text-sm">Không đủ dữ liệu</div>;
+  const W = 600, H = 150, PX = 36, PY = 28;
+  const values = items.map(i => Number(i[valueKey]));
+  const max = Math.max(...values, 1), min = Math.min(...values, 0), range = max - min || 1;
+  const pts = items.map((item, idx) => ({
+    x: PX + (idx / (items.length - 1)) * (W - PX * 2),
+    y: PY + (1 - (Number(item[valueKey]) - min) / range) * (H - PY * 2),
+    item,
+  }));
+  const fmtV = formatValue || ((v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + "M" : v >= 1000 ? (v / 1000).toFixed(0) + "K" : String(v));
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 300, height: H }}>
+        {[0, 0.5, 1].map((t, i) => <line key={i} x1={PX} y1={PY + t * (H - PY * 2)} x2={W - PX} y2={PY + t * (H - PY * 2)} stroke="#e5e7eb" strokeWidth="1" />)}
+        <path d={`M${pts[0].x},${H - PY} ` + pts.map(p => `L${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") + ` L${pts[pts.length - 1].x},${H - PY} Z`} fill={color} opacity={0.08} />
+        <polyline points={pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={4} fill="white" stroke={color} strokeWidth="2" />
+            <text x={p.x} y={H - 5} textAnchor="middle" fontSize={9} fill="#9ca3af">{p.item[labelKey]}</text>
+            <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={color} fontWeight="600">{fmtV(Number(p.item[valueKey]))}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Invoices Tab ────────────────────────────────────────────────────────────
 function InvoicesTab({ facilities }: { facilities: Facility[] }) {
   const now = new Date();
@@ -621,6 +682,8 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
   const [occupancy, setOccupancy] = useState<any>(null);
   const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
   const [chartView, setChartView] = useState<"day" | "hour" | "court" | "sport" | "month">("day");
+  const [revenueView, setRevenueView] = useState<"day" | "week">("day");
+  const [exporting, setExporting] = useState(false);
 
   const PM_LABEL: Record<string, string> = { CASH: "Tiền mặt", TRANSFER: "Chuyển khoản", QR: "VNPay", WALLET: "Ví SportHub" };
 
@@ -670,6 +733,71 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
     }
   }
 
+  function getRevenueItems() {
+    const map: Record<string, number> = {};
+    invoices.forEach(inv => {
+      const d = new Date(inv.createdAt);
+      const key = revenueView === "week"
+        ? `Tuần ${Math.ceil(d.getDate() / 7)}`
+        : `${d.getDate()}/${d.getMonth() + 1}`;
+      map[key] = (map[key] || 0) + Number(inv.finalTotal);
+    });
+    return Object.entries(map).map(([label, value]) => ({ label, value }));
+  }
+
+  function getUserHabitsInsights() {
+    if (!occupancy) return null;
+    const hourly = (occupancy.hourlyStats || []) as any[];
+    const courts = (occupancy.courtStats || []) as any[];
+    const sports = (occupancy.sportStats || []) as any[];
+    const peakHour = hourly.reduce((b: any, h: any) => (!b || h.count > b.count) ? h : b, null);
+    const slowHour = hourly.filter((h: any) => h.count > 0).reduce((b: any, h: any) => (!b || h.count < b.count) ? h : b, null);
+    const topCourt = courts.reduce((b: any, c: any) => (!b || c.count > b.count) ? c : b, null);
+    const topSport = sports.reduce((b: any, s: any) => (!b || s.count > b.count) ? s : b, null);
+    const lowCourt = courts.reduce((b: any, c: any) => (!b || c.count < b.count) ? c : b, null);
+    return { peakHour, slowHour, topCourt, topSport, lowCourt };
+  }
+
+  async function exportToExcel() {
+    if (!facilityId) return;
+    setExporting(true);
+    const [svcRes, salRes] = await Promise.all([
+      fetch(`/api/owner/services?facilityId=${facilityId}`),
+      fetch(`/api/owner/salary?facilityId=${facilityId}&month=${month}&year=${year}`),
+    ]);
+    const services: Service[] = svcRes.ok ? await svcRes.json() : [];
+    const salaryData = salRes.ok ? await salRes.json() : {};
+    const salaryRecords: SalaryRecord[] = salaryData.salaryRecords || [];
+    setExporting(false);
+
+    const cell = (v: string | number, type: "String" | "Number" = "String") =>
+      `<Cell><Data ss:Type="${type}">${String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</Data></Cell>`;
+    const row = (...cells: string[]) => `<Row>${cells.join("")}</Row>`;
+
+    const sheet1 = `<Worksheet ss:Name="Doanh thu"><Table>
+      ${row(cell("Mã HĐ"), cell("Thời gian"), cell("Sân"), cell("Khách hàng"), cell("Phương thức"), cell("Tổng tiền (đ)"))}
+      ${invoices.map(inv => row(cell(inv.id), cell(new Date(inv.createdAt).toLocaleString("vi-VN")), cell(inv.courtName), cell(inv.customerName), cell(inv.paymentMethod), cell(Number(inv.finalTotal), "Number"))).join("\n")}
+      ${row(cell(""), cell(""), cell(""), cell(""), cell("TỔNG"), cell(total, "Number"))}
+    </Table></Worksheet>`;
+
+    const sheet2 = `<Worksheet ss:Name="Tồn kho"><Table>
+      ${row(cell("Mã SP"), cell("Tên sản phẩm"), cell("Loại"), cell("Giá bán (đ)"), cell("Tồn kho"), cell("Trạng thái"))}
+      ${(Array.isArray(services) ? services : []).filter(s => s.type === "PRODUCT").map(s => row(cell(s.id), cell(s.name), cell("F&B"), cell(Number(s.price), "Number"), cell(s.stockQuantity, "Number"), cell(s.isActive ? "Hoạt động" : "Ẩn"))).join("\n") || row(cell("Không có dữ liệu"))}
+    </Table></Worksheet>`;
+
+    const sheet3 = `<Worksheet ss:Name="Bảng lương"><Table>
+      ${row(cell("Nhân viên"), cell("Email"), cell("Loại lương"), cell("Giờ/Ngày"), cell("Lương cơ bản (đ)"), cell("Thưởng (đ)"), cell("Tổng lương (đ)"), cell("Trạng thái"))}
+      ${salaryRecords.map(r => row(cell(r.staff.fullName), cell(r.staff.email), cell(r.wageType === "HOURLY" ? "Theo giờ" : "Theo ngày"), cell(r.totalHours, "Number"), cell(Number(r.baseSalary), "Number"), cell(Number(r.bonus), "Number"), cell(Number(r.finalSalary), "Number"), cell(r.isPaid ? "Đã trả" : "Chưa trả"))).join("\n") || row(cell("Không có dữ liệu"))}
+    </Table></Worksheet>`;
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${sheet1}${sheet2}${sheet3}</Workbook>`;
+    const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `bao-cao-T${month}-${year}.xls`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       <div className={CARD} style={BG}>
@@ -691,6 +819,11 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
             </select>
           </div>
           <button onClick={load} className={BTN_G}>Xem</button>
+          {loaded && facilityId && (
+            <button onClick={exportToExcel} disabled={exporting} className={BTN_W + " flex items-center gap-1.5"}>
+              {exporting ? "..." : "⬇ Xuất Excel"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -733,6 +866,37 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
                 )}
               </div>
             ))}
+          </div>
+
+          {/* Revenue trend */}
+          <div className={CARD} style={BG}>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 className="font-semibold text-black">Xu hướng doanh thu</h3>
+              <div className="flex gap-1">
+                {(["day", "week"] as const).map(v => (
+                  <button key={v} onClick={() => setRevenueView(v)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${revenueView === v ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"}`}>
+                    {v === "day" ? "Ngày" : "Tuần"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {invoices.length === 0
+              ? <div className="text-center text-gray-400 py-6 text-sm">Không có dữ liệu doanh thu</div>
+              : <LineChart items={getRevenueItems()} labelKey="label" valueKey="value" color="#10b981"
+                  formatValue={v => v >= 1000000 ? (v / 1000000).toFixed(1) + "M" : v >= 1000 ? (v / 1000).toFixed(0) + "K" : String(v)} />}
+            <div className="flex gap-3 mt-3 flex-wrap">
+              <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 flex-1 text-center">
+                <p className="text-xs text-gray-500">Doanh thu tháng</p>
+                <p className="font-bold text-emerald-600">{total.toLocaleString("vi-VN")}đ</p>
+              </div>
+              {invoices.length > 0 && (
+                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 flex-1 text-center">
+                  <p className="text-xs text-gray-500">TB/hóa đơn</p>
+                  <p className="font-bold text-blue-600">{Math.round(total / invoices.length).toLocaleString("vi-VN")}đ</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Occupancy chart */}
@@ -795,6 +959,32 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
               <p className="text-xs text-gray-400 mt-2">Tổng lượt đặt theo từng tháng — năm {year}</p>
             )}
           </div>
+
+          {/* User habits */}
+          {(() => {
+            const h = getUserHabitsInsights();
+            if (!h) return null;
+            const insights: { icon: string; text: string; tip: string; color: string }[] = [];
+            if (h.peakHour) insights.push({ icon: "🔥", text: `Khung giờ đông nhất: ${h.peakHour.hour}`, tip: "Tăng giá khung giờ cao điểm hoặc chạy ưu đãi combo để tối ưu doanh thu", color: "border-orange-200 bg-orange-50" });
+            if (h.slowHour && h.slowHour.hour !== h.peakHour?.hour) insights.push({ icon: "📉", text: `Khung giờ vắng nhất: ${h.slowHour.hour}`, tip: "Tung voucher giảm giá cho khung giờ thấp điểm để tăng tỉ lệ lấp đầy", color: "border-blue-200 bg-blue-50" });
+            if (h.topSport) insights.push({ icon: "🏆", text: `Môn thể thao phổ biến nhất: ${h.topSport.name}`, tip: "Nhập thêm thiết bị/phụ kiện cho môn này, tạo giải đấu để thu hút thêm khách", color: "border-emerald-200 bg-emerald-50" });
+            if (h.topCourt) insights.push({ icon: "🎯", text: `Sân được đặt nhiều nhất: ${h.topCourt.courtName}`, tip: "Bảo trì định kỳ và nâng cấp dịch vụ tại sân này để duy trì chất lượng", color: "border-purple-200 bg-purple-50" });
+            if (h.lowCourt && h.lowCourt.courtName !== h.topCourt?.courtName) insights.push({ icon: "💡", text: `Sân ít được đặt nhất: ${h.lowCourt.courtName}`, tip: "Tạo ưu đãi đặc biệt hoặc gói combo cho sân này để cân bằng tỉ lệ sử dụng", color: "border-yellow-200 bg-yellow-50" });
+            if (insights.length === 0) return null;
+            return (
+              <div className={CARD} style={BG}>
+                <h3 className="font-semibold text-black mb-3">Thói quen người dùng &amp; Gợi ý kinh doanh</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {insights.map((ins, i) => (
+                    <div key={i} className={`rounded-xl border p-3.5 ${ins.color}`}>
+                      <p className="font-semibold text-sm text-gray-800">{ins.icon} {ins.text}</p>
+                      <p className="text-xs text-gray-500 mt-1">💬 {ins.tip}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
@@ -871,6 +1061,47 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
       )}
 
       {loaded && (
+        <>
+          {/* Stock alert summary */}
+          {(() => {
+            const products = services.filter(s => s.type === "PRODUCT");
+            const outOfStock = products.filter(s => s.stockQuantity === 0);
+            const lowStock = products.filter(s => s.stockQuantity > 0 && s.stockQuantity < 10);
+            const overStock = products.filter(s => s.stockQuantity > 50);
+            if (outOfStock.length === 0 && lowStock.length === 0 && overStock.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-3 mb-4">
+                {outOfStock.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                    <span className="text-red-500 font-bold text-lg">🚫</span>
+                    <div>
+                      <p className="text-xs text-red-600 font-semibold">Hết hàng ({outOfStock.length} mặt hàng)</p>
+                      <p className="text-xs text-red-400">{outOfStock.map(s => s.name).join(", ")}</p>
+                    </div>
+                  </div>
+                )}
+                {lowStock.length > 0 && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                    <span className="text-orange-500 font-bold text-lg">⚠️</span>
+                    <div>
+                      <p className="text-xs text-orange-600 font-semibold">Sắp hết ({lowStock.length} mặt hàng)</p>
+                      <p className="text-xs text-orange-400">{lowStock.map(s => `${s.name} (${s.stockQuantity})`).join(", ")}</p>
+                    </div>
+                  </div>
+                )}
+                {overStock.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                    <span className="text-blue-500 font-bold text-lg">📦</span>
+                    <div>
+                      <p className="text-xs text-blue-600 font-semibold">Tồn nhiều ({overStock.length} mặt hàng)</p>
+                      <p className="text-xs text-blue-400">{overStock.map(s => `${s.name} (${s.stockQuantity})`).join(", ")}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         <div className="overflow-auto rounded-2xl border border-gray-300" style={BG}>
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200">
@@ -894,7 +1125,12 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ</td>
-                    <td className="px-4 py-3 text-right">{svc.stockQuantity}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="mr-1.5">{svc.stockQuantity}</span>
+                      {svc.type === "PRODUCT" && svc.stockQuantity === 0 && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Hết hàng</span>}
+                      {svc.type === "PRODUCT" && svc.stockQuantity > 0 && svc.stockQuantity < 10 && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Sắp hết</span>}
+                      {svc.type === "PRODUCT" && svc.stockQuantity > 50 && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">Dư nhiều</span>}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${svc.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                         {svc.isActive ? "Hoạt động" : "Ẩn"}
@@ -929,6 +1165,7 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
