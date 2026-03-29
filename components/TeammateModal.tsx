@@ -61,8 +61,15 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
   // Lọc tỉnh/thành
   const [provinces, setProvinces] = useState<{ code: number; name: string }[]>([]);
   const [filterProvince, setFilterProvince] = useState("");
+  const [filterProvinceCode, setFilterProvinceCode] = useState<number | null>(null);
   const [provinceQuery, setProvinceQuery] = useState("");
   const [showProvinceDrop, setShowProvinceDrop] = useState(false);
+
+  // Lọc xã/phường
+  const [districts, setDistricts] = useState<{ code: number; name: string }[]>([]);
+  const [filterDistrict, setFilterDistrict] = useState("");
+  const [districtQuery, setDistrictQuery] = useState("");
+  const [showDistrictDrop, setShowDistrictDrop] = useState(false);
 
   // Danh sách cơ sở (list endpoint)
   const [facilities, setFacilities] = useState<any[]>([]);
@@ -89,6 +96,8 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
     totalPrice: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showPayConfirm, setShowPayConfirm] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   const nowVN = new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().split("T")[0];
   const nowMinutes = (() => {
@@ -238,20 +247,29 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
       showToast("Vui lòng chọn sân và khung giờ!");
       return;
     }
+    // Fetch số dư ví rồi hiển thị bước xác nhận
+    const walletData = await fetch("/api/wallet/detail").then((r) => r.json());
+    setWalletBalance(walletData.wallet ? Number(walletData.wallet.balance) : 0);
+    setShowPayConfirm(true);
+  }
+
+  async function handleConfirmPay() {
     setSubmitting(true);
+    setShowPayConfirm(false);
     const res = await fetch("/api/match-posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         facilityId: Number(form.facilityId),
         categoryId: Number(form.categoryId),
+        courtId: Number(form.courtId),
+        courtName: form.courtName,
         matchDate: form.matchDate,
         startTime: form.startTime,
         endTime: form.endTime,
         level: form.level,
         requiredPlayers: Number(form.requiredPlayers),
         description: form.description,
-        courtName: form.courtName,
         totalPrice: form.totalPrice ? Number(form.totalPrice) : undefined,
       }),
     });
@@ -283,12 +301,13 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
 
   const selectedFacilityObj = facilities.find((f: any) => String(f.id) === form.facilityId);
 
-  // Lọc bài đăng theo tỉnh/thành
-  const displayedPosts = filterProvince
-    ? posts.filter((p) =>
-        p.facility.address.toLowerCase().includes(filterProvince.toLowerCase())
-      )
-    : posts;
+  // Lọc bài đăng theo tỉnh/thành + xã/phường
+  const displayedPosts = posts.filter((p) => {
+    const addr = p.facility.address.toLowerCase();
+    if (filterProvince && !addr.includes(filterProvince.toLowerCase())) return false;
+    if (filterDistrict && !addr.includes(filterDistrict.toLowerCase())) return false;
+    return true;
+  });
 
   // Gợi ý tỉnh theo query
   const provinceSuggestions = provinceQuery.trim()
@@ -297,13 +316,19 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
       ).slice(0, 8)
     : provinces.slice(0, 8);
 
+  // Gợi ý quận/huyện/xã theo query
+  const districtSuggestions = districtQuery.trim()
+    ? districts.filter((d) =>
+        d.name.toLowerCase().includes(districtQuery.toLowerCase())
+      ).slice(0, 8)
+    : districts.slice(0, 8);
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between" style={{ background: "#E0EEE0" }}>
           <div className="flex items-center gap-3">
-            <img src="/group.png" className="w-9 h-9" alt="group" />
             <div>
               <h2 className="font-bold text-black text-lg">Tìm đồng đội</h2>
               <p className="text-gray-500 text-xs">Kết nối người chơi · Ghép nhóm · Đặt sân cùng nhau</p>
@@ -329,7 +354,7 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
           >
             <span className="flex items-center justify-center gap-1.5">
               <img src="/list.png" className="w-4 h-4" alt="" />
-              Bài đăng ({filterProvince ? `${displayedPosts.length}/${posts.length}` : posts.length})
+              Bài đăng ({(filterProvince || filterDistrict) ? `${displayedPosts.length}/${posts.length}` : posts.length})
             </span>
           </button>
           <button
@@ -348,54 +373,124 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
         <div className="flex-1 overflow-y-auto p-4">
           {tab === "list" ? (
             <>
-              {/* Filter tỉnh/thành */}
-              <div className="relative mb-3">
-                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-                  <img src="/placeholder.png" className="w-4 h-4 flex-shrink-0 opacity-50" alt="" />
-                  <input
-                    type="text"
-                    placeholder="Lọc theo tỉnh / thành phố..."
-                    value={provinceQuery}
-                    onChange={(e) => {
-                      setProvinceQuery(e.target.value);
-                      setShowProvinceDrop(true);
-                      if (!e.target.value) setFilterProvince("");
-                    }}
-                    onFocus={() => setShowProvinceDrop(true)}
-                    onBlur={() => setTimeout(() => setShowProvinceDrop(false), 150)}
-                    className="flex-1 bg-transparent text-sm text-black placeholder-gray-400 focus:outline-none"
-                  />
-                  {filterProvince && (
-                    <button
-                      type="button"
-                      onClick={() => { setFilterProvince(""); setProvinceQuery(""); }}
-                      className="text-gray-400 hover:text-gray-600 text-xs font-medium flex-shrink-0"
-                    >
-                      ✕
-                    </button>
+              {/* Filter tỉnh/thành + xã/phường */}
+              <div className="flex gap-2 mb-3">
+                {/* Tỉnh / Thành phố */}
+                <div className="relative flex-1">
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                    <img src="/placeholder.png" className="w-3.5 h-3.5 flex-shrink-0 opacity-50" alt="" />
+                    <input
+                      type="text"
+                      placeholder="Tỉnh / Thành phố"
+                      value={provinceQuery}
+                      onChange={(e) => {
+                        setProvinceQuery(e.target.value);
+                        setShowProvinceDrop(true);
+                        if (!e.target.value) {
+                          setFilterProvince("");
+                          setFilterProvinceCode(null);
+                          setDistricts([]);
+                          setFilterDistrict("");
+                          setDistrictQuery("");
+                        }
+                      }}
+                      onFocus={() => setShowProvinceDrop(true)}
+                      onBlur={() => setTimeout(() => setShowProvinceDrop(false), 150)}
+                      className="flex-1 bg-transparent text-xs text-black placeholder-gray-400 focus:outline-none min-w-0"
+                    />
+                    {filterProvince && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterProvince("");
+                          setFilterProvinceCode(null);
+                          setProvinceQuery("");
+                          setDistricts([]);
+                          setFilterDistrict("");
+                          setDistrictQuery("");
+                        }}
+                        className="text-gray-400 hover:text-gray-600 text-xs flex-shrink-0"
+                      >✕</button>
+                    )}
+                  </div>
+                  {showProvinceDrop && provinceSuggestions.length > 0 && (
+                    <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto mt-1">
+                      {provinceSuggestions.map((p) => (
+                        <li
+                          key={p.code}
+                          onMouseDown={() => {
+                            setFilterProvince(p.name);
+                            setFilterProvinceCode(p.code);
+                            setProvinceQuery(p.name);
+                            setShowProvinceDrop(false);
+                            setFilterDistrict("");
+                            setDistrictQuery("");
+                            fetch(`https://provinces.open-api.vn/api/p/${p.code}?depth=2`)
+                              .then((r) => r.json())
+                              .then((d) => setDistricts(Array.isArray(d.districts) ? d.districts : []))
+                              .catch(() => {});
+                          }}
+                          className={`px-3 py-2 text-xs cursor-pointer transition-colors ${
+                            filterProvince === p.name
+                              ? "bg-emerald-50 text-emerald-700 font-medium"
+                              : "text-black hover:bg-gray-50"
+                          }`}
+                        >
+                          {p.name}
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
-                {showProvinceDrop && provinceSuggestions.length > 0 && (
-                  <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto mt-1">
-                    {provinceSuggestions.map((p) => (
-                      <li
-                        key={p.code}
-                        onMouseDown={() => {
-                          setFilterProvince(p.name);
-                          setProvinceQuery(p.name);
-                          setShowProvinceDrop(false);
-                        }}
-                        className={`px-4 py-2 text-sm cursor-pointer transition-colors ${
-                          filterProvince === p.name
-                            ? "bg-emerald-50 text-emerald-700 font-medium"
-                            : "text-black hover:bg-gray-50"
-                        }`}
-                      >
-                        {p.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+
+                {/* Quận / Phường */}
+                <div className="relative flex-1">
+                  <div className={`flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 ${!filterProvinceCode ? "opacity-50" : ""}`}>
+                    <img src="/placeholder.png" className="w-3.5 h-3.5 flex-shrink-0 opacity-50" alt="" />
+                    <input
+                      type="text"
+                      placeholder="Xã / Phường"
+                      value={districtQuery}
+                      disabled={!filterProvinceCode}
+                      onChange={(e) => {
+                        setDistrictQuery(e.target.value);
+                        setShowDistrictDrop(true);
+                        if (!e.target.value) setFilterDistrict("");
+                      }}
+                      onFocus={() => setShowDistrictDrop(true)}
+                      onBlur={() => setTimeout(() => setShowDistrictDrop(false), 150)}
+                      className="flex-1 bg-transparent text-xs text-black placeholder-gray-400 focus:outline-none min-w-0 disabled:cursor-not-allowed"
+                    />
+                    {filterDistrict && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterDistrict(""); setDistrictQuery(""); }}
+                        className="text-gray-400 hover:text-gray-600 text-xs flex-shrink-0"
+                      >✕</button>
+                    )}
+                  </div>
+                  {showDistrictDrop && districtSuggestions.length > 0 && (
+                    <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto mt-1">
+                      {districtSuggestions.map((d) => (
+                        <li
+                          key={d.code}
+                          onMouseDown={() => {
+                            setFilterDistrict(d.name);
+                            setDistrictQuery(d.name);
+                            setShowDistrictDrop(false);
+                          }}
+                          className={`px-3 py-2 text-xs cursor-pointer transition-colors ${
+                            filterDistrict === d.name
+                              ? "bg-emerald-50 text-emerald-700 font-medium"
+                              : "text-black hover:bg-gray-50"
+                          }`}
+                        >
+                          {d.name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
 
               {loading ? (
@@ -406,12 +501,17 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
               </div>
             ) : displayedPosts.length === 0 ? (
               <div className="text-center py-16 text-gray-500">
-                <img src="/group.png" className="w-16 h-16 mx-auto opacity-30 mb-3" alt="" />
-                {filterProvince ? (
+                <img src="/list.png" className="w-16 h-16 mx-auto opacity-30 mb-3" alt="" />
+                {(filterProvince || filterDistrict) ? (
                   <>
-                    <p className="text-sm font-medium">Không có bài đăng ở {filterProvince}</p>
+                    <p className="text-sm font-medium">
+                      Không có bài đăng {filterDistrict ? `tại ${filterDistrict}` : filterProvince ? `ở ${filterProvince}` : ""}
+                    </p>
                     <button
-                      onClick={() => { setFilterProvince(""); setProvinceQuery(""); }}
+                      onClick={() => {
+                        setFilterProvince(""); setFilterProvinceCode(null); setProvinceQuery("");
+                        setFilterDistrict(""); setDistrictQuery(""); setDistricts([]);
+                      }}
                       className="mt-3 text-xs text-emerald-600 underline"
                     >
                       Xem tất cả
@@ -432,9 +532,11 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
               </div>
             ) : (
               <div className="space-y-3">
-                {filterProvince && (
+                {(filterProvince || filterDistrict) && (
                   <p className="text-xs text-gray-500 mb-1">
-                    {displayedPosts.length} bài đăng tại <span className="font-semibold text-emerald-600">{filterProvince}</span>
+                    {displayedPosts.length} bài đăng
+                    {filterDistrict && <> tại <span className="font-semibold text-emerald-600">{filterDistrict}</span></>}
+                    {filterProvince && !filterDistrict && <>, <span className="font-semibold text-emerald-600">{filterProvince}</span></>}
                   </p>
                 )}
                 {displayedPosts.map((post) => (
@@ -469,12 +571,15 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
                           </p>
                           <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
                             <img src="/calendar.png" className="w-3.5 h-3.5 flex-shrink-0" alt="" />
-                            {new Date(post.matchDate).toLocaleDateString("vi-VN", {
-                              weekday: "short",
-                              day: "2-digit",
-                              month: "2-digit",
-                            })}{" "}
-                            · {post.startTime} – {post.endTime}
+                            {(() => {
+                              const [y, m, d] = post.matchDate.toString().split("T")[0].split("-").map(Number);
+                              return new Date(y, m - 1, d).toLocaleDateString("vi-VN", {
+                                weekday: "long",
+                                day: "2-digit",
+                                month: "2-digit",
+                              });
+                            })()}
+                            {" "}· {post.startTime} – {post.endTime}
                           </p>
                           {post.description && (
                             <p className="text-xs text-gray-600 mb-2 italic">"{post.description}"</p>
@@ -493,6 +598,14 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
                               <span className="text-red-500 font-semibold">{post.remaining}</span>
                             </span>
                           </div>
+                          {post.pricePerPerson != null && post.pricePerPerson > 0 && (
+                            <div className="mt-1.5 flex items-center gap-1">
+                              <span className="text-xs text-gray-500">Phí tham gia:</span>
+                              <span className="text-xs font-bold text-emerald-600">
+                                {post.pricePerPerson.toLocaleString("vi-VN")}đ / người
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex-shrink-0">
@@ -763,16 +876,107 @@ export default function TeammateModal({ onClose, currentUserId }: TeammateModalP
                 />
               </div>
 
+              {form.totalPrice && Number(form.totalPrice) > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+                  <p className="font-semibold mb-0.5">Thanh toán khi đăng bài</p>
+                  <p>Bạn sẽ thanh toán <span className="font-bold">{Number(form.totalPrice).toLocaleString("vi-VN")}đ</span> từ ví SportHub để đặt sân.</p>
+                  {Number(form.requiredPlayers) > 1 && (
+                    <p className="mt-0.5">Mỗi người tham gia sẽ trả lại <span className="font-bold">{Math.ceil(Number(form.totalPrice) / Number(form.requiredPlayers)).toLocaleString("vi-VN")}đ</span> vào ví của bạn.</p>
+                  )}
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={submitting || !form.startTime}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors"
               >
-                {submitting ? "Đang đăng..." : "Đăng tìm đồng đội"}
+                {submitting ? "Đang xử lý..." : form.totalPrice && Number(form.totalPrice) > 0 ? `Đặt sân & Đăng tìm đồng đội` : "Đăng tìm đồng đội"}
               </button>
             </form>
           )}
         </div>
+
+        {/* Modal xác nhận thanh toán */}
+        {showPayConfirm && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 rounded-2xl p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+              <h3 className="font-bold text-black text-base mb-4 flex items-center gap-2">
+                <img src="/atm-card.png" className="w-5 h-5" alt="" />
+                Xác nhận thanh toán
+              </h3>
+
+              {/* Chi tiết đặt sân */}
+              <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
+                {selectedFacilityObj && (
+                  <div className="flex items-center gap-1.5 text-gray-700">
+                    <img src="/placeholder.png" className="w-3.5 h-3.5 flex-shrink-0" alt="" />
+                    <span className="font-medium">{form.courtName}</span>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-gray-500 truncate">{selectedFacilityObj.name}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-gray-700">
+                  <img src="/calendar.png" className="w-3.5 h-3.5 flex-shrink-0" alt="" />
+                  <span>
+                    {(() => {
+                      const [y, m, d] = form.matchDate.split("-").map(Number);
+                      return new Date(y, m - 1, d).toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit" });
+                    })()}
+                    {" · "}{form.startTime} – {form.endTime}
+                  </span>
+                </div>
+              </div>
+
+              {/* Thông tin thanh toán */}
+              <div className="space-y-2 mb-5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Tổng tiền sân:</span>
+                  <span className="font-bold text-black">{Number(form.totalPrice).toLocaleString("vi-VN")}đ</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Số dư ví hiện tại:</span>
+                  <span className={`font-semibold ${(walletBalance ?? 0) >= Number(form.totalPrice) ? "text-emerald-600" : "text-red-500"}`}>
+                    {(walletBalance ?? 0).toLocaleString("vi-VN")}đ
+                  </span>
+                </div>
+                <div className="border-t border-gray-100 pt-2 flex justify-between text-sm">
+                  <span className="text-gray-600">Số dư sau thanh toán:</span>
+                  <span className="font-semibold text-gray-700">
+                    {((walletBalance ?? 0) - Number(form.totalPrice)).toLocaleString("vi-VN")}đ
+                  </span>
+                </div>
+                {Number(form.requiredPlayers) > 1 && Number(form.totalPrice) > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-700 mt-1">
+                    <p>Phí tham gia / người: <span className="font-bold">{Math.ceil(Number(form.totalPrice) / Number(form.requiredPlayers)).toLocaleString("vi-VN")}đ</span></p>
+                    <p className="mt-0.5 text-emerald-600">Tiền của người tham gia sẽ hoàn lại vào ví bạn.</p>
+                  </div>
+                )}
+              </div>
+
+              {(walletBalance ?? 0) < Number(form.totalPrice) ? (
+                <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  Số dư ví không đủ. Vui lòng nạp thêm tiền vào ví SportHub.
+                </div>
+              ) : null}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowPayConfirm(false)}
+                  className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleConfirmPay}
+                  disabled={(walletBalance ?? 0) < Number(form.totalPrice)}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  Xác nhận thanh toán
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Toast */}
         {toast && (

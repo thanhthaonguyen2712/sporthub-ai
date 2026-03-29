@@ -176,13 +176,26 @@ export async function POST(req: NextRequest) {
     const userId = Number((session.user as any).id);
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true } });
     const courtInfo = await prisma.court.findUnique({ where: { id: Number(courtId) }, select: { name: true } });
+    // Thông báo 1: Đặt sân thành công (BOOKING)
     prisma.notification.create({
       data: {
         userId,
         title: "Đặt sân thành công",
-        content: `Sân ${courtInfo?.name ?? ""} ngày ${new Date(bookingDate).toLocaleDateString("vi-VN")} lúc ${startTime}–${endTime}. Đã thanh toán ${finalTotal.toLocaleString("vi-VN")}đ.`,
+        content: `Sân ${courtInfo?.name ?? ""} ngày ${new Date(bookingDate).toLocaleDateString("vi-VN")} lúc ${startTime}–${endTime}. Mã booking #${result.id}.`,
         type: "BOOKING",
         link: "/profile?tab=bookings",
+      },
+    }).catch(() => {});
+
+    // Thông báo 2: Ví bị trừ tiền (PAYMENT)
+    const walletAfter = Number(wallet!.balance) - finalTotal;
+    prisma.notification.create({
+      data: {
+        userId,
+        title: "Ví SportHub bị trừ tiền",
+        content: `Đã trừ ${finalTotal.toLocaleString("vi-VN")}đ cho booking #${result.id}. Số dư còn lại: ${walletAfter.toLocaleString("vi-VN")}đ.`,
+        type: "PAYMENT",
+        link: "/profile?tab=wallet",
       },
     }).catch(() => {});
 

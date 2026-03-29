@@ -373,10 +373,19 @@ function SectionBookings() {
   const statusLabel: Record<string, { label: string; color: string }> = {
     PENDING:   { label: "Chờ xác nhận", color: "bg-yellow-100 text-yellow-700" },
     CONFIRMED: { label: "Đã xác nhận",  color: "bg-emerald-100 text-emerald-700" },
-    COMPLETED: { label: "Hoàn thành",   color: "bg-blue-100 text-blue-700" },
+    COMPLETED: { label: "Đã hoàn thành", color: "bg-blue-100 text-blue-700" },
     CANCELLED: { label: "Đã hủy",       color: "bg-red-100 text-red-600" },
     NO_SHOW:   { label: "Không đến",    color: "bg-gray-100 text-gray-600" },
   };
+
+  function getEffectiveStatus(b: any) {
+    if (b.status === "CONFIRMED") {
+      const bookingDate = new Date(b.bookingDate);
+      bookingDate.setHours(0, 0, 0, 0);
+      if (bookingDate < today) return "COMPLETED";
+    }
+    return b.status;
+  }
 
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
@@ -409,8 +418,8 @@ function SectionBookings() {
                     <p className="text-gray-500 text-xs">{b.court.name} · {b.court.category}</p>
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${statusLabel[b.status]?.color}`}>
-                  {statusLabel[b.status]?.label}
+                <span className={`text-xs px-2 py-0.5 rounded-full ${statusLabel[getEffectiveStatus(b)]?.color}`}>
+                  {statusLabel[getEffectiveStatus(b)]?.label}
                 </span>
               </div>
               <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
@@ -422,13 +431,14 @@ function SectionBookings() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400">#{b.id}</span>
                   {(b.status === "CONFIRMED" || b.status === "PENDING") &&
+                    getEffectiveStatus(b) !== "COMPLETED" &&
                     (new Date().getTime() - new Date(b.createdAt).getTime()) / 60000 <= 60 && (
                       <button onClick={() => setShowConfirm(b.id)}
                         className="text-xs text-red-500 hover:text-red-700 border border-red-300 hover:border-red-500 px-2 py-0.5 rounded-lg transition-colors">
                         Hủy
                       </button>
                     )}
-                  {b.status === "COMPLETED" && b.facility?.id && !reviewedIds.includes(b.facility.id) && (
+                  {getEffectiveStatus(b) === "COMPLETED" && b.facility?.id && !reviewedIds.includes(b.facility.id) && (
                     <button
                       onClick={() => { setReviewModal({ facilityId: b.facility.id, facilityName: b.facility.name }); setReviewRating(0); setReviewComment(""); }}
                       className="text-xs text-amber-600 hover:text-amber-700 border border-amber-300 hover:border-amber-500 px-2 py-0.5 rounded-lg transition-colors">

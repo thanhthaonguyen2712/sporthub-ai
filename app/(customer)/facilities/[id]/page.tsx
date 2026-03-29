@@ -288,6 +288,7 @@ export default function FacilityDetailPage() {
   const [createLoadingSlots, setCreateLoadingSlots] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createFilteredCourts, setCreateFilteredCourts] = useState<Court[]>([]);
+  const [showCreatePayConfirm, setShowCreatePayConfirm] = useState(false);
 
   useEffect(() => {
     fetch(`/api/facilities/${id}`)
@@ -404,13 +405,22 @@ export default function FacilityDetailPage() {
       setTimeout(() => setJoinToast(""), 3000);
       return;
     }
+    // Refresh số dư ví rồi hiện bước xác nhận
+    const walletData = await fetch("/api/wallet/detail").then((r) => r.json());
+    setWalletBalance(walletData.wallet ? Number(walletData.wallet.balance) : 0);
+    setShowCreatePayConfirm(true);
+  }
+
+  async function handleCreateConfirmPay() {
     setCreateSubmitting(true);
+    setShowCreatePayConfirm(false);
     const res = await fetch("/api/match-posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         facilityId: Number(id),
         categoryId: Number(createForm.categoryId),
+        courtId: Number(createForm.courtId),
         matchDate: createForm.matchDate,
         startTime: createForm.startTime,
         endTime: createForm.endTime,
@@ -424,7 +434,7 @@ export default function FacilityDetailPage() {
     const data = await res.json();
     setCreateSubmitting(false);
     if (res.ok) {
-      setJoinToast("Đã đăng bài tìm đồng đội!");
+      setJoinToast("✓ Đã đặt sân & đăng bài tìm đồng đội thành công!");
       setShowCreateForm(false);
       setCreateForm({
         categoryId: "", courtId: "", courtName: "",
@@ -435,14 +445,15 @@ export default function FacilityDetailPage() {
       setCreateSelectedSlots([]);
       setCreateBookedSlots([]);
       setCreateFilteredCourts([]);
-      // Reload match posts
       fetch(`/api/match-posts?facilityId=${id}&status=OPEN`)
         .then((r) => r.json())
         .then((d) => setMatchPosts(Array.isArray(d) ? d : []));
+      // Refresh số dư ví sau khi trừ tiền
+      fetch("/api/wallet").then((r) => r.json()).then((d) => setWalletBalance(Number(d.balance) || 0));
     } else {
       setJoinToast(data.error || "Có lỗi xảy ra!");
     }
-    setTimeout(() => setJoinToast(""), 4000);
+    setTimeout(() => setJoinToast(""), 5000);
   }
 
   async function submitFacilityReview() {
@@ -622,7 +633,9 @@ export default function FacilityDetailPage() {
         {activeTab === "teammate" && (
           <div>
             {joinToast && (
-              <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium text-white ${joinToast.includes("thành công") ? "bg-emerald-500" : "bg-red-500"}`}>
+              <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium text-white flex items-center gap-2 ${
+                joinToast.startsWith("✓") || joinToast.includes("thành công") ? "bg-emerald-500" : "bg-red-500"
+              }`}>
                 {joinToast}
               </div>
             )}
@@ -866,14 +879,96 @@ export default function FacilityDetailPage() {
                   />
                 </div>
 
+                {createForm.totalPrice && Number(createForm.totalPrice) > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+                    <p className="font-semibold mb-0.5">Thanh toán khi đăng bài</p>
+                    <p>Bạn sẽ thanh toán <span className="font-bold">{Number(createForm.totalPrice).toLocaleString("vi-VN")}đ</span> từ ví SportHub để đặt sân.</p>
+                    {Number(createForm.requiredPlayers) > 1 && (
+                      <p className="mt-0.5">Mỗi người tham gia trả lại <span className="font-bold">{Math.ceil(Number(createForm.totalPrice) / Number(createForm.requiredPlayers)).toLocaleString("vi-VN")}đ</span> vào ví bạn.</p>
+                    )}
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={createSubmitting || !createForm.startTime}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors"
                 >
-                  {createSubmitting ? "Đang đăng..." : "Đăng tìm đồng đội"}
+                  {createSubmitting ? "Đang xử lý..." : createForm.totalPrice && Number(createForm.totalPrice) > 0 ? "Đặt sân & Đăng tìm đồng đội" : "Đăng tìm đồng đội"}
                 </button>
               </form>
+            )}
+
+            {/* Modal xác nhận thanh toán khi đăng bài */}
+            {showCreatePayConfirm && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+                  <h3 className="font-bold text-black text-base mb-4 flex items-center gap-2">
+                    <img src="/atm-card.png" className="w-5 h-5" alt="" />
+                    Xác nhận thanh toán
+                  </h3>
+
+                  <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
+                    <div className="flex items-center gap-1.5 text-gray-700">
+                      <img src="/placeholder.png" className="w-3.5 h-3.5 flex-shrink-0" alt="" />
+                      <span className="font-medium">{createForm.courtName}</span>
+                      <span className="text-gray-400">·</span>
+                      <span className="text-gray-500 truncate">{facility?.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-gray-700">
+                      <img src="/calendar.png" className="w-3.5 h-3.5 flex-shrink-0" alt="" />
+                      <span>
+                        {(() => { const [y,m,d] = createForm.matchDate.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit"}); })()}
+                        {" · "}{createForm.startTime} – {createForm.endTime}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mb-5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Tổng tiền sân:</span>
+                      <span className="font-bold text-black">{Number(createForm.totalPrice || 0).toLocaleString("vi-VN")}đ</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Số dư ví hiện tại:</span>
+                      <span className={`font-semibold ${walletBalance >= Number(createForm.totalPrice) ? "text-emerald-600" : "text-red-500"}`}>
+                        {walletBalance.toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+                    <div className="border-t border-gray-100 pt-2 flex justify-between text-sm">
+                      <span className="text-gray-600">Số dư sau thanh toán:</span>
+                      <span className="font-semibold text-gray-700">{(walletBalance - Number(createForm.totalPrice || 0)).toLocaleString("vi-VN")}đ</span>
+                    </div>
+                    {Number(createForm.requiredPlayers) > 1 && Number(createForm.totalPrice) > 0 && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-700">
+                        <p>Phí tham gia / người: <span className="font-bold">{Math.ceil(Number(createForm.totalPrice) / Number(createForm.requiredPlayers)).toLocaleString("vi-VN")}đ</span></p>
+                        <p className="mt-0.5 text-emerald-600">Tiền của người tham gia sẽ hoàn lại vào ví bạn.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {walletBalance < Number(createForm.totalPrice || 0) && (
+                    <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                      <span>Số dư ví không đủ.</span>
+                      <button onClick={() => { setShowCreatePayConfirm(false); router.push("/profile?tab=wallet"); }}
+                        className="underline font-medium ml-2">Nạp ví ngay</button>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowCreatePayConfirm(false)}
+                      className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                      Hủy
+                    </button>
+                    <button
+                      onClick={handleCreateConfirmPay}
+                      disabled={createSubmitting || walletBalance < Number(createForm.totalPrice || 0)}
+                      className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                      {createSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {matchPostsLoading ? (
@@ -891,8 +986,8 @@ export default function FacilityDetailPage() {
                 {matchPosts.map((post) => {
                   const isCreator = session && Number((session.user as any).id) === post.creator.id;
                   const canJoin = post.status === "OPEN" && !isCreator;
-                  const matchDateObj = new Date(post.matchDate);
-                  const dateLabel = matchDateObj.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+                  const [py, pm, pd] = post.matchDate.toString().split("T")[0].split("-").map(Number);
+                  const dateLabel = new Date(py, pm - 1, pd).toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
                   return (
                     <div key={post.id} className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
                       {/* Header */}
@@ -998,7 +1093,7 @@ export default function FacilityDetailPage() {
                     <div className="text-xs text-gray-500 pl-6">{joinModal.facility.address}</div>
                     <div className="flex items-center gap-2 text-gray-700">
                       <img src="/calendar.png" className="w-4 h-4 opacity-60" alt="" />
-                      <span>{new Date(joinModal.matchDate).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
+                      <span>{(() => { const [jy,jm,jd] = joinModal.matchDate.toString().split("T")[0].split("-").map(Number); return new Date(jy,jm-1,jd).toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit"}); })()}</span>
                       <span className="text-gray-400">·</span>
                       <span className="font-medium">{joinModal.startTime} – {joinModal.endTime}</span>
                     </div>

@@ -76,6 +76,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           data: { joinedPlayers: newJoined, status: newStatus },
         });
       });
+
+      // Số dư sau giao dịch
+      const joinerAfter = Number(joinerWallet.balance) - pricePerPerson;
+      const creatorAfter = Number(post.creator.wallet!.balance) + pricePerPerson;
+      const slotsLeft = post.requiredPlayers - post.joinedPlayers - 1;
+
+      // Thông báo joiner: tham gia thành công
+      prisma.notification.create({
+        data: {
+          userId: joinerId,
+          title: "Tham gia nhóm tìm đồng đội thành công",
+          content: `Bạn đã tham gia nhóm "${post.title}". Đã trừ ${pricePerPerson.toLocaleString("vi-VN")}đ từ ví.`,
+          type: "BOOKING",
+          link: "/profile?tab=bookings",
+        },
+      }).catch(() => {});
+
+      // Thông báo joiner: ví bị trừ
+      prisma.notification.create({
+        data: {
+          userId: joinerId,
+          title: "Ví SportHub bị trừ tiền",
+          content: `Đã trừ ${pricePerPerson.toLocaleString("vi-VN")}đ cho phí tham gia nhóm "${post.title}". Số dư còn lại: ${joinerAfter.toLocaleString("vi-VN")}đ.`,
+          type: "PAYMENT",
+          link: "/profile?tab=wallet",
+        },
+      }).catch(() => {});
+
+      // Thông báo creator: được hoàn tiền
+      prisma.notification.create({
+        data: {
+          userId: post.creatorId,
+          title: "Có người tham gia nhóm của bạn",
+          content: `Hoàn ${pricePerPerson.toLocaleString("vi-VN")}đ vào ví. Nhóm "${post.title}" còn ${slotsLeft} chỗ trống. Số dư ví: ${creatorAfter.toLocaleString("vi-VN")}đ.`,
+          type: "PAYMENT",
+          link: "/profile?tab=wallet",
+        },
+      }).catch(() => {});
     } else {
       // Free join (no price)
       const newJoined = post.joinedPlayers + 1;
@@ -84,6 +122,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         where: { id: Number(id) },
         data: { joinedPlayers: newJoined, status: newStatus },
       });
+
+      prisma.notification.create({
+        data: {
+          userId: joinerId,
+          title: "Tham gia nhóm tìm đồng đội thành công",
+          content: `Bạn đã tham gia miễn phí vào nhóm "${post.title}".`,
+          type: "BOOKING",
+          link: "/profile?tab=bookings",
+        },
+      }).catch(() => {});
+
+      prisma.notification.create({
+        data: {
+          userId: post.creatorId,
+          title: "Có người tham gia nhóm của bạn",
+          content: `Nhóm "${post.title}" còn ${post.requiredPlayers - post.joinedPlayers - 1} chỗ trống.`,
+          type: "BOOKING",
+          link: "/profile?tab=bookings",
+        },
+      }).catch(() => {});
     }
 
     const updated = await prisma.matchPost.findUnique({ where: { id: Number(id) } });
