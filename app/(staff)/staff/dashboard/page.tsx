@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -39,7 +39,6 @@ const CARD = "border border-gray-300 rounded-2xl p-5 mb-4";
 const BG = { background: "#E0EEE0" };
 const INPUT = "w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-emerald-400";
 const BTN_G = "bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors";
-const BTN_R = "bg-red-500 hover:bg-red-400 text-white px-3 py-1.5 rounded-lg text-xs transition-colors";
 const BTN_W = "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-xl text-sm transition-colors";
 
 const PM_LABEL: Record<string, string> = { CASH: "💵 Tiền mặt", TRANSFER: "🏦 Chuyển khoản", QR: "📱 VNPay/QR", WALLET: "👜 Ví SportHub" };
@@ -55,80 +54,90 @@ function fmtTime(iso: string) { return new Date(iso).toISOString().substring(11,
 function fmtHHMM(date: Date) { return date.toTimeString().substring(0, 5); }
 
 // ─── Attendance Tab ───────────────────────────────────────────────────────────
-function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => void }) {
+function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => Promise<void> }) {
   const [loading, setLoading] = useState(false);
-  const [geoError, setGeoError] = useState("");
-  const [geoStatus, setGeoStatus] = useState<"idle" | "locating" | "ready">("idle");
-  const att = info.attendance;
+  const [error, setError] = useState("");
+  const [faceMode, setFaceMode] = useState<"register" | "verify" | null>(null);
+  const [savedDescriptor, setSavedDescriptor] = useState<string | null>(null);
+  const [descriptorLoaded, setDescriptorLoaded] = useState(false);
+  const [pendingMethod, setPendingMethod] = useState<"POST" | "PUT" | null>(null);
+  const [localAtt, setLocalAtt] = useState<StaffInfo["attendance"]>(info.attendance);
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  function getPosition(): Promise<GeolocationPosition> {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("Trình duyệt không hỗ trợ định vị"));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      });
-    });
-  }
+  // Đồng bộ khi info prop thay đổi từ bên ngoài
+  useEffect(() => { setLocalAtt(info.attendance); }, [info.attendance]);
 
-  async function handleAttendance(method: "POST" | "PUT") {
-    setGeoError("");
-    setGeoStatus("locating");
+  // Tải descriptor đã lưu
+  useEffect(() => {
+    fetch("/api/staff/face")
+      .then(r => r.json())
+      .then(d => { setSavedDescriptor(d.faceDescriptor ?? null); setDescriptorLoaded(true); });
+  }, []);
+
+  // Gọi API check-in / check-out sau khi xác nhận khuôn mặt
+  async function doAttendance(method: "POST" | "PUT") {
+    setError("");
     setLoading(true);
-
-    let position: GeolocationPosition;
-    try {
-      position = await getPosition();
-    } catch (e: any) {
-      setGeoStatus("idle");
-      setLoading(false);
-      if (e.code === 1) setGeoError("Bạn đã từ chối quyền định vị. Vui lòng cấp quyền trong cài đặt trình duyệt.");
-      else if (e.code === 2) setGeoError("Không thể xác định vị trí. Hãy thử lại.");
-      else if (e.code === 3) setGeoError("Hết thời gian lấy vị trí. Hãy thử lại.");
-      else setGeoError("Không lấy được vị trí: " + e.message);
-      return;
-    }
-
-    setGeoStatus("ready");
-    const { latitude, longitude } = position.coords;
-
-    const res = await fetch("/api/staff/attendance", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ latitude, longitude }),
-    });
+    const res = await fetch("/api/staff/attendance", { method });
     const data = await res.json();
     setLoading(false);
-    setGeoStatus("idle");
-
-    if (!res.ok) {
-      if (data.error === "OUT_OF_RANGE") {
-        setGeoError(
-          `Bạn đang cách ${info.facilityStaff?.facility.name || "cơ sở"} khoảng ${data.distance}m. ` +
-          `Phải ở trong phạm vi ${data.max}m để chấm công.`
-        );
-      } else if (data.error === "NO_LOCATION") {
-        setGeoError("Không nhận được tọa độ. Hãy thử lại.");
-      } else if (data.error === "NO_FACILITY_LOCATION") {
-        setGeoError("Cơ sở chưa cập nhật tọa độ. Liên hệ chủ sân.");
-      } else {
-        setGeoError(data.error || "Có lỗi xảy ra.");
-      }
-      return;
+    if (!res.ok) { setError(data.error || "Có lỗi xảy ra."); return; }
+    // Cập nhật trạng thái ngay lập tức trong card, không chờ fetch
+    const nowISO = new Date().toISOString();
+    if (method === "POST") {
+      setLocalAtt({ id: data.id, status: "WORKING", checkInTime: nowISO, checkOutTime: null, totalHours: null });
+    } else {
+      setLocalAtt(prev => prev ? { ...prev, status: "COMPLETED", checkOutTime: nowISO, totalHours: data.totalHours ?? null } : prev);
     }
-
-    setGeoError("");
-    onRefresh();
+    onRefresh(); // sync ngầm, không cần await
   }
+
+  // Nhấn nút check-in/out → mở camera nhận diện
+  function startFaceVerify(method: "POST" | "PUT") {
+    setPendingMethod(method);
+    setFaceMode("verify");
+  }
+
+  // Sau khi nhận diện thành công
+  async function onVerifySuccess() {
+    setFaceMode(null);
+    if (pendingMethod) await doAttendance(pendingMethod);
+    setPendingMethod(null);
+  }
+
+  // Sau khi đăng ký khuôn mặt thành công
+  async function onRegisterSuccess(descriptor?: number[]) {
+    if (!descriptor) return;
+    await fetch("/api/staff/face", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ descriptor }),
+    });
+    setSavedDescriptor(JSON.stringify(descriptor));
+    setFaceMode(null);
+  }
+
+  // Lazy import FaceCapture chỉ khi cần
+  const [FaceCaptureComponent, setFaceCaptureComponent] = useState<React.ComponentType<any> | null>(null);
+  useEffect(() => {
+    if (faceMode) {
+      import("@/components/FaceCapture").then(m => setFaceCaptureComponent(() => m.default));
+    }
+  }, [faceMode]);
 
   return (
     <div className="max-w-md mx-auto">
+      {/* Face Capture Modal */}
+      {faceMode && FaceCaptureComponent && (
+        <FaceCaptureComponent
+          mode={faceMode}
+          savedDescriptor={faceMode === "verify" ? savedDescriptor : undefined}
+          onSuccess={faceMode === "register" ? onRegisterSuccess : onVerifySuccess}
+          onCancel={() => { setFaceMode(null); setPendingMethod(null); }}
+        />
+      )}
+
       {/* Đồng hồ */}
       <div className={CARD + " text-center"} style={BG}>
         <p className="text-4xl font-bold text-black tabular-nums">{fmtHHMM(now)}</p>
@@ -137,15 +146,20 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
         </p>
       </div>
 
-      {/* Thông báo định vị / lỗi */}
-      {geoStatus === "locating" && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-3 text-sm text-blue-700">
-          <span className="animate-spin">🔄</span> Đang lấy vị trí GPS...
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-3 text-sm text-red-600">
+          {error}
         </div>
       )}
-      {geoError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-3 text-sm text-red-600">
-          📍 {geoError}
+
+      {/* Cảnh báo chưa đăng ký khuôn mặt */}
+      {descriptorLoaded && !savedDescriptor && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-3 text-sm text-yellow-700 flex items-center justify-between gap-3">
+          <span>Chưa đăng ký khuôn mặt. Cần đăng ký để chấm công.</span>
+          <button onClick={() => setFaceMode("register")}
+            className="shrink-0 bg-yellow-400 hover:bg-yellow-300 text-white px-3 py-1.5 rounded-lg text-xs font-medium">
+            Đăng ký
+          </button>
         </div>
       )}
 
@@ -153,45 +167,54 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
       <div className={CARD} style={BG}>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold text-gray-700">Trạng thái hôm nay</p>
-          <span className="text-xs text-gray-400 flex items-center gap-1">📍 Xác minh GPS</span>
+          {descriptorLoaded && savedDescriptor && (
+            <button onClick={() => setFaceMode("register")}
+              className="text-xs text-gray-400 hover:text-emerald-500 transition-colors">
+              Cập nhật khuôn mặt
+            </button>
+          )}
         </div>
 
-        {!att ? (
+        {!localAtt ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200">
               <img src="/infor.png" alt="" className="w-8 h-8 opacity-60" />
               <div>
                 <p className="font-semibold text-gray-700">Chưa check-in</p>
-                <p className="text-xs text-gray-400">Phải ở trong phạm vi 300m của cơ sở</p>
+                <p className="text-xs text-gray-400">Xác nhận khuôn mặt để bắt đầu ca</p>
               </div>
             </div>
-            <button onClick={() => handleAttendance("POST")} disabled={loading}
+            <button
+              onClick={() => savedDescriptor ? startFaceVerify("POST") : setFaceMode("register")}
+              disabled={loading || !descriptorLoaded}
               className={BTN_G + " w-full py-3 text-base"}>
-              {loading ? "Đang xử lý..." : "Check-in bắt đầu ca"}
+              {loading ? "Đang xử lý..." : savedDescriptor ? "📷 Check-in bằng khuôn mặt" : "Đăng ký khuôn mặt trước"}
             </button>
           </div>
-        ) : att.status === "WORKING" ? (
+        ) : localAtt.status === "WORKING" ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-              <span className="text-3xl">🟢</span>
+              <div className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
               <div>
                 <p className="font-semibold text-emerald-700">Đang làm việc</p>
                 <p className="text-xs text-emerald-600">
-                  Check-in lúc: {att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}
+                  Check-in lúc: {localAtt.checkInTime ? new Date(localAtt.checkInTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}
                 </p>
               </div>
             </div>
-            <button onClick={() => handleAttendance("PUT")} disabled={loading}
+            <button
+              onClick={() => savedDescriptor ? startFaceVerify("PUT") : setFaceMode("register")}
+              disabled={loading || !descriptorLoaded}
               className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-orange-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
-              {loading ? "Đang xử lý..." : "🔴 Check-out kết thúc ca"}
+              {loading ? "Đang xử lý..." : "📷 Check-out kết thúc ca"}
             </button>
           </div>
         ) : (
           <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 space-y-1">
             <p className="font-semibold text-blue-700">Đã hoàn thành ca hôm nay</p>
-            <p className="text-xs text-blue-600">Check-in: {att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}</p>
-            <p className="text-xs text-blue-600">Check-out: {att.checkOutTime ? new Date(att.checkOutTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}</p>
-            <p className="text-xs font-semibold text-blue-700">Tổng giờ làm: {att.totalHours ?? 0}h</p>
+            <p className="text-xs text-blue-600">Check-in: {localAtt.checkInTime ? new Date(localAtt.checkInTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}</p>
+            <p className="text-xs text-blue-600">Check-out: {localAtt.checkOutTime ? new Date(localAtt.checkOutTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--"}</p>
+            <p className="text-xs font-semibold text-blue-700">Tổng giờ làm: {localAtt.totalHours ?? 0}h</p>
           </div>
         )}
       </div>
@@ -206,7 +229,7 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
 }
 
 // ─── Today's Bookings Tab ─────────────────────────────────────────────────────
-function TodayBookingsTab({ facilityId }: { facilityId: number }) {
+function TodayBookingsTab({ facilityId: _facilityId }: { facilityId: number }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(false);
@@ -1120,7 +1143,7 @@ export default function StaffDashboard() {
   const isWarehouse = (session?.user as any)?.role === "WAREHOUSE_MANAGER";
 
   const loadInfo = useCallback(async () => {
-    const res = await fetch("/api/staff/info");
+    const res = await fetch("/api/staff/info", { cache: "no-store" });
     if (res.ok) setInfo(await res.json());
   }, []);
 

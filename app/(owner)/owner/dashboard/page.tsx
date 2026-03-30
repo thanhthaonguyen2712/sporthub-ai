@@ -61,7 +61,8 @@ function FacilitiesTab() {
   const [sports, setSports] = useState<{ id: number; name: string }[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: "", address: "", description: "", sportIds: [] as number[] });
+  const [form, setForm] = useState({ name: "", address: "", description: "", sportIds: [] as number[], latitude: "", longitude: "" });
+  const [geocoding, setGeocoding] = useState(false);
   const [courtForm, setCourtForm] = useState({ name: "", categoryId: "", weekdayPrice: "", weekendPrice: "", peakPrice: "" });
   const [facilityId, setFacilityId] = useState<number | null>(null);
   const [courts, setCourts] = useState<any[]>([]);
@@ -85,7 +86,7 @@ function FacilitiesTab() {
     setLoading(false);
     if (res.ok) {
       setShowForm(false);
-      setForm({ name: "", address: "", description: "", sportIds: [] });
+      setForm({ name: "", address: "", description: "", sportIds: [], latitude: "", longitude: "" });
       fetch("/api/owner/facilities").then(r => r.json()).then(setFacilities);
     } else { const d = await res.json(); alert(d.error); }
   }
@@ -111,6 +112,26 @@ function FacilitiesTab() {
     ...f, sportIds: f.sportIds.includes(id) ? f.sportIds.filter(x => x !== id) : [...f.sportIds, id]
   }));
 
+  async function geocodeAddress() {
+    if (!form.address) { alert("Vui lòng nhập địa chỉ trước!"); return; }
+    setGeocoding(true);
+    try {
+      const q = encodeURIComponent(form.address + ", Việt Nam");
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+        headers: { "Accept-Language": "vi" }
+      });
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setForm(f => ({ ...f, latitude: data[0].lat, longitude: data[0].lon }));
+      } else {
+        alert("Không tìm thấy tọa độ cho địa chỉ này. Vui lòng nhập thủ công.");
+      }
+    } catch {
+      alert("Lỗi khi lấy tọa độ. Vui lòng nhập thủ công.");
+    }
+    setGeocoding(false);
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -129,6 +150,28 @@ function FacilitiesTab() {
                 key={showForm ? "open" : "closed"}
                 onChange={address => setForm(f => ({ ...f, address }))}
               />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs text-gray-500">Tọa độ GPS (để tính "Gần đây")</p>
+                <button type="button" onClick={geocodeAddress} disabled={geocoding || !form.address}
+                  className="text-xs text-emerald-600 hover:text-emerald-500 disabled:opacity-40 font-medium">
+                  {geocoding ? "Đang lấy..." : "Tự động lấy tọa độ"}
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <input className={INPUT} placeholder="Vĩ độ (latitude)" type="number" step="any"
+                  value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} />
+                <input className={INPUT} placeholder="Kinh độ (longitude)" type="number" step="any"
+                  value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} />
+              </div>
+              {form.latitude && form.longitude && (
+                <a href={`https://www.openstreetmap.org/?mlat=${form.latitude}&mlon=${form.longitude}&zoom=16`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline mt-1 inline-block">
+                  Kiểm tra trên bản đồ ↗
+                </a>
+              )}
             </div>
             <textarea className={INPUT} rows={2} placeholder="Mô tả" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             <div>

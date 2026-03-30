@@ -190,6 +190,7 @@ model User {
   salaryRecords  StaffSalaryRecord[] @relation("StaffSalaryRecords")
   isLocked       Boolean  @default(false) @map("is_locked")
   staffReports   StaffReport[]       @relation("StaffReports")
+  faceDescriptor String?  @map("face_descriptor") @db.Text
 
   @@map("users")
 }
