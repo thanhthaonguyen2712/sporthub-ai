@@ -191,6 +191,7 @@ model User {
   isLocked       Boolean  @default(false) @map("is_locked")
   staffReports   StaffReport[]       @relation("StaffReports")
   faceDescriptor String?  @map("face_descriptor") @db.Text
+  directSales    DirectSale[]        @relation("StaffDirectSales")
 
   @@map("users")
 }
@@ -246,6 +247,7 @@ model Facility {
   wageConfigs     StaffWageConfig[]
   salaryRecords   StaffSalaryRecord[]
   staffReports    StaffReport[]
+  directSales     DirectSale[]
 
   @@map("facilities")
 }
@@ -331,9 +333,11 @@ model Service {
   facilityId    Int         @map("facility_id")
   facility      Facility    @relation(fields: [facilityId], references: [id], onDelete: Cascade)
 
-  stockLogs    StockLog[]
-  invoiceItems InvoiceItem[]
+  stockLogs      StockLog[]
+  invoiceItems   InvoiceItem[]
   inventoryItems InventoryShiftItem[]
+  directSaleItems DirectSaleItem[]
+
   @@map("services")
 }
 
@@ -704,7 +708,38 @@ model StaffSalaryRecord {
 }
 
 
-// 31. BÁO CÁO SỰ CỐ CỦA NHÂN VIÊN
+// 31. BÁN HÀNG TRỰC TIẾP (F&B không cần đặt sân)
+model DirectSale {
+  id            Int           @id @default(autoincrement())
+  facilityId    Int           @map("facility_id")
+  staffId       Int           @map("staff_id")
+  subTotal      Decimal       @map("sub_total") @db.Decimal(10, 2)
+  finalTotal    Decimal       @map("final_total") @db.Decimal(10, 2)
+  paymentMethod PaymentMethod @map("payment_method")
+  note          String?       @db.Text
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  facility      Facility         @relation(fields: [facilityId], references: [id])
+  staff         User             @relation("StaffDirectSales", fields: [staffId], references: [id])
+  items         DirectSaleItem[]
+
+  @@map("direct_sales")
+}
+
+model DirectSaleItem {
+  id        Int        @id @default(autoincrement())
+  saleId    Int        @map("sale_id")
+  serviceId Int        @map("service_id")
+  quantity  Int
+  price     Decimal    @db.Decimal(10, 2)
+
+  sale      DirectSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  service   Service    @relation(fields: [serviceId], references: [id])
+
+  @@map("direct_sale_items")
+}
+
+// 32. BÁO CÁO SỰ CỐ CỦA NHÂN VIÊN
 model StaffReport {
   id          Int      @id @default(autoincrement())
   staffId     Int      @map("staff_id")

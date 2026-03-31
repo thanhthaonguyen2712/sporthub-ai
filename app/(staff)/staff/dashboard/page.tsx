@@ -33,7 +33,6 @@ interface POSBooking {
   customer: { fullName: string; phone: string } | null;
   invoice: { id: number; finalTotal: string; paymentMethod: string; items: { id: number; quantity: number; price: string; service: { name: string } | null }[] } | null;
 }
-interface POSCourt { id: number; name: string; category: string; activeBooking: POSBooking | null; upcomingCount: number }
 
 const CARD = "border border-gray-300 rounded-2xl p-5 mb-4";
 const BG = { background: "#E0EEE0" };
@@ -41,11 +40,11 @@ const INPUT = "w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-w
 const BTN_G = "bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors";
 const BTN_W = "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-xl text-sm transition-colors";
 
-const PM_LABEL: Record<string, string> = { CASH: "💵 Tiền mặt", TRANSFER: "🏦 Chuyển khoản", QR: "📱 VNPay/QR", WALLET: "👜 Ví SportHub" };
+const PM_LABEL: Record<string, string> = { CASH: "Tiền mặt", TRANSFER: "Chuyển khoản", QR: "VNPay/QR", WALLET: "Ví SportHub" };
 // Chỉ 2 phương thức cho nhân viên đặt hộ
 const STAFF_PM: { key: string; label: string }[] = [
-  { key: "CASH", label: "💵 Tiền mặt" },
-  { key: "QR",   label: "📱 VNPay/QR" },
+  { key: "CASH", label: "Tiền mặt" },
+  { key: "QR",   label: "VNPay/QR" },
 ];
 const LOG_COLOR: Record<string, string> = { IMPORT: "text-emerald-600", EXPORT: "text-orange-500", DAMAGE: "text-red-500", SOLD: "text-blue-500" };
 const LOG_LABEL: Record<string, string> = { IMPORT: "Nhập kho", EXPORT: "Xuất kho", DAMAGE: "Hàng hỏng", SOLD: "Đã bán" };
@@ -188,7 +187,7 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
               onClick={() => savedDescriptor ? startFaceVerify("POST") : setFaceMode("register")}
               disabled={loading || !descriptorLoaded}
               className={BTN_G + " w-full py-3 text-base"}>
-              {loading ? "Đang xử lý..." : savedDescriptor ? "📷 Check-in bằng khuôn mặt" : "Đăng ký khuôn mặt trước"}
+              {loading ? "Đang xử lý..." : savedDescriptor ? "Check-in bằng khuôn mặt" : "Đăng ký khuôn mặt trước"}
             </button>
           </div>
         ) : localAtt.status === "WORKING" ? (
@@ -206,7 +205,7 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
               onClick={() => savedDescriptor ? startFaceVerify("PUT") : setFaceMode("register")}
               disabled={loading || !descriptorLoaded}
               className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-orange-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
-              {loading ? "Đang xử lý..." : "📷 Check-out kết thúc ca"}
+              {loading ? "Đang xử lý..." : "Check-out kết thúc ca"}
             </button>
           </div>
         ) : (
@@ -343,7 +342,6 @@ function CourtSlotPicker({
     <div className={`border-2 rounded-2xl p-4 transition-all ${isThisCourt ? "border-emerald-400 bg-emerald-50" : "border-gray-200 bg-white"}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🏟️</span>
           <div>
             <p className="font-semibold text-black text-sm">{court.name}</p>
             <p className="text-xs text-gray-400">{sport}</p>
@@ -608,7 +606,7 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
                   {selectedServices.map(s=>(
                     <div key={s.serviceId} className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
-                        <button onClick={()=>setSelectedServices(p=>p.filter(x=>x.serviceId!==s.serviceId))} className="text-red-400 text-xs">✕</button>
+                        <button onClick={()=>setSelectedServices(p=>p.filter(x=>x.serviceId!==s.serviceId))} className="text-red-400 text-xs">×</button>
                         <span>{s.name}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -709,8 +707,8 @@ function InventoryTab() {
               {data.services.map(s => <option key={s.id} value={s.id}>{s.name} (Tồn: {s.stockQuantity})</option>)}
             </select>
             <select className={INPUT} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option value="IMPORT">📥 Nhập kho</option>
-              <option value="EXPORT">📤 Xuất kho</option>
+              <option value="IMPORT">Nhập kho</option>
+              <option value="EXPORT">Xuất kho</option>
               <option value="DAMAGE">Hàng hỏng</option>
             </select>
             <input className={INPUT} type="number" placeholder="Số lượng" value={form.quantity}
@@ -785,204 +783,316 @@ function InventoryTab() {
 
 // ─── POS Tab ─────────────────────────────────────────────────────────────────
 function POSTab() {
-  const [courts, setCourts] = useState<POSCourt[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [selected, setSelected] = useState<POSCourt | null>(null);
-  const [addedServices, setAddedServices] = useState<{ serviceId: number; name: string; quantity: number; price: number }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/staff/pos");
     const data = await res.json();
     setLoading(false);
-    setCourts(data.courts || []);
     setServices(data.services || []);
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  // Auto refresh mỗi 60s
   useEffect(() => { const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
-  function openCourt(court: POSCourt) {
-    setSelected(court);
-    setAddedServices([]);
-  }
+  const rentalServices = services.filter(s => s.type === "RENTAL");
+  const fnbServices    = services.filter(s => s.type === "PRODUCT");
 
-  function addSvc(svc: Service) {
-    setAddedServices(prev => {
-      const exists = prev.find(s => s.serviceId === svc.id);
-      if (exists) return prev.map(s => s.serviceId === svc.id ? { ...s, quantity: s.quantity + 1 } : s);
+  // Ẩn tab nếu không có hạng mục tương ứng
+  const hasBothModes = rentalServices.length > 0 && fnbServices.length > 0;
+  const defaultMode  = rentalServices.length > 0 ? "rental" : "fnb";
+  const [posMode, setPosMode] = useState<"rental" | "fnb">(defaultMode);
+
+  if (loading && services.length === 0) return <p className="text-center text-gray-400 py-10">Đang tải...</p>;
+
+  return (
+    <div>
+      {hasBothModes && (
+        <div className="flex gap-2 mb-5">
+          <button onClick={() => setPosMode("rental")}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors border ${posMode === "rental" ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"}`}>
+            Cho thuê đồ
+          </button>
+          <button onClick={() => setPosMode("fnb")}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors border ${posMode === "fnb" ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"}`}>
+            Bán F&amp;B
+          </button>
+        </div>
+      )}
+
+      {posMode === "rental"
+        ? <EquipmentRentalMode services={rentalServices} onRefresh={load} />
+        : <FnbMode services={fnbServices} onRefresh={load} />}
+    </div>
+  );
+}
+
+// ─── Equipment Rental Mode ────────────────────────────────────────────────────
+function EquipmentRentalMode({ services, onRefresh }: { services: Service[]; onRefresh: () => void }) {
+  const [cart, setCart] = useState<{ serviceId: number; name: string; quantity: number; price: number }[]>([]);
+  const [phone, setPhone] = useState("");
+  const [pm, setPm] = useState("CASH");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [successId, setSuccessId] = useState<number | null>(null);
+
+  const available = services.filter(s => s.stockQuantity > 0);
+
+  function addToCart(svc: Service) {
+    setCart(prev => {
+      const ex = prev.find(s => s.serviceId === svc.id);
+      if (ex) return prev.map(s => s.serviceId === svc.id ? { ...s, quantity: s.quantity + 1 } : s);
       return [...prev, { serviceId: svc.id, name: svc.name, quantity: 1, price: Number(svc.price) }];
     });
   }
 
-  async function saveServices() {
-    if (!selected?.activeBooking?.invoice || addedServices.length === 0) return;
-    setSaving(true);
-    await fetch(`/api/staff/pos/${selected.activeBooking.invoice.id}`, {
-      method: "PATCH",
+  const total = cart.reduce((sum, s) => sum + s.quantity * s.price, 0);
+
+  async function checkout() {
+    if (cart.length === 0) return;
+    if (!phone.trim()) { setError("Nhập số điện thoại người thuê."); return; }
+    setError(""); setLoading(true);
+    const res = await fetch("/api/staff/pos/direct-sale", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ services: addedServices }),
+      body: JSON.stringify({
+        items: cart.map(s => ({ serviceId: s.serviceId, quantity: s.quantity, price: s.price })),
+        paymentMethod: pm,
+        note: `Cho thuê - Khách: ${phone.trim()}`,
+      }),
     });
-    setSaving(false);
-    setSelected(null);
-    load();
+    const data = await res.json();
+    setLoading(false);
+    if (res.ok) {
+      setSuccessId(data.saleId);
+      setCart([]); setPhone("");
+      onRefresh();
+    } else {
+      setError(data.error || "Có lỗi xảy ra.");
+    }
   }
 
-  if (loading) return <p className="text-center text-gray-400 py-10">Đang tải...</p>;
-
-  if (selected) {
-    const b = selected.activeBooking!;
-    const existingTotal = b.invoice ? Number(b.invoice.finalTotal) : 0;
-    const addFee = addedServices.reduce((sum, s) => sum + s.quantity * s.price, 0);
-
-    return (
-      <div>
-        <button onClick={() => setSelected(null)} className={BTN_W + " mb-4"}>← Quay lại</button>
-        <div className={CARD} style={BG}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="font-bold text-black text-lg">{selected.name} <span className="text-gray-400 font-normal text-sm">({selected.category})</span></p>
-              <p className="text-emerald-600 text-sm font-medium mt-0.5">
-                {new Date(b.startTime).toISOString().substring(11,16)} – {new Date(b.endTime).toISOString().substring(11,16)}
-              </p>
-              <p className="text-gray-600 text-sm mt-1">
-                {b.isWalkIn ? (b.walkInName || "Khách vãng lai") : (b.customer?.fullName || "—")}
-              </p>
-            </div>
-            <div className="text-right">
-              {b.createdByStaff && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">Đặt hộ</span>}
-              {b.invoice && <p className="text-sm text-gray-500 mt-1">HĐ #{b.invoice.id}</p>}
-            </div>
-          </div>
-
-          {/* Dịch vụ đã có trong hóa đơn */}
-          {b.invoice && b.invoice.items.length > 0 && (
-            <div className="mt-3 bg-white rounded-xl px-4 py-3 border border-gray-200">
-              <p className="text-xs font-semibold text-gray-500 mb-2">Dịch vụ đã dùng:</p>
-              {b.invoice.items.map(item => (
-                <div key={item.id} className="flex justify-between text-sm">
-                  <span className="text-gray-700">{item.service?.name} × {item.quantity}</span>
-                  <span className="text-gray-600">{(item.quantity * Number(item.price)).toLocaleString("vi-VN")}đ</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Thêm dịch vụ */}
-        {b.invoice ? (
-          <div className={CARD} style={BG}>
-            <p className="font-semibold text-black mb-3">Thêm dịch vụ</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {services.map(svc => (
-                <button key={svc.id} onClick={() => addSvc(svc)}
-                  className="text-left p-3 bg-white rounded-xl border border-gray-200 hover:border-emerald-300 transition-colors">
-                  <p className="text-sm font-medium text-black">{svc.name}</p>
-                  <p className="text-xs text-gray-500">{Number(svc.price).toLocaleString("vi-VN")}đ · Còn {svc.stockQuantity}</p>
-                </button>
-              ))}
-            </div>
-
-            {addedServices.length > 0 && (
-              <div className="bg-white rounded-xl p-3 border border-gray-200 space-y-1.5 mb-3">
-                <p className="text-xs font-semibold text-gray-500 mb-1">Thêm vào hóa đơn:</p>
-                {addedServices.map(s => (
-                  <div key={s.serviceId} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setAddedServices(p => p.filter(x => x.serviceId !== s.serviceId))} className="text-red-400 text-xs">✕</button>
-                      <span>{s.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setAddedServices(p => p.map(x => x.serviceId === s.serviceId ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))}
-                        className="w-6 h-6 bg-gray-100 rounded-full text-xs font-bold">-</button>
-                      <span className="font-medium w-4 text-center">{s.quantity}</span>
-                      <button onClick={() => setAddedServices(p => p.map(x => x.serviceId === s.serviceId ? { ...x, quantity: x.quantity + 1 } : x))}
-                        className="w-6 h-6 bg-gray-100 rounded-full text-xs font-bold">+</button>
-                      <span className="text-emerald-600 w-20 text-right">{(s.quantity * s.price).toLocaleString("vi-VN")}đ</span>
-                    </div>
-                  </div>
-                ))}
-                <div className="border-t border-gray-100 pt-2 flex justify-between font-semibold text-sm">
-                  <span>Tổng mới</span>
-                  <span className="text-emerald-600">{(existingTotal + addFee).toLocaleString("vi-VN")}đ</span>
-                </div>
-              </div>
-            )}
-
-            <button onClick={saveServices} disabled={saving || addedServices.length === 0} className={BTN_G + " w-full py-3"}>
-              {saving ? "Đang lưu..." : "Cập nhật hóa đơn"}
-            </button>
-          </div>
-        ) : (
-          <div className="text-center py-6 text-gray-400 text-sm">Booking này chưa có hóa đơn</div>
-        )}
-      </div>
-    );
-  }
-
-  const activeCourts = courts.filter(c => c.activeBooking);
-  const emptyCourts = courts.filter(c => !c.activeBooking);
+  if (successId) return (
+    <div className="text-center py-12">
+      <h2 className="text-xl font-bold text-black mb-2">Cho thuê thành công!</h2>
+      <p className="text-gray-500 mb-6">Mã phiếu: <span className="font-semibold text-emerald-600">#{successId}</span></p>
+      <button onClick={() => setSuccessId(null)} className={BTN_G + " px-8 py-3"}>Cho thuê tiếp</button>
+    </div>
+  );
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">{activeCourts.length}/{courts.length} sân đang có khách</p>
-        <button onClick={load} className={BTN_W + " text-xs px-3 py-1.5"}>🔄 Làm mới</button>
-      </div>
-
-      {courts.length === 0 ? (
+      {available.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <div className="text-4xl mb-3">🏟️</div>
-          <p>Không có sân nào</p>
+          <p>Không có dụng cụ cho thuê nào còn hàng</p>
         </div>
       ) : (
         <>
-          {activeCourts.length > 0 && (
-            <div className="mb-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Đang có khách</p>
-              <div className="grid grid-cols-2 gap-3">
-                {activeCourts.map(court => {
-                  const b = court.activeBooking!;
-                  return (
-                    <button key={court.id} onClick={() => openCourt(court)}
-                      className="text-left p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl hover:border-emerald-500 transition-colors">
-                      <div className="flex justify-between items-start">
-                        <p className="font-semibold text-black">{court.name}</p>
-                        {b.createdByStaff && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">Đặt hộ</span>}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{court.category}</p>
-                      <p className="text-sm text-emerald-700 font-medium mt-1.5">
-                        {new Date(b.startTime).toISOString().substring(11,16)} – {new Date(b.endTime).toISOString().substring(11,16)}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-0.5 truncate">
-                        {b.isWalkIn ? (b.walkInName || "Khách vãng lai") : (b.customer?.fullName || "—")}
-                      </p>
-                      <p className="text-xs text-blue-500 mt-1.5 font-medium">Nhấn để thêm dịch vụ →</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {available.map(svc => {
+              const inCart = cart.find(s => s.serviceId === svc.id);
+              return (
+                <button key={svc.id} onClick={() => addToCart(svc)}
+                  className={`text-left p-4 rounded-2xl border-2 transition-colors relative ${inCart ? "bg-emerald-50 border-emerald-400" : "bg-white border-gray-200 hover:border-emerald-300"}`}>
+                  {inCart && (
+                    <span className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                      {inCart.quantity}
+                    </span>
+                  )}
+                  <p className="font-semibold text-black text-sm pr-6">{svc.name}</p>
+                  <p className="text-emerald-600 font-bold text-sm mt-2">{Number(svc.price).toLocaleString("vi-VN")}đ</p>
+                  <p className="text-xs text-gray-400">Còn {svc.stockQuantity}</p>
+                </button>
+              );
+            })}
+          </div>
 
-          {emptyCourts.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Sân trống</p>
-              <div className="grid grid-cols-2 gap-3">
-                {emptyCourts.map(court => (
-                  <div key={court.id} className="p-4 bg-white border border-gray-200 rounded-2xl opacity-60">
-                    <p className="font-medium text-black">{court.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{court.category}</p>
-                    {court.upcomingCount > 0 && (
-                      <p className="text-xs text-orange-500 mt-2">{court.upcomingCount} lịch sắp tới</p>
-                    )}
+          {cart.length > 0 && (
+            <div className={CARD} style={BG}>
+              <p className="font-semibold text-black mb-3">Thông tin thuê</p>
+
+              {/* SDT bắt buộc */}
+              <div className="mb-4">
+                <label className="text-xs font-semibold text-gray-600 block mb-1">
+                  SDT người thuê <span className="text-red-500">*</span>
+                </label>
+                <input className={INPUT} placeholder="Số điện thoại" value={phone}
+                  onChange={e => setPhone(e.target.value)} />
+              </div>
+
+              {/* Danh sách giỏ */}
+              <div className="space-y-2 mb-4">
+                {cart.map(s => (
+                  <div key={s.serviceId} className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-gray-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <button onClick={() => setCart(p => p.filter(x => x.serviceId !== s.serviceId))} className="text-red-400 text-xs shrink-0">×</button>
+                      <span className="text-sm text-gray-700 truncate">{s.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => setCart(p => p.map(x => x.serviceId === s.serviceId ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))}
+                        className="w-6 h-6 bg-gray-100 rounded-full text-xs font-bold">-</button>
+                      <span className="font-medium w-5 text-center text-sm">{s.quantity}</span>
+                      <button onClick={() => setCart(p => p.map(x => x.serviceId === s.serviceId ? { ...x, quantity: x.quantity + 1 } : x))}
+                        className="w-6 h-6 bg-gray-100 rounded-full text-xs font-bold">+</button>
+                      <span className="text-emerald-600 w-20 text-right text-sm font-medium">{(s.quantity * s.price).toLocaleString("vi-VN")}đ</span>
+                    </div>
                   </div>
                 ))}
               </div>
+
+              {/* Thanh toán */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {STAFF_PM.map(({ key, label }) => (
+                  <button key={key} onClick={() => setPm(key)}
+                    className={`p-3 rounded-xl border text-sm font-medium transition-colors text-left ${pm === key ? "bg-emerald-100 border-emerald-400 text-emerald-700" : "bg-white border-gray-200 text-gray-700 hover:border-emerald-300"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center mb-3 px-1">
+                <span className="font-semibold text-gray-700">Tổng cộng</span>
+                <span className="font-bold text-emerald-600 text-xl">{total.toLocaleString("vi-VN")}đ</span>
+              </div>
+
+              {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+              <button onClick={checkout} disabled={loading}
+                className={BTN_G + " w-full py-3.5 text-base"}>
+                {loading ? "Đang xử lý..." : `Xác nhận cho thuê · ${total.toLocaleString("vi-VN")}đ`}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── F&B Direct Sale Mode ─────────────────────────────────────────────────────
+function FnbMode({ services, onRefresh }: { services: Service[]; onRefresh: () => void }) {
+  const [cart, setCart] = useState<{ serviceId: number; name: string; quantity: number; price: number }[]>([]);
+  const [pm, setPm] = useState("CASH");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [successId, setSuccessId] = useState<number | null>(null);
+
+  const fnbServices = services.filter(s => s.stockQuantity > 0);
+
+  function addToCart(svc: Service) {
+    setCart(prev => {
+      const ex = prev.find(s => s.serviceId === svc.id);
+      if (ex) return prev.map(s => s.serviceId === svc.id ? { ...s, quantity: s.quantity + 1 } : s);
+      return [...prev, { serviceId: svc.id, name: svc.name, quantity: 1, price: Number(svc.price) }];
+    });
+  }
+
+  const total = cart.reduce((sum, s) => sum + s.quantity * s.price, 0);
+
+  async function checkout() {
+    if (cart.length === 0) return;
+    setError(""); setLoading(true);
+    const res = await fetch("/api/staff/pos/direct-sale", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cart.map(s => ({ serviceId: s.serviceId, quantity: s.quantity, price: s.price })),
+        paymentMethod: pm,
+      }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (res.ok) {
+      setSuccessId(data.saleId);
+      setCart([]);
+      onRefresh();
+    } else {
+      setError(data.error || "Có lỗi xảy ra.");
+    }
+  }
+
+  if (successId) return (
+    <div className="text-center py-12">
+      <h2 className="text-xl font-bold text-black mb-2">Thanh toán thành công!</h2>
+      <p className="text-gray-500 mb-6">Mã bán hàng: <span className="font-semibold text-emerald-600">#{successId}</span></p>
+      <button onClick={() => setSuccessId(null)} className={BTN_G + " px-8 py-3"}>Bán tiếp</button>
+    </div>
+  );
+
+  return (
+    <div>
+      {fnbServices.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <p>Không có sản phẩm nào còn hàng</p>
+        </div>
+      ) : (
+        <>
+          {/* Sản phẩm */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {fnbServices.map(svc => {
+              const inCart = cart.find(s => s.serviceId === svc.id);
+              return (
+                <button key={svc.id} onClick={() => addToCart(svc)}
+                  className={`text-left p-4 rounded-2xl border-2 transition-colors relative ${inCart ? "bg-emerald-50 border-emerald-400" : "bg-white border-gray-200 hover:border-emerald-300"}`}>
+                  {inCart && (
+                    <span className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                      {inCart.quantity}
+                    </span>
+                  )}
+                  <p className="font-semibold text-black text-sm pr-6">{svc.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 capitalize">{svc.type === "PRODUCT" ? "F&B" : "Đồ thuê"}</p>
+                  <p className="text-emerald-600 font-bold text-sm mt-2">{Number(svc.price).toLocaleString("vi-VN")}đ</p>
+                  <p className="text-xs text-gray-400">Còn {svc.stockQuantity}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Giỏ hàng */}
+          {cart.length > 0 && (
+            <div className={CARD} style={BG}>
+              <p className="font-semibold text-black mb-3">Giỏ hàng</p>
+              <div className="space-y-2 mb-4">
+                {cart.map(s => (
+                  <div key={s.serviceId} className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-gray-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <button onClick={() => setCart(p => p.filter(x => x.serviceId !== s.serviceId))} className="text-red-400 text-xs shrink-0">×</button>
+                      <span className="text-sm text-gray-700 truncate">{s.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => setCart(p => p.map(x => x.serviceId === s.serviceId ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))}
+                        className="w-6 h-6 bg-gray-100 rounded-full text-xs font-bold">-</button>
+                      <span className="font-medium w-5 text-center text-sm">{s.quantity}</span>
+                      <button onClick={() => setCart(p => p.map(x => x.serviceId === s.serviceId ? { ...x, quantity: x.quantity + 1 } : x))}
+                        className="w-6 h-6 bg-gray-100 rounded-full text-xs font-bold">+</button>
+                      <span className="text-emerald-600 w-20 text-right text-sm font-medium">{(s.quantity * s.price).toLocaleString("vi-VN")}đ</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Thanh toán */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {STAFF_PM.map(({ key, label }) => (
+                  <button key={key} onClick={() => setPm(key)}
+                    className={`p-3 rounded-xl border text-sm font-medium transition-colors text-left ${pm === key ? "bg-emerald-100 border-emerald-400 text-emerald-700" : "bg-white border-gray-200 text-gray-700 hover:border-emerald-300"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center mb-3 px-1">
+                <span className="font-semibold text-gray-700">Tổng cộng</span>
+                <span className="font-bold text-emerald-600 text-xl">{total.toLocaleString("vi-VN")}đ</span>
+              </div>
+
+              {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+
+              <button onClick={checkout} disabled={loading}
+                className={BTN_G + " w-full py-3.5 text-base"}>
+                {loading ? "Đang xử lý..." : `Thanh toán ${total.toLocaleString("vi-VN")}đ`}
+              </button>
             </div>
           )}
         </>
@@ -993,8 +1103,8 @@ function POSTab() {
 
 // ─── Report Tab ──────────────────────────────────────────────────────────────
 const REPORT_TYPES = [
-  { value: "FACILITY",         label: "🏟️ Sự cố sân / cơ sở hạ tầng", desc: "Hệ thống điện, nước, mái che, mặt sân..." },
-  { value: "EQUIPMENT",        label: "🔧 Thiết bị hỏng hóc",          desc: "Lưới, đèn, máy bơm, thiết bị thể thao..." },
+  { value: "FACILITY",         label: "Sự cố sân / cơ sở hạ tầng", desc: "Hệ thống điện, nước, mái che, mặt sân..." },
+  { value: "EQUIPMENT",        label: "Thiết bị hỏng hóc",          desc: "Lưới, đèn, máy bơm, thiết bị thể thao..." },
   { value: "INVENTORY_DAMAGE", label: "Hàng hóa hỏng",              desc: "Hàng trong kho bị hỏng, hết hạn, thất thoát..." },
 ];
 
@@ -1140,12 +1250,42 @@ export default function StaffDashboard() {
   const [info, setInfo] = useState<StaffInfo | null>(null);
   const [activeTab, setActiveTab] = useState("attendance");
 
-  const isWarehouse = (session?.user as any)?.role === "WAREHOUSE_MANAGER";
+  // Check-out nhanh từ thanh trạng thái cố định
+  const [quickFaceMode, setQuickFaceMode] = useState(false);
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [QuickFaceCapture, setQuickFaceCapture] = useState<React.ComponentType<any> | null>(null);
+  const [quickSavedDescriptor, setQuickSavedDescriptor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (quickFaceMode && !QuickFaceCapture) {
+      import("@/components/FaceCapture").then(m => setQuickFaceCapture(() => m.default));
+    }
+  }, [quickFaceMode, QuickFaceCapture]);
+
+  // Tải descriptor cho thanh quick checkout
+  useEffect(() => {
+    fetch("/api/staff/face").then(r => r.json()).then(d => setQuickSavedDescriptor(d.faceDescriptor ?? null));
+  }, []);
 
   const loadInfo = useCallback(async () => {
     const res = await fetch("/api/staff/info", { cache: "no-store" });
     if (res.ok) setInfo(await res.json());
   }, []);
+
+  async function handleQuickCheckout() {
+    setQuickFaceMode(false);
+    setQuickLoading(true);
+    const res = await fetch("/api/staff/attendance", { method: "PUT" });
+    const data = await res.json();
+    setQuickLoading(false);
+    if (res.ok) {
+      await loadInfo();
+    } else {
+      alert(data.error || "Có lỗi xảy ra khi check-out.");
+    }
+  }
+
+  const isWarehouse = (session?.user as any)?.role === "WAREHOUSE_MANAGER";
 
   useEffect(() => {
     if (status === "unauthenticated") { router.push("/login"); return; }
@@ -1176,10 +1316,48 @@ export default function StaffDashboard() {
     { id: "report",     label: "Báo cáo",      icon: "" },
   ];
 
+  const workingAtt = info?.attendance?.status === "WORKING" ? info.attendance : null;
+
   return (
     <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
       <Navbar />
-      <div className="max-w-4xl mx-auto px-4 py-8">
+
+      {/* Face Capture modal cho quick checkout */}
+      {quickFaceMode && QuickFaceCapture && (
+        <QuickFaceCapture
+          mode="verify"
+          savedDescriptor={quickSavedDescriptor}
+          onSuccess={handleQuickCheckout}
+          onCancel={() => setQuickFaceMode(false)}
+        />
+      )}
+
+      {/* Thanh trạng thái cố định khi đang làm việc */}
+      {workingAtt && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-emerald-600 text-white shadow-2xl">
+          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-sm leading-tight">Đang trong ca làm việc</p>
+                <p className="text-emerald-100 text-xs leading-tight">
+                  Check-in lúc {workingAtt.checkInTime
+                    ? new Date(workingAtt.checkInTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+                    : "--"}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => quickSavedDescriptor ? setQuickFaceMode(true) : setActiveTab("attendance")}
+              disabled={quickLoading}
+              className="shrink-0 bg-white text-emerald-700 hover:bg-emerald-50 disabled:opacity-60 font-semibold text-sm px-4 py-2 rounded-xl transition-colors">
+              {quickLoading ? "Đang xử lý..." : "Check-out"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-4xl mx-auto px-4 py-8" style={workingAtt ? { paddingBottom: "5rem" } : {}}>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-black">
             {isWarehouse ? "Quản lý kho" : "Trang nhân viên"}
@@ -1219,7 +1397,6 @@ export default function StaffDashboard() {
           {activeTab === "report"     && <ReportTab />}
           {(activeTab === "pos" || activeTab === "bookings" || activeTab === "invoice") && !facility && (
             <div className="text-center py-16 text-gray-400">
-              <div className="text-4xl mb-3">🏟️</div>
               <p>Chưa được gắn vào cơ sở nào</p>
             </div>
           )}
