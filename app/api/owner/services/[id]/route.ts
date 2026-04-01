@@ -13,7 +13,7 @@ export async function PUT(
   }
   const ownerId = Number((session.user as any).id);
   const { id } = await params;
-  const { name, type, price, stockQuantity, isActive } = await req.json();
+  const { name, type, price, stockQuantity, isActive, imageUrl } = await req.json();
 
   const service = await prisma.service.findFirst({
     where: { id: Number(id), facility: { ownerId } },
@@ -28,6 +28,7 @@ export async function PUT(
       ...(price !== undefined && { price: Number(price) }),
       ...(stockQuantity !== undefined && { stockQuantity: Number(stockQuantity) }),
       ...(isActive !== undefined && { isActive }),
+      ...(imageUrl !== undefined && { imageUrl: imageUrl || null }),
     },
   });
 

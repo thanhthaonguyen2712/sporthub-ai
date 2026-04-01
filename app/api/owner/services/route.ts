@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const ownerId = Number((session.user as any).id);
-  const { facilityId, name, type, price, stockQuantity } = await req.json();
+  const { facilityId, name, type, price, stockQuantity, imageUrl } = await req.json();
 
   const facility = await prisma.facility.findFirst({ where: { id: Number(facilityId), ownerId } });
   if (!facility) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       type: type === "RENTAL" ? "RENTAL" : "PRODUCT",
       price: Number(price),
       stockQuantity: Number(stockQuantity || 0),
+      ...(imageUrl ? { imageUrl } : {}),
     },
   });
 

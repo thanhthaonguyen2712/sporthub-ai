@@ -18,13 +18,13 @@ export async function GET() {
     include: { facility: { select: { id: true, name: true, address: true } } },
   });
 
-  // Điểm danh hôm nay
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Điểm danh hôm nay — dùng midnight UTC theo giờ VN (UTC+7)
+  const vnNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const todayUTC = new Date(Date.UTC(vnNow.getUTCFullYear(), vnNow.getUTCMonth(), vnNow.getUTCDate()));
   const attendance = await prisma.staffAttendance.findFirst({
     where: {
       staffId: userId,
-      date: { gte: today, lt: new Date(today.getTime() + 86400000) },
+      date: { gte: todayUTC, lt: new Date(todayUTC.getTime() + 86400000) },
     },
   });
 

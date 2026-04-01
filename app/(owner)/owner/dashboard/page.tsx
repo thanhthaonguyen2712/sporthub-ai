@@ -8,11 +8,11 @@ import { useTranslations } from "next-intl";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Facility { id: number; name: string; address: string; description: string; isActive: boolean; courtCount: number; staffCount: number; sports: { id: number; name: string }[] }
-interface StaffRecord { staffRecordId: number; facilityId: number; facilityName: string; role: string; joinedAt: string; user: { id: number; fullName: string; email: string; phone: string; role: string; isLocked: boolean } }
+interface StaffRecord { staffRecordId: number; facilityId: number; facilityName: string; role: string; joinedAt: string; user: { id: number; fullName: string; email: string; phone: string; role: string; isLocked: boolean }; wageConfig: { wageType: string; wageRate: number } | null }
 interface AttendanceStaff { userId: number; fullName: string; role: string; totalHours: number; presentDays: number; records: { id: number; date: string; checkIn: string | null; checkOut: string | null; totalHours: string | null; status: string }[] }
 interface SalaryRecord { id: number; staffId: number; month: number; year: number; totalHours: number; wageRate: number; wageType: string; baseSalary: number; bonus: number; finalSalary: number; isPaid: boolean; paidAt: string | null; staff: { fullName: string; email: string } }
 interface WageConfig { id: number; staffId: number; wageType: string; wageRate: number; staff: { id: number; fullName: string } }
-interface Service { id: number; name: string; type: string; price: string; stockQuantity: number; isActive: boolean }
+interface Service { id: number; name: string; type: string; price: string; stockQuantity: number; isActive: boolean; imageUrl?: string | null }
 interface Invoice { id: number; createdAt: string; finalTotal: string; paymentMethod: string; staffName: string; customerName: string; courtName: string; items: { name: string; quantity: number; price: string }[] }
 
 const TAB_IDS = [
@@ -23,6 +23,7 @@ const TAB_IDS = [
   { id: "salary",     labelKey: "tabSalary"     },
   { id: "invoices",   labelKey: "tabInvoices"   },
   { id: "services",   labelKey: "tabServices"   },
+  { id: "revenue",    labelKey: "tabRevenue"    },
 ];
 
 const CARD = "border border-gray-300 rounded-2xl p-5 mb-4";
@@ -94,7 +95,13 @@ function FacilitiesTab() {
   async function addCourt() {
     if (!facilityId) return;
     setLoading(true);
-    const res = await fetch("/api/owner/courts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...courtForm, facilityId }) });
+    const res = await fetch("/api/owner/courts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      ...courtForm,
+      facilityId,
+      weekdayPrice: Number(courtForm.weekdayPrice) * 1000,
+      weekendPrice: Number(courtForm.weekendPrice) * 1000,
+      peakPrice:    Number(courtForm.peakPrice)    * 1000,
+    }) });
     setLoading(false);
     if (res.ok) {
       setCourtForm({ name: "", categoryId: "", weekdayPrice: "", weekendPrice: "", peakPrice: "" });
@@ -237,9 +244,9 @@ function FacilitiesTab() {
                       <option value="">-- Môn thể thao --</option>
                       {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
-                    <input className={INPUT} placeholder="Giá ngày thường (đ/giờ)" type="number" value={courtForm.weekdayPrice} onChange={e => setCourtForm(f => ({ ...f, weekdayPrice: e.target.value }))} />
-                    <input className={INPUT} placeholder="Giá cuối tuần (đ/giờ)" type="number" value={courtForm.weekendPrice} onChange={e => setCourtForm(f => ({ ...f, weekendPrice: e.target.value }))} />
-                    <input className={INPUT} placeholder="Giá cao điểm 17-21h (đ/giờ)" type="number" value={courtForm.peakPrice} onChange={e => setCourtForm(f => ({ ...f, peakPrice: e.target.value }))} />
+                    <input className={INPUT} placeholder="Giá ngày thường (nghìn đ/giờ)" type="number" value={courtForm.weekdayPrice} onChange={e => setCourtForm(f => ({ ...f, weekdayPrice: e.target.value }))} />
+                    <input className={INPUT} placeholder="Giá cuối tuần (nghìn đ/giờ)" type="number" value={courtForm.weekendPrice} onChange={e => setCourtForm(f => ({ ...f, weekendPrice: e.target.value }))} />
+                    <input className={INPUT} placeholder="Giá cao điểm 17-21h (nghìn đ/giờ)" type="number" value={courtForm.peakPrice} onChange={e => setCourtForm(f => ({ ...f, peakPrice: e.target.value }))} />
                     <button onClick={addCourt} disabled={loading} className={BTN_G + " h-full"}>{loading ? "..." : "Thêm sân"}</button>
                   </div>
                 </div>
@@ -257,32 +264,65 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ facilityId: "", fullName: "", email: "", phone: "", password: "", role: "STAFF" });
+  const [form, setForm] = useState({
+    facilityId: "", fullName: "", email: "", phone: "", password: "", role: "STAFF",
+    employmentType: "PARTTIME", wageRate: "",
+  });
+  const [editingStaff, setEditingStaff] = useState<StaffRecord | null>(null);
+  const [editForm, setEditForm] = useState({ fullName: "", phone: "", role: "STAFF", employmentType: "PARTTIME", wageRate: "" });
   const [loading, setLoading] = useState(false);
 
   const loadStaff = useCallback((fid?: string) => {
     const q = fid ? `?facilityId=${fid}` : "";
-    fetch(`/api/owner/staff${q}`).then(r => r.json()).then(setStaff);
+    fetch(`/api/owner/staff${q}`).then(r => r.json()).then(d => setStaff(Array.isArray(d) ? d : []));
   }, []);
 
   useEffect(() => { loadStaff(); }, [loadStaff]);
 
   async function createStaff() {
     setLoading(true);
-    const res = await fetch("/api/owner/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    const wageType = form.employmentType === "PARTTIME" ? "HOURLY" : "DAILY";
+    const res = await fetch("/api/owner/staff", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, wageType, wageRate: form.wageRate ? Number(form.wageRate) * 1000 : 0 }),
+    });
     setLoading(false);
     if (res.ok) {
       setShowForm(false);
-      setForm({ facilityId: "", fullName: "", email: "", phone: "", password: "", role: "STAFF" });
+      setForm({ facilityId: "", fullName: "", email: "", phone: "", password: "", role: "STAFF", employmentType: "PARTTIME", wageRate: "" });
       loadStaff(selectedFacility);
     } else { const d = await res.json(); alert(d.error); }
   }
 
+  async function saveEditStaff() {
+    if (!editingStaff) return;
+    setLoading(true);
+    const wageType = editForm.employmentType === "PARTTIME" ? "HOURLY" : "DAILY";
+    const res = await fetch(`/api/owner/staff/${editingStaff.staffRecordId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName: editForm.fullName, phone: editForm.phone, role: editForm.role, wageType, wageRate: editForm.wageRate ? Number(editForm.wageRate) * 1000 : 0 }),
+    });
+    setLoading(false);
+    if (res.ok) { setEditingStaff(null); loadStaff(selectedFacility); }
+    else { const d = await res.json(); alert(d.error); }
+  }
+
   async function toggleLockStaff(recordId: number, isLocked: boolean) {
-    const action = isLocked ? "Mở khóa" : "Khóa";
-    if (!confirm(`${action} tài khoản nhân viên này?`)) return;
+    if (!confirm(`${isLocked ? "Mở khóa" : "Khóa"} tài khoản nhân viên này?`)) return;
     await fetch(`/api/owner/staff/${recordId}`, { method: "PATCH" });
     loadStaff(selectedFacility);
+  }
+
+  function openEdit(s: StaffRecord) {
+    const cfg = s.wageConfig;
+    setEditForm({
+      fullName: s.user.fullName,
+      phone: s.user.phone,
+      role: s.role,
+      employmentType: cfg?.wageType === "DAILY" ? "FULLTIME" : "PARTTIME",
+      wageRate: cfg ? String(cfg.wageRate / 1000) : "",
+    });
+    setEditingStaff(s);
   }
 
   const filtered = selectedFacility ? staff.filter(s => s.facilityId === Number(selectedFacility)) : staff;
@@ -290,13 +330,11 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <select className={INPUT + " w-48"} value={selectedFacility}
-            onChange={e => { setSelectedFacility(e.target.value); loadStaff(e.target.value); }}>
-            <option value="">Tất cả cơ sở</option>
-            {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </div>
+        <select className={INPUT + " w-48"} value={selectedFacility}
+          onChange={e => { setSelectedFacility(e.target.value); loadStaff(e.target.value); }}>
+          <option value="">Tất cả cơ sở</option>
+          {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
         <button onClick={() => setShowForm(!showForm)} className={BTN_G}>+ Thêm nhân viên</button>
       </div>
 
@@ -316,10 +354,46 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
             <input className={INPUT} placeholder="Email *" type="email" autoComplete="off" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             <input className={INPUT} placeholder="Số điện thoại *" type="tel" autoComplete="off" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
             <input className={INPUT} placeholder="Mật khẩu *" type="password" autoComplete="new-password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+            <select className={INPUT} value={form.employmentType} onChange={e => setForm(f => ({ ...f, employmentType: e.target.value }))}>
+              <option value="PARTTIME">Bán thời gian (Part-time)</option>
+              <option value="FULLTIME">Toàn thời gian (Full-time)</option>
+            </select>
+            <input className={INPUT} type="number" min="0"
+              placeholder={form.employmentType === "PARTTIME" ? "Lương theo giờ (nghìn đ)" : "Lương cơ bản/ngày (nghìn đ)"}
+              value={form.wageRate} onChange={e => setForm(f => ({ ...f, wageRate: e.target.value }))} />
           </div>
           <div className="flex gap-2 justify-end mt-3">
             <button onClick={() => setShowForm(false)} className={BTN_W}>Hủy</button>
             <button onClick={createStaff} disabled={loading} className={BTN_G}>{loading ? "Đang tạo..." : "Tạo tài khoản"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit form */}
+      {editingStaff && (
+        <div className={CARD} style={BG}>
+          <h3 className="font-semibold text-black mb-3">Sửa thông tin: {editingStaff.user.fullName}</h3>
+          <div className="grid grid-cols-2 gap-2.5">
+            <input className={INPUT} placeholder="Họ và tên" value={editForm.fullName} onChange={e => setEditForm(f => ({ ...f, fullName: e.target.value }))} />
+            <input className={INPUT} placeholder="Số điện thoại" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+            <select className={INPUT} value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}>
+              <option value="STAFF">Nhân viên</option>
+              <option value="WAREHOUSE_MANAGER">Quản lý kho</option>
+            </select>
+            <select className={INPUT} value={editForm.employmentType} onChange={e => setEditForm(f => ({ ...f, employmentType: e.target.value }))}>
+              <option value="PARTTIME">Bán thời gian (Part-time)</option>
+              <option value="FULLTIME">Toàn thời gian (Full-time)</option>
+            </select>
+            <input className={INPUT} type="number" min="0"
+              placeholder={editForm.employmentType === "PARTTIME" ? "Lương theo giờ (nghìn đ)" : "Lương cơ bản/ngày (nghìn đ)"}
+              value={editForm.wageRate} onChange={e => setEditForm(f => ({ ...f, wageRate: e.target.value }))} />
+            <div className="flex items-center text-xs text-gray-500 px-1">
+              Ngày bắt đầu: {new Date(editingStaff.joinedAt).toLocaleDateString("vi-VN")}
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end mt-3">
+            <button onClick={() => setEditingStaff(null)} className={BTN_W}>Hủy</button>
+            <button onClick={saveEditStaff} disabled={loading} className={BTN_G}>{loading ? "Đang lưu..." : "Lưu thay đổi"}</button>
           </div>
         </div>
       )}
@@ -331,13 +405,14 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
               <th className="text-left px-4 py-3 font-semibold text-gray-700">Họ tên</th>
               <th className="text-left px-4 py-3 font-semibold text-gray-700">Email / SĐT</th>
               <th className="text-left px-4 py-3 font-semibold text-gray-700">Vai trò</th>
+              <th className="text-left px-4 py-3 font-semibold text-gray-700">Loại hợp đồng</th>
               <th className="text-left px-4 py-3 font-semibold text-gray-700">Cơ sở</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-400">Chưa có nhân viên</td></tr>
+              <tr><td colSpan={6} className="text-center py-8 text-gray-400">Chưa có nhân viên</td></tr>
             ) : filtered.map(s => (
               <tr key={s.staffRecordId} className={`border-t border-gray-100 hover:bg-white/50 ${s.user.isLocked ? "opacity-60" : ""}`}>
                 <td className="px-4 py-3 font-medium text-black">
@@ -353,14 +428,28 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
                     {s.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Nhân viên"}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-xs text-gray-600">
+                  {s.wageConfig ? (
+                    <div>
+                      <span className={`px-2 py-0.5 rounded-full ${s.wageConfig.wageType === "DAILY" ? "bg-purple-100 text-purple-700" : "bg-sky-100 text-sky-700"}`}>
+                        {s.wageConfig.wageType === "DAILY" ? "Full-time" : "Part-time"}
+                      </span>
+                      <p className="text-gray-500 mt-0.5">{Number(s.wageConfig.wageRate).toLocaleString("vi-VN")}đ/{s.wageConfig.wageType === "DAILY" ? "ngày" : "giờ"}</p>
+                    </div>
+                  ) : <span className="text-gray-400">Chưa cấu hình</span>}
+                </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{s.facilityName}</td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => toggleLockStaff(s.staffRecordId, s.user.isLocked)}
-                    className={s.user.isLocked ? BTN_G : BTN_R}
-                  >
-                    {s.user.isLocked ? "Mở khóa" : "Khóa"}
-                  </button>
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => openEdit(s)}
+                      className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-lg text-xs transition-colors">
+                      Sửa
+                    </button>
+                    <button onClick={() => toggleLockStaff(s.staffRecordId, s.user.isLocked)}
+                      className={s.user.isLocked ? BTN_G : BTN_R}>
+                      {s.user.isLocked ? "Mở khóa" : "Khóa"}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -468,32 +557,53 @@ function AttendanceTab({ facilities }: { facilities: Facility[] }) {
 }
 
 // ─── Salary Tab ──────────────────────────────────────────────────────────────
+interface SalaryStaffRow {
+  userId: number; fullName: string; role: string;
+  wageConfig: { wageType: string; wageRate: number } | null;
+  attendance: { totalHours: number; presentDays: number };
+  salaryRecord: { id: number; baseSalary: number; bonus: number; finalSalary: number; wageRate: number; wageType: string; isPaid: boolean; paidAt: string | null } | null;
+}
+
 function SalaryTab({ facilities }: { facilities: Facility[] }) {
   const now = new Date();
   const [facilityId, setFacilityId] = useState<string>("");
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
-  const [data, setData] = useState<{ salaryRecords: SalaryRecord[]; wageConfigs: WageConfig[]; staffList: any[] } | null>(null);
-  const [selectedStaff, setSelectedStaff] = useState<any>(null);
-  const [wageForm, setWageForm] = useState({ wageType: "HOURLY", wageRate: "", bonus: "" });
-  const [loading, setLoading] = useState(false);
+  const [staffData, setStaffData] = useState<SalaryStaffRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  // bonus đang nhập inline per nhân viên (userId → bonus string)
+  const [bonusInputs, setBonusInputs] = useState<Record<number, string>>({});
+  const [savingId, setSavingId] = useState<number | null>(null);
 
   async function load() {
     if (!facilityId) return;
     const res = await fetch(`/api/owner/salary?facilityId=${facilityId}&month=${month}&year=${year}`);
-    setData(await res.json());
+    if (res.ok) {
+      const d = await res.json();
+      setStaffData(d.staffData || []);
+      // Khởi tạo bonus input từ salary record đã lưu
+      const initBonus: Record<number, string> = {};
+      (d.staffData || []).forEach((s: SalaryStaffRow) => {
+        initBonus[s.userId] = s.salaryRecord ? String(s.salaryRecord.bonus / 1000) : "0";
+      });
+      setBonusInputs(initBonus);
+      setLoaded(true);
+    }
   }
 
-  async function calculate() {
-    if (!selectedStaff || !facilityId) return;
-    setLoading(true);
+  async function saveSalary(row: SalaryStaffRow) {
+    if (!row.wageConfig) { alert("Nhân viên chưa có cấu hình lương. Vào tab Nhân viên để cài đặt."); return; }
+    setSavingId(row.userId);
+    const bonus = Number(bonusInputs[row.userId] || 0) * 1000;
     const res = await fetch("/api/owner/salary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ facilityId, staffId: selectedStaff.id, month, year, ...wageForm }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        facilityId: Number(facilityId), staffId: row.userId, month, year,
+        wageType: row.wageConfig.wageType, wageRate: row.wageConfig.wageRate, bonus,
+      }),
     });
-    setLoading(false);
-    if (res.ok) { setSelectedStaff(null); load(); }
+    setSavingId(null);
+    if (res.ok) load();
     else { const d = await res.json(); alert(d.error); }
   }
 
@@ -503,140 +613,167 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ salaryRecordId: recordId }),
     });
-    const d = await res.json();
     if (res.ok) load();
-    else alert(d.error);
+    else { const d = await res.json(); alert(d.error); }
   }
+
+  // Tính lương dự kiến client-side
+  function calcSalary(row: SalaryStaffRow) {
+    if (!row.wageConfig) return null;
+    const { wageType, wageRate } = row.wageConfig;
+    const base = wageType === "HOURLY"
+      ? row.attendance.totalHours * wageRate
+      : row.attendance.presentDays * wageRate;
+    const bonus = Number(bonusInputs[row.userId] || 0) * 1000;
+    return { base, bonus, total: base + bonus };
+  }
+
+  const savedRows   = staffData.filter(s => s.salaryRecord);
+  const totalPaid   = savedRows.filter(s => s.salaryRecord?.isPaid).reduce((a, s) => a + (s.salaryRecord?.finalSalary ?? 0), 0);
+  const totalUnpaid = savedRows.filter(s => !s.salaryRecord?.isPaid).reduce((a, s) => a + (s.salaryRecord?.finalSalary ?? 0), 0);
 
   return (
     <div>
+      {/* Header + bộ lọc */}
       <div className={CARD} style={BG}>
         <div className="flex flex-wrap gap-3 items-end">
-          <div><p className="text-xs text-gray-500 mb-1">Cơ sở</p>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Cơ sở</p>
             <select className={INPUT + " w-48"} value={facilityId} onChange={e => setFacilityId(e.target.value)}>
               <option value="">-- Chọn cơ sở --</option>
               {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
-          <div><p className="text-xs text-gray-500 mb-1">Tháng</p>
-            <select className={INPUT + " w-28"} value={month} onChange={e => setMonth(Number(e.target.value))}>
-              {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>T{i + 1}</option>)}
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Tháng</p>
+            <select className={INPUT + " w-24"} value={month} onChange={e => setMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => <option key={i+1} value={i+1}>T{i+1}</option>)}
             </select>
           </div>
-          <div><p className="text-xs text-gray-500 mb-1">Năm</p>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Năm</p>
             <select className={INPUT + " w-24"} value={year} onChange={e => setYear(Number(e.target.value))}>
               {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           <button onClick={load} className={BTN_G}>Xem</button>
         </div>
+        <p className="text-xs text-gray-400 mt-2">Ngày trả lương mặc định: <span className="font-semibold text-gray-600">mùng 10 hằng tháng</span></p>
       </div>
 
-      {data && (
+      {loaded && (
         <>
-          <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-black">Bảng lương tháng {month}/{year}</h3>
-            <select className={INPUT + " w-52"} value={selectedStaff?.id || ""} onChange={e => {
-              const s = data.staffList.find(x => x.id === Number(e.target.value));
-              setSelectedStaff(s || null);
-              const cfg = data.wageConfigs.find(x => x.staffId === s?.id);
-              if (cfg) setWageForm(f => ({ ...f, wageType: cfg.wageType, wageRate: String(cfg.wageRate) }));
-            }}>
-              <option value="">-- Tính lương nhân viên --</option>
-              {data.staffList.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
-            </select>
+            <span className="text-xs text-gray-500">{staffData.length} nhân viên</span>
           </div>
 
-          {selectedStaff && (
-            <div className={CARD} style={BG}>
-              <p className="font-semibold text-black mb-3">Cấu hình lương: {selectedStaff.fullName}</p>
-              <div className="grid grid-cols-3 gap-2.5">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Loại lương</p>
-                  <select className={INPUT} value={wageForm.wageType} onChange={e => setWageForm(f => ({ ...f, wageType: e.target.value }))}>
-                    <option value="HOURLY">Theo giờ</option>
-                    <option value="DAILY">Theo ngày</option>
-                  </select>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">{wageForm.wageType === "HOURLY" ? "Giá/giờ (đ)" : "Giá/ngày (đ)"}</p>
-                  <input className={INPUT} type="number" placeholder="Mức lương" value={wageForm.wageRate} onChange={e => setWageForm(f => ({ ...f, wageRate: e.target.value }))} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Thưởng thêm (đ)</p>
-                  <input className={INPUT} type="number" placeholder="0" value={wageForm.bonus} onChange={e => setWageForm(f => ({ ...f, bonus: e.target.value }))} />
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end mt-3">
-                <button onClick={() => setSelectedStaff(null)} className={BTN_W}>Hủy</button>
-                <button onClick={calculate} disabled={loading} className={BTN_G}>{loading ? "..." : "Tính lương"}</button>
-              </div>
-            </div>
-          )}
+          <div className="space-y-3 mb-4">
+            {staffData.length === 0 && (
+              <p className="text-center py-8 text-gray-400 text-sm">Chưa có nhân viên trong cơ sở này</p>
+            )}
+            {staffData.map(row => {
+              const calc = calcSalary(row);
+              const sal  = row.salaryRecord;
+              return (
+                <div key={row.userId} className={CARD + " !mb-0"} style={BG}>
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    {/* Tên + loại hợp đồng */}
+                    <div className="min-w-0">
+                      <p className="font-semibold text-black">{row.fullName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {row.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Nhân viên"}
+                        {row.wageConfig && (
+                          <span className="ml-2">· {row.wageConfig.wageType === "DAILY" ? "Full-time" : "Part-time"} · {Number(row.wageConfig.wageRate).toLocaleString("vi-VN")}đ/{row.wageConfig.wageType === "DAILY" ? "ngày" : "giờ"}</span>
+                        )}
+                        {!row.wageConfig && <span className="ml-2 text-amber-500">Chưa cấu hình lương</span>}
+                      </p>
+                    </div>
+                    {/* Trạng thái thanh toán */}
+                    {sal?.isPaid && (
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full shrink-0">Đã trả lương</span>
+                    )}
+                  </div>
 
-          <div className="overflow-auto rounded-2xl border border-gray-300" style={BG}>
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Nhân viên</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Giờ/Ngày</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Lương cơ bản</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Thưởng</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Tổng lương</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-700">Trạng thái</th>
-                <th className="px-4 py-3"></th>
-              </tr></thead>
-              <tbody>
-                {data.salaryRecords.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có bảng lương</td></tr>
-                ) : data.salaryRecords.map(r => (
-                  <tr key={r.id} className="border-t border-gray-100">
-                    <td className="px-4 py-3 font-medium text-black">{r.staff.fullName}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{r.totalHours}{r.wageType === "HOURLY" ? "h" : " ngày"}</td>
-                    <td className="px-4 py-3 text-right">{Number(r.baseSalary).toLocaleString("vi-VN")}đ</td>
-                    <td className="px-4 py-3 text-right text-emerald-600">+{Number(r.bonus).toLocaleString("vi-VN")}đ</td>
-                    <td className="px-4 py-3 text-right font-bold text-emerald-600">{Number(r.finalSalary).toLocaleString("vi-VN")}đ</td>
-                    <td className="px-4 py-3 text-center">
-                      {r.isPaid
-                        ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">Đã trả</span>
-                        : <span className="text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full">Chưa trả</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {!r.isPaid && (
-                        <button onClick={() => paySalary(r.id)}
-                          className="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-1">
+                  {/* Thống kê chấm công + lương */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
+                      <p className="text-xs text-gray-500">Ngày làm</p>
+                      <p className="font-bold text-gray-800">{row.attendance.presentDays} ngày</p>
+                    </div>
+                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
+                      <p className="text-xs text-gray-500">Giờ làm</p>
+                      <p className="font-bold text-gray-800">{row.attendance.totalHours}h</p>
+                    </div>
+                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
+                      <p className="text-xs text-gray-500">Lương cơ bản</p>
+                      <p className="font-bold text-blue-600">
+                        {calc ? Number(calc.base).toLocaleString("vi-VN") : "—"}đ
+                      </p>
+                    </div>
+                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
+                      <p className="text-xs text-gray-500">Tổng lương</p>
+                      <p className="font-bold text-emerald-600">
+                        {calc ? Number(calc.total).toLocaleString("vi-VN") : "—"}đ
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Thưởng + nút lưu */}
+                  {!sal?.isPaid && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className="text-xs text-gray-500 shrink-0">Thưởng (nghìn đ):</span>
+                      <input
+                        type="number" min="0" placeholder="0"
+                        className={INPUT + " max-w-[120px] py-1.5 text-sm"}
+                        value={bonusInputs[row.userId] ?? "0"}
+                        onChange={e => setBonusInputs(prev => ({ ...prev, [row.userId]: e.target.value }))}
+                      />
+                      <button
+                        onClick={() => saveSalary(row)}
+                        disabled={savingId === row.userId || !row.wageConfig}
+                        className={BTN_G + " text-xs py-1.5"}>
+                        {savingId === row.userId ? "Đang lưu..." : sal ? "Cập nhật lương" : "Lưu lương"}
+                      </button>
+                      {sal && !sal.isPaid && (
+                        <button onClick={() => paySalary(sal.id)}
+                          className="bg-amber-500 hover:bg-amber-400 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition-colors">
                           💸 Thanh toán
                         </button>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  )}
+                  {sal?.isPaid && (
+                    <p className="text-xs text-emerald-600 mt-2">
+                      Đã thanh toán {sal.paidAt ? new Date(sal.paidAt).toLocaleDateString("vi-VN") : ""}
+                      · Tổng: <span className="font-bold">{Number(sal.finalSalary).toLocaleString("vi-VN")}đ</span>
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {data.salaryRecords.length > 0 && (() => {
-            const totalPaid = data.salaryRecords.filter(r => r.isPaid).reduce((s, r) => s + Number(r.finalSalary), 0);
-            const totalUnpaid = data.salaryRecords.filter(r => !r.isPaid).reduce((s, r) => s + Number(r.finalSalary), 0);
-            return (
-              <div className="flex gap-3 mt-3 flex-wrap">
-                <div className="bg-white rounded-xl px-4 py-2.5 border border-red-200 flex-1 text-center">
-                  <p className="text-xs text-gray-500">Chưa thanh toán</p>
-                  <p className="font-bold text-red-500">{totalUnpaid.toLocaleString("vi-VN")}đ</p>
-                  <p className="text-xs text-gray-400">{data.salaryRecords.filter(r => !r.isPaid).length} nhân viên</p>
-                </div>
-                <div className="bg-white rounded-xl px-4 py-2.5 border border-emerald-200 flex-1 text-center">
-                  <p className="text-xs text-gray-500">Đã thanh toán</p>
-                  <p className="font-bold text-emerald-600">{totalPaid.toLocaleString("vi-VN")}đ</p>
-                  <p className="text-xs text-gray-400">{data.salaryRecords.filter(r => r.isPaid).length} nhân viên</p>
-                </div>
-                <div className="bg-white rounded-xl px-4 py-2.5 border border-blue-200 flex-1 text-center">
-                  <p className="text-xs text-gray-500">Tổng bảng lương</p>
-                  <p className="font-bold text-blue-600">{(totalPaid + totalUnpaid).toLocaleString("vi-VN")}đ</p>
-                  <p className="text-xs text-gray-400">{data.salaryRecords.length} nhân viên</p>
-                </div>
+          {/* Tổng kết */}
+          {savedRows.length > 0 && (
+            <div className="flex gap-3 flex-wrap">
+              <div className="bg-white rounded-xl px-4 py-2.5 border border-red-200 flex-1 text-center">
+                <p className="text-xs text-gray-500">Chưa thanh toán</p>
+                <p className="font-bold text-red-500">{totalUnpaid.toLocaleString("vi-VN")}đ</p>
+                <p className="text-xs text-gray-400">{savedRows.filter(s => !s.salaryRecord?.isPaid).length} nhân viên</p>
               </div>
-            );
-          })()}
+              <div className="bg-white rounded-xl px-4 py-2.5 border border-emerald-200 flex-1 text-center">
+                <p className="text-xs text-gray-500">Đã thanh toán</p>
+                <p className="font-bold text-emerald-600">{totalPaid.toLocaleString("vi-VN")}đ</p>
+                <p className="text-xs text-gray-400">{savedRows.filter(s => s.salaryRecord?.isPaid).length} nhân viên</p>
+              </div>
+              <div className="bg-white rounded-xl px-4 py-2.5 border border-blue-200 flex-1 text-center">
+                <p className="text-xs text-gray-500">Tổng bảng lương</p>
+                <p className="font-bold text-blue-600">{(totalPaid + totalUnpaid).toLocaleString("vi-VN")}đ</p>
+                <p className="text-xs text-gray-400">{savedRows.length} nhân viên đã lưu</p>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -1034,15 +1171,313 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
   );
 }
 
+// ─── Revenue Tab ─────────────────────────────────────────────────────────────
+interface RevData {
+  byDay:     { date: string; total: number }[];
+  byMonth:   { month: string; total: number }[];
+  byCourt:   { name: string; total: number }[];
+  byService: { name: string; total: number; quantity: number }[];
+  slowSelling: { id: number; name: string; stockQuantity: number; soldLast7Days: number }[];
+}
+
+function RevBarChart({ data, labelFn }: { data: { label: string; value: number }[]; labelFn?: (v: number) => string }) {
+  const max = Math.max(...data.map(d => d.value), 1);
+  const fmt = labelFn ?? ((v: number) => (v / 1e6).toFixed(1) + "M");
+  return (
+    <div className="flex items-end gap-1 h-36 w-full overflow-x-auto pb-1">
+      {data.map((d, i) => (
+        <div key={i} className="flex flex-col items-center flex-1 min-w-[28px]">
+          <span className="text-xs text-gray-500 mb-0.5 whitespace-nowrap" style={{ fontSize: 9 }}>
+            {d.value > 0 ? fmt(d.value) : ""}
+          </span>
+          <div
+            className="w-full rounded-t-md bg-emerald-400 transition-all"
+            style={{ height: `${Math.max((d.value / max) * 100, d.value > 0 ? 4 : 0)}%` }}
+          />
+          <span className="text-gray-400 mt-1 whitespace-nowrap" style={{ fontSize: 9 }}>{d.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HBarList({ data, total }: { data: { name: string; total: number }[]; total: number }) {
+  if (data.length === 0) return <p className="text-center py-6 text-gray-400 text-sm">Chưa có dữ liệu</p>;
+  return (
+    <div className="space-y-2">
+      {data.map((d, i) => {
+        const pct = total > 0 ? (d.total / total) * 100 : 0;
+        return (
+          <div key={i}>
+            <div className="flex justify-between text-xs mb-0.5">
+              <span className="text-gray-700 font-medium truncate max-w-[60%]">{d.name}</span>
+              <span className="text-emerald-600 font-semibold">{Number(d.total).toLocaleString("vi-VN")}đ</span>
+            </div>
+            <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
+              <div className="h-full rounded-full bg-emerald-400" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RevenueTab({ facilities }: { facilities: Facility[] }) {
+  const [facilityId, setFacilityId] = useState("");
+  const now = new Date();
+  const [year,  setYear]  = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [timeMode,  setTimeMode]  = useState<"day" | "month">("day");
+  const [groupMode, setGroupMode] = useState<"court" | "service">("court");
+  const [data, setData] = useState<RevData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load(fid: string) {
+    if (!fid) return;
+    setLoading(true);
+    const res = await fetch(`/api/owner/revenue?facilityId=${fid}&year=${year}&month=${month}`);
+    if (res.ok) setData(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => { if (facilityId) load(facilityId); }, [facilityId, year, month]);
+
+  const dayChartData = data?.byDay.map(d => ({
+    label: String(Number(d.date.split("-")[2])),
+    value: d.total,
+  })) ?? [];
+
+  const monthChartData = data?.byMonth.map(d => ({
+    label: `T${Number(d.month.split("-")[1])}`,
+    value: d.total,
+  })) ?? [];
+
+  const totalMonth  = data?.byDay.reduce((s, d) => s + d.total, 0) ?? 0;
+  const totalYear   = data?.byMonth.reduce((s, d) => s + d.total, 0) ?? 0;
+  const totalCourt  = data?.byCourt.reduce((s, d) => s + d.total, 0) ?? 0;
+  const totalSvc    = data?.byService.reduce((s, d) => s + d.total, 0) ?? 0;
+
+  const MONTHS = ["1","2","3","4","5","6","7","8","9","10","11","12"];
+  const YEARS  = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
+
+  return (
+    <div>
+      {/* Bộ lọc */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <select className={INPUT + " w-52"} value={facilityId}
+          onChange={e => { setFacilityId(e.target.value); }}>
+          <option value="">-- Chọn cơ sở --</option>
+          {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+        <select className={INPUT + " w-24"} value={month} onChange={e => setMonth(Number(e.target.value))}>
+          {MONTHS.map(m => <option key={m} value={m}>Tháng {m}</option>)}
+        </select>
+        <select className={INPUT + " w-24"} value={year} onChange={e => setYear(Number(e.target.value))}>
+          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {!facilityId && (
+        <p className="text-center py-12 text-gray-400 text-sm">Chọn cơ sở để xem doanh thu</p>
+      )}
+
+      {facilityId && loading && (
+        <p className="text-center py-12 text-gray-400 text-sm">Đang tải...</p>
+      )}
+
+      {facilityId && !loading && data && (
+        <div className="space-y-4">
+          {/* Tổng quan */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className={CARD + " !mb-0 text-center"} style={BG}>
+              <p className="text-xs text-gray-500">Tháng {month}/{year}</p>
+              <p className="text-xl font-bold text-emerald-600 mt-1">{totalMonth.toLocaleString("vi-VN")}đ</p>
+            </div>
+            <div className={CARD + " !mb-0 text-center"} style={BG}>
+              <p className="text-xs text-gray-500">Cả năm {year}</p>
+              <p className="text-xl font-bold text-emerald-600 mt-1">{totalYear.toLocaleString("vi-VN")}đ</p>
+            </div>
+          </div>
+
+          {/* Biểu đồ theo thời gian */}
+          <div className={CARD + " !mb-0"} style={BG}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold text-black text-sm">
+                {timeMode === "day" ? `Theo ngày — Tháng ${month}/${year}` : `Theo tháng — Năm ${year}`}
+              </p>
+              <div className="flex gap-1">
+                <button onClick={() => setTimeMode("day")}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${timeMode === "day" ? "bg-emerald-500 text-white" : "bg-white border border-gray-300 text-gray-600"}`}>
+                  Theo ngày
+                </button>
+                <button onClick={() => setTimeMode("month")}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${timeMode === "month" ? "bg-emerald-500 text-white" : "bg-white border border-gray-300 text-gray-600"}`}>
+                  Theo tháng
+                </button>
+              </div>
+            </div>
+            <RevBarChart data={timeMode === "day" ? dayChartData : monthChartData} />
+          </div>
+
+          {/* Phân tích theo sân / dịch vụ */}
+          <div className={CARD + " !mb-0"} style={BG}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold text-black text-sm">
+                {groupMode === "court" ? "Doanh thu theo sân" : "Doanh thu theo dịch vụ"}
+              </p>
+              <div className="flex gap-1">
+                <button onClick={() => setGroupMode("court")}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${groupMode === "court" ? "bg-emerald-500 text-white" : "bg-white border border-gray-300 text-gray-600"}`}>
+                  Theo sân
+                </button>
+                <button onClick={() => setGroupMode("service")}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${groupMode === "service" ? "bg-emerald-500 text-white" : "bg-white border border-gray-300 text-gray-600"}`}>
+                  Theo dịch vụ
+                </button>
+              </div>
+            </div>
+            {groupMode === "court"
+              ? <HBarList data={data.byCourt}   total={totalCourt} />
+              : <HBarList data={data.byService} total={totalSvc} />
+            }
+            {groupMode === "service" && data.byService.length > 0 && (
+              <div className="mt-3 border-t border-gray-200 pt-3 space-y-1">
+                {data.byService.map((s, i) => (
+                  <div key={i} className="flex justify-between text-xs text-gray-500">
+                    <span>{s.name}</span>
+                    <span>x{s.quantity} sản phẩm</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Cảnh báo hàng bán chậm */}
+          {data.slowSelling.length > 0 && (
+            <div className="border border-amber-300 bg-amber-50 rounded-2xl p-4">
+              <p className="font-semibold text-amber-700 text-sm mb-2">
+                Cảnh báo tồn kho — Hàng bán chậm (7 ngày qua)
+              </p>
+              <p className="text-xs text-amber-600 mb-3">
+                Các mặt hàng bán được ≤ 20 sản phẩm trong 7 ngày qua — cân nhắc giảm nhập hoặc chạy khuyến mãi.
+              </p>
+              <div className="space-y-2">
+                {data.slowSelling.map(item => (
+                  <div key={item.id} className="flex items-center justify-between bg-white/70 rounded-xl px-3 py-2">
+                    <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                    <div className="text-right">
+                      <p className="text-xs text-amber-600 font-semibold">
+                        Đã bán: <span className="font-bold">{item.soldLast7Days}</span> sản phẩm
+                      </p>
+                      <p className="text-xs text-gray-400">Tồn kho: {item.stockQuantity}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.slowSelling.length === 0 && (
+            <div className="border border-emerald-200 bg-emerald-50 rounded-2xl px-4 py-3 text-xs text-emerald-700">
+              Tất cả hàng hóa đang bán tốt trong 7 ngày qua.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Services Tab ────────────────────────────────────────────────────────────
+
+/** Resize ảnh về tối đa maxDim px rồi convert sang WebP trước khi upload */
+async function resizeImage(file: File, maxDim = 400): Promise<Blob> {
+  return new Promise(resolve => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => resolve(blob!), "image/webp", 0.85);
+    };
+    img.src = objectUrl;
+  });
+}
+
+function ImageUpload({
+  value, onChange, uploading, setUploading,
+}: {
+  value: string; onChange: (url: string) => void;
+  uploading: boolean; setUploading: (v: boolean) => void;
+}) {
+  const [preview, setPreview] = useState(value);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // preview ngay lập tức
+    setPreview(URL.createObjectURL(file));
+    setUploading(true);
+    try {
+      const resized = await resizeImage(file, 400);
+      const fd = new FormData();
+      fd.append("file", new File([resized], file.name, { type: "image/webp" }));
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (res.ok) {
+        const { url } = await res.json();
+        setPreview(url);
+        onChange(url);
+      } else {
+        const d = await res.json();
+        alert(d.error || "Upload thất bại");
+        setPreview(value);
+      }
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {/* Thumbnail preview */}
+      <div className="w-14 h-14 rounded-xl border-2 border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden shrink-0">
+        {preview ? (
+          <img src={preview} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-gray-400 text-xs text-center leading-tight px-1">Chưa có ảnh</span>
+        )}
+      </div>
+      <div className="flex-1">
+        <label className={`${uploading ? "opacity-50 pointer-events-none" : "cursor-pointer"} inline-flex items-center gap-1.5 text-xs bg-white border border-gray-300 hover:border-emerald-400 text-gray-600 px-3 py-2 rounded-xl transition-colors`}>
+          {uploading ? "Đang tải..." : preview ? "Đổi ảnh" : "Tải ảnh lên"}
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFile} disabled={uploading} />
+        </label>
+        {preview && (
+          <button type="button" onClick={() => { setPreview(""); onChange(""); }}
+            className="text-xs text-red-400 hover:text-red-600 mt-0.5">Xóa ảnh</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ServicesTab({ facilities }: { facilities: Facility[] }) {
   const [facilityId, setFacilityId] = useState<string>("");
   const [services, setServices] = useState<Service[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: "", type: "PRODUCT", price: "", stockQuantity: "" });
+  const [form, setForm] = useState({ name: "", type: "PRODUCT", price: "", stockQuantity: "", imageUrl: "" });
   const [editForm, setEditForm] = useState<Partial<Omit<Service, "stockQuantity"> & { stockQuantity: string }>>({});
   const [loaded, setLoaded] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [editUploading, setEditUploading] = useState(false);
 
   const loadServices = useCallback((fid: string) => {
     if (!fid) return;
@@ -1052,17 +1487,23 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
   async function createService() {
     const res = await fetch("/api/owner/services", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, facilityId }),
+      body: JSON.stringify({ ...form, facilityId, price: Number(form.price) * 1000 }),
     });
-    if (res.ok) { setShowForm(false); setForm({ name: "", type: "PRODUCT", price: "", stockQuantity: "" }); loadServices(facilityId); }
-    else { const d = await res.json(); alert(d.error); }
+    if (res.ok) {
+      setShowForm(false);
+      setForm({ name: "", type: "PRODUCT", price: "", stockQuantity: "", imageUrl: "" });
+      loadServices(facilityId);
+    } else { const d = await res.json(); alert(d.error); }
   }
 
   async function updateService() {
     if (!editing) return;
     const res = await fetch(`/api/owner/services/${editing.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
+      body: JSON.stringify({
+        ...editForm,
+        ...(editForm.price !== undefined && { price: Number(editForm.price) * 1000 }),
+      }),
     });
     if (res.ok) { setEditing(null); loadServices(facilityId); }
     else { const d = await res.json(); alert(d.error); }
@@ -1087,18 +1528,28 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
       {showForm && facilityId && (
         <div className={CARD} style={BG}>
           <h3 className="font-semibold text-black mb-3">Thêm dịch vụ mới</h3>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 mb-3">
             <input className={INPUT} placeholder="Tên dịch vụ *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             <select className={INPUT} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
               <option value="PRODUCT">Sản phẩm (F&B)</option>
               <option value="RENTAL">Cho thuê</option>
             </select>
-            <input className={INPUT} placeholder="Giá (đ) *" type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+            <input className={INPUT} placeholder="Giá (nghìn đ) *" type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
             <input className={INPUT} placeholder="Tồn kho" type="number" value={form.stockQuantity} onChange={e => setForm(f => ({ ...f, stockQuantity: e.target.value }))} />
           </div>
-          <div className="flex gap-2 justify-end mt-3">
+          {/* Upload ảnh */}
+          <div className="border border-gray-200 rounded-xl p-3 bg-white/50 mb-3">
+            <p className="text-xs text-gray-500 font-medium mb-2">Hình ảnh hàng hóa</p>
+            <ImageUpload
+              value={form.imageUrl}
+              onChange={url => setForm(f => ({ ...f, imageUrl: url }))}
+              uploading={uploading}
+              setUploading={setUploading}
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)} className={BTN_W}>Hủy</button>
-            <button onClick={createService} className={BTN_G}>Thêm</button>
+            <button onClick={createService} disabled={uploading} className={BTN_G}>Thêm</button>
           </div>
         </div>
       )}
@@ -1110,8 +1561,7 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
             const products = services.filter(s => s.type === "PRODUCT");
             const outOfStock = products.filter(s => s.stockQuantity === 0);
             const lowStock = products.filter(s => s.stockQuantity > 0 && s.stockQuantity < 10);
-            const overStock = products.filter(s => s.stockQuantity > 50);
-            if (outOfStock.length === 0 && lowStock.length === 0 && overStock.length === 0) return null;
+            if (outOfStock.length === 0 && lowStock.length === 0) return null;
             return (
               <div className="flex flex-wrap gap-3 mb-4">
                 {outOfStock.length > 0 && (
@@ -1132,15 +1582,6 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
                     </div>
                   </div>
                 )}
-                {overStock.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
-                    <span className="text-blue-500 font-bold text-lg">📦</span>
-                    <div>
-                      <p className="text-xs text-blue-600 font-semibold">Tồn nhiều ({overStock.length} mặt hàng)</p>
-                      <p className="text-xs text-blue-400">{overStock.map(s => `${s.name} (${s.stockQuantity})`).join(", ")}</p>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })()}
@@ -1148,57 +1589,80 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
         <div className="overflow-auto rounded-2xl border border-gray-300" style={BG}>
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200">
-              <th className="text-left px-4 py-3 font-semibold text-gray-700">Tên dịch vụ</th>
-              <th className="text-left px-4 py-3 font-semibold text-gray-700">Loại</th>
-              <th className="text-right px-4 py-3 font-semibold text-gray-700">Giá</th>
-              <th className="text-right px-4 py-3 font-semibold text-gray-700">Tồn kho</th>
-              <th className="text-center px-4 py-3 font-semibold text-gray-700">Trạng thái</th>
-              <th className="px-4 py-3"></th>
+              <th className="w-14 px-3 py-3"></th>
+              <th className="text-left px-3 py-3 font-semibold text-gray-700">Tên dịch vụ</th>
+              <th className="text-left px-3 py-3 font-semibold text-gray-700">Loại</th>
+              <th className="text-right px-3 py-3 font-semibold text-gray-700">Giá</th>
+              <th className="text-right px-3 py-3 font-semibold text-gray-700">Tồn kho</th>
+              <th className="text-center px-3 py-3 font-semibold text-gray-700">Trạng thái</th>
+              <th className="px-3 py-3"></th>
             </tr></thead>
             <tbody>
               {services.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-400">Chưa có dịch vụ</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dịch vụ</td></tr>
               ) : services.map(svc => (
                 <>
                   <tr key={svc.id} className="border-t border-gray-100">
-                    <td className="px-4 py-3 font-medium text-black">{svc.name}</td>
-                    <td className="px-4 py-3">
+                    {/* Thumbnail */}
+                    <td className="px-3 py-2.5">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
+                        {svc.imageUrl
+                          ? <img src={svc.imageUrl} alt={svc.name} className="w-full h-full object-cover" />
+                          : <span className="text-gray-300 text-lg">📦</span>
+                        }
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 font-medium text-black">{svc.name}</td>
+                    <td className="px-3 py-2.5">
                       <span className={`text-xs px-2.5 py-1 rounded-full ${svc.type === "RENTAL" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>
                         {svc.type === "RENTAL" ? "Cho thuê" : "F&B"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-2.5 text-right font-medium text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ</td>
+                    <td className="px-3 py-2.5 text-right">
                       <span className="mr-1.5">{svc.stockQuantity}</span>
                       {svc.type === "PRODUCT" && svc.stockQuantity === 0 && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Hết hàng</span>}
                       {svc.type === "PRODUCT" && svc.stockQuantity > 0 && svc.stockQuantity < 10 && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Sắp hết</span>}
-                      {svc.type === "PRODUCT" && svc.stockQuantity > 50 && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">Dư nhiều</span>}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-2.5 text-center">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${svc.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                         {svc.isActive ? "Hoạt động" : "Ẩn"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right flex gap-2 justify-end">
-                      <button onClick={() => { setEditing(svc); setEditForm({ name: svc.name, type: svc.type, price: svc.price, stockQuantity: String(svc.stockQuantity), isActive: svc.isActive }); }}
-                        className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-lg text-xs transition-colors">Sửa</button>
-                      <button onClick={() => deleteService(svc.id)} className={BTN_R}>Ẩn</button>
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => {
+                          setEditing(svc);
+                          setEditForm({ name: svc.name, type: svc.type, price: svc.price, stockQuantity: String(svc.stockQuantity), isActive: svc.isActive, imageUrl: svc.imageUrl ?? "" });
+                        }} className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-lg text-xs transition-colors">Sửa</button>
+                        <button onClick={() => deleteService(svc.id)} className={BTN_R}>Ẩn</button>
+                      </div>
                     </td>
                   </tr>
                   {editing?.id === svc.id && (
                     <tr className="bg-blue-50">
-                      <td colSpan={6} className="px-4 py-3">
-                        <div className="grid grid-cols-4 gap-2">
+                      <td colSpan={7} className="px-4 py-3">
+                        <div className="grid grid-cols-4 gap-2 mb-2">
                           <input className={INPUT} placeholder="Tên" value={editForm.name || ""} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                           <select className={INPUT} value={editForm.type || ""} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}>
                             <option value="PRODUCT">F&B</option><option value="RENTAL">Cho thuê</option>
                           </select>
-                          <input className={INPUT} placeholder="Giá" type="number" value={editForm.price || ""} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} />
+                          <input className={INPUT} placeholder="Giá (nghìn đ)" type="number" value={editForm.price || ""} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} />
                           <input className={INPUT} placeholder="Tồn kho" type="number" value={editForm.stockQuantity || ""} onChange={e => setEditForm(f => ({ ...f, stockQuantity: e.target.value }))} />
                         </div>
-                        <div className="flex gap-2 justify-end mt-2">
+                        {/* Upload ảnh trong edit */}
+                        <div className="border border-blue-200 rounded-xl p-3 bg-white/60 mb-2">
+                          <p className="text-xs text-gray-500 font-medium mb-2">Hình ảnh</p>
+                          <ImageUpload
+                            value={editForm.imageUrl as string || ""}
+                            onChange={url => setEditForm(f => ({ ...f, imageUrl: url }))}
+                            uploading={editUploading}
+                            setUploading={setEditUploading}
+                          />
+                        </div>
+                        <div className="flex gap-2 justify-end">
                           <button onClick={() => setEditing(null)} className={BTN_W + " text-xs py-1.5"}>Hủy</button>
-                          <button onClick={updateService} className={BTN_G + " text-xs py-1.5"}>Lưu</button>
+                          <button onClick={updateService} disabled={editUploading} className={BTN_G + " text-xs py-1.5"}>Lưu</button>
                         </div>
                       </td>
                     </tr>
@@ -1272,6 +1736,7 @@ export default function OwnerDashboard() {
           {activeTab === "salary"     && <SalaryTab facilities={facilities} />}
           {activeTab === "invoices"   && <InvoicesTab facilities={facilities} />}
           {activeTab === "services"   && <ServicesTab facilities={facilities} />}
+          {activeTab === "revenue"    && <RevenueTab facilities={facilities} />}
         </div>
       </div>
     </div>

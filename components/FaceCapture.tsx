@@ -218,8 +218,8 @@ export default function FaceCapture({ mode, savedDescriptor, onSuccess, onCancel
 
         {/* Camera */}
         <div className="relative rounded-xl overflow-hidden bg-black mb-3" style={{ aspectRatio: "4/3" }}>
-          <video ref={videoRef} muted playsInline className="w-full h-full object-cover" />
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+          <video ref={videoRef} muted playsInline className="w-full h-full object-cover" style={{ transform: "scaleX(-1)" }} />
+          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ transform: "scaleX(-1)" }} />
           {status === "done" && (
             <div className="absolute inset-0 flex items-center justify-center bg-emerald-500/80">
               <span className="text-white text-5xl">✓</span>

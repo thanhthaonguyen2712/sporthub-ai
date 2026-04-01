@@ -27,6 +27,16 @@ interface Booking {
 }
 interface Service { id: number; name: string; type: string; price: string; stockQuantity: number }
 interface StockLog { id: number; type: string; quantity: number; note: string | null; createdAt: string; service: { name: string } }
+interface InvShiftItem {
+  id: number; serviceId: number; openingStock: number; sold: number; returned: number;
+  closingStock: number | null; discrepancy: number | null; notes: string | null;
+  service: { name: string; type: string };
+}
+interface InvShift {
+  id: number; shiftType: string; status: string; shiftDate: string;
+  notes: string | null; createdAt: string; closedAt: string | null;
+  items: InvShiftItem[];
+}
 interface POSBooking {
   id: number; startTime: string; endTime: string; totalPrice: string;
   isWalkIn: boolean; createdByStaff: boolean; walkInName: string | null;
@@ -656,74 +666,151 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
 }
 
 // ─── Inventory Tab ────────────────────────────────────────────────────────────
-function InventoryTab() {
-  const [data, setData] = useState<{ services: Service[]; logs: StockLog[] }>({ services: [], logs: [] });
-  const [form, setForm] = useState({ serviceId: "", type: "IMPORT", quantity: "", note: "" });
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [activeView, setActiveView] = useState<"stock" | "logs">("stock");
+// ── Helpers cho InventoryTab ──────────────────────────────────────────────────
+const SHIFT_LABEL: Record<string, string> = { MORNING: "Ca sáng", AFTERNOON: "Ca chiều", EVENING: "Ca tối" };
+const SHIFT_STATUS_LABEL: Record<string, string> = { OPEN: "Đang mở", CLOSED: "Đã đóng", VERIFIED: "Đã duyệt" };
+const SHIFT_STATUS_CLS: Record<string, string> = {
+  OPEN: "bg-emerald-100 text-emerald-700",
+  CLOSED: "bg-blue-100 text-blue-700",
+  VERIFIED: "bg-purple-100 text-purple-700",
+};
 
-  const load = useCallback(async () => {
+function InventoryTab() {
+  // ── dữ liệu chung ──
+  const [data, setData] = useState<{ services: Service[]; logs: StockLog[] }>({ services: [], logs: [] });
+  // ── nhập/xuất kho ──
+  const [form, setForm] = useState({ serviceId: "", type: "IMPORT", quantity: "", note: "" });
+  const [formLoading, setFormLoading] = useState(false);
+  // ── kiểm kê ca ──
+  const [shifts, setShifts] = useState<InvShift[]>([]);
+  const [openShift, setOpenShift] = useState<InvShift | null>(null); // ca đang xem
+  const [editItems, setEditItems] = useState<Record<number, { sold: number; returned: number; closingStock: string; notes: string }>>({});
+  const [shiftLoading, setShiftLoading] = useState(false);
+  const [newShiftType, setNewShiftType] = useState("MORNING");
+  const [newShiftNotes, setNewShiftNotes] = useState("");
+  const [showNewShift, setShowNewShift] = useState(false);
+  // ── tab ──
+  const [activeView, setActiveView] = useState<"stock" | "import" | "shift" | "logs">("stock");
+
+  const loadData = useCallback(async () => {
     const res = await fetch("/api/staff/inventory");
-    const d = await res.json();
-    setData(d);
+    if (res.ok) setData(await res.json());
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const loadShifts = useCallback(async () => {
+    const res = await fetch("/api/staff/inventory/shift");
+    if (res.ok) setShifts(await res.json());
+  }, []);
 
-  async function handleSubmit() {
+  useEffect(() => { loadData(); loadShifts(); }, [loadData, loadShifts]);
+
+  // Khi chọn xem một ca, khởi tạo editItems
+  function selectShift(shift: InvShift) {
+    setOpenShift(shift);
+    const init: typeof editItems = {};
+    shift.items.forEach(item => {
+      init[item.id] = {
+        sold: item.sold,
+        returned: item.returned,
+        closingStock: item.closingStock !== null ? String(item.closingStock) : "",
+        notes: item.notes || "",
+      };
+    });
+    setEditItems(init);
+  }
+
+  // Nhập/Xuất kho
+  async function handleImportExport() {
     if (!form.serviceId || !form.quantity) return;
-    setLoading(true);
+    setFormLoading(true);
     const res = await fetch("/api/staff/inventory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serviceId: Number(form.serviceId), type: form.type, quantity: Number(form.quantity), note: form.note }),
     });
-    setLoading(false);
+    setFormLoading(false);
     if (res.ok) {
       setForm({ serviceId: "", type: "IMPORT", quantity: "", note: "" });
-      setShowForm(false);
-      load();
+      loadData();
     } else {
       const d = await res.json();
       alert(d.error);
     }
   }
 
+  // Mở ca kiểm kê mới
+  async function handleOpenShift() {
+    setShiftLoading(true);
+    const res = await fetch("/api/staff/inventory/shift", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shiftType: newShiftType, notes: newShiftNotes }),
+    });
+    setShiftLoading(false);
+    if (res.ok) {
+      const shift: InvShift = await res.json();
+      setShowNewShift(false);
+      setNewShiftNotes("");
+      await loadShifts();
+      selectShift(shift);
+    } else {
+      const d = await res.json();
+      alert(d.error);
+    }
+  }
+
+  // Lưu / Đóng ca
+  async function handleSaveShift(action: "save" | "close") {
+    if (!openShift) return;
+    setShiftLoading(true);
+    const items = openShift.items.map(item => {
+      const e = editItems[item.id];
+      return {
+        id: item.id,
+        sold: e ? e.sold : item.sold,
+        returned: e ? e.returned : item.returned,
+        closingStock: e && e.closingStock !== "" ? Number(e.closingStock) : null,
+        notes: e ? e.notes : "",
+      };
+    });
+    const res = await fetch(`/api/staff/inventory/shift/${openShift.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, items }),
+    });
+    setShiftLoading(false);
+    if (res.ok) {
+      const updated: InvShift = await res.json();
+      setOpenShift(updated);
+      selectShift(updated);
+      await loadShifts();
+    } else {
+      const d = await res.json();
+      alert(d.error);
+    }
+  }
+
+  const TABS = [
+    { id: "stock",  label: "Tồn kho" },
+    { id: "import", label: "Nhập/Xuất" },
+    { id: "shift",  label: "Kiểm kê ca" },
+    { id: "logs",   label: "Lịch sử" },
+  ] as const;
+
   return (
     <div>
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setActiveView("stock")} className={activeView === "stock" ? BTN_G : BTN_W}>Tồn kho</button>
-        <button onClick={() => setActiveView("logs")} className={activeView === "logs" ? BTN_G : BTN_W}>Lịch sử</button>
-        <button onClick={() => setShowForm(!showForm)} className={BTN_G + " ml-auto"}>+ Nhập/Xuất kho</button>
+      {/* Tab bar */}
+      <div className="flex gap-1.5 flex-wrap mb-4">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveView(t.id)}
+            className={t.id === activeView ? BTN_G : BTN_W}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {showForm && (
-        <div className={CARD} style={BG}>
-          <p className="font-semibold text-black mb-3">Nhập/Xuất kho</p>
-          <div className="grid grid-cols-2 gap-2.5">
-            <select className={INPUT} value={form.serviceId} onChange={e => setForm(f => ({ ...f, serviceId: e.target.value }))}>
-              <option value="">-- Chọn hàng hóa --</option>
-              {data.services.map(s => <option key={s.id} value={s.id}>{s.name} (Tồn: {s.stockQuantity})</option>)}
-            </select>
-            <select className={INPUT} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option value="IMPORT">Nhập kho</option>
-              <option value="EXPORT">Xuất kho</option>
-              <option value="DAMAGE">Hàng hỏng</option>
-            </select>
-            <input className={INPUT} type="number" placeholder="Số lượng" value={form.quantity}
-              onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
-            <input className={INPUT} placeholder="Ghi chú (không bắt buộc)" value={form.note}
-              onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <button onClick={() => setShowForm(false)} className={BTN_W}>Hủy</button>
-            <button onClick={handleSubmit} disabled={loading} className={BTN_G}>{loading ? "..." : "Xác nhận"}</button>
-          </div>
-        </div>
-      )}
-
-      {activeView === "stock" ? (
+      {/* ── Tồn kho ── */}
+      {activeView === "stock" && (
         <div className="overflow-auto rounded-2xl border border-gray-300" style={BG}>
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200">
@@ -753,11 +840,250 @@ function InventoryTab() {
             </tbody>
           </table>
         </div>
-      ) : (
+      )}
+
+      {/* ── Nhập/Xuất kho ── */}
+      {activeView === "import" && (
+        <div className={CARD} style={BG}>
+          <p className="font-semibold text-black mb-3">Nhập / Xuất kho</p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <select className={INPUT} value={form.serviceId} onChange={e => setForm(f => ({ ...f, serviceId: e.target.value }))}>
+              <option value="">-- Chọn hàng hóa --</option>
+              {data.services.map(s => <option key={s.id} value={s.id}>{s.name} (Tồn: {s.stockQuantity})</option>)}
+            </select>
+            <select className={INPUT} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+              <option value="IMPORT">Nhập kho</option>
+              <option value="EXPORT">Xuất kho</option>
+              <option value="DAMAGE">Hàng hỏng</option>
+            </select>
+            <input className={INPUT} type="number" min="1" placeholder="Số lượng" value={form.quantity}
+              onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
+            <input className={INPUT} placeholder="Ghi chú (không bắt buộc)" value={form.note}
+              onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
+          </div>
+          <div className="flex justify-end mt-3">
+            <button onClick={handleImportExport} disabled={formLoading || !form.serviceId || !form.quantity} className={BTN_G}>
+              {formLoading ? "Đang xử lý..." : "Xác nhận"}
+            </button>
+          </div>
+          {/* Hiển thị 5 log gần nhất ngay dưới */}
+          {data.logs.length > 0 && (
+            <div className="mt-4 border-t border-gray-200 pt-3 space-y-1.5">
+              <p className="text-xs text-gray-500 font-medium mb-2">Giao dịch gần nhất</p>
+              {data.logs.slice(0, 5).map(log => (
+                <div key={log.id} className="flex items-center justify-between text-xs text-gray-600 bg-white/60 rounded-xl px-3 py-2">
+                  <span>{log.service.name}{log.note ? ` · ${log.note}` : ""}</span>
+                  <span className={`font-bold ${LOG_COLOR[log.type]}`}>
+                    {log.type === "IMPORT" ? "+" : "-"}{log.quantity} {LOG_LABEL[log.type]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Kiểm kê ca ── */}
+      {activeView === "shift" && (
+        <div>
+          {/* Panel chọn ca đang xem hoặc danh sách ca hôm nay */}
+          {!openShift ? (
+            <div>
+              {/* Nút mở ca mới */}
+              <div className="flex justify-end mb-3">
+                <button onClick={() => setShowNewShift(v => !v)} className={BTN_G}>
+                  + Mở ca kiểm kê
+                </button>
+              </div>
+
+              {showNewShift && (
+                <div className={CARD} style={BG}>
+                  <p className="font-semibold text-black mb-3">Mở ca kiểm kê mới</p>
+                  <div className="grid grid-cols-2 gap-2.5 mb-3">
+                    <select className={INPUT} value={newShiftType} onChange={e => setNewShiftType(e.target.value)}>
+                      <option value="MORNING">Ca sáng</option>
+                      <option value="AFTERNOON">Ca chiều</option>
+                      <option value="EVENING">Ca tối</option>
+                    </select>
+                    <input className={INPUT} placeholder="Ghi chú (không bắt buộc)" value={newShiftNotes}
+                      onChange={e => setNewShiftNotes(e.target.value)} />
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Hệ thống sẽ tự ghi nhận tồn kho hiện tại làm tồn kho đầu ca cho tất cả hàng hóa.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowNewShift(false)} className={BTN_W}>Hủy</button>
+                    <button onClick={handleOpenShift} disabled={shiftLoading} className={BTN_G}>
+                      {shiftLoading ? "Đang mở..." : "Mở ca"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Danh sách ca hôm nay */}
+              {shifts.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-sm">Chưa có ca kiểm kê nào hôm nay</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 font-medium mb-2">Ca kiểm kê hôm nay</p>
+                  {shifts.map(shift => (
+                    <button key={shift.id} onClick={() => selectShift(shift)}
+                      className="w-full text-left border border-gray-200 rounded-2xl p-4 bg-white/70 hover:bg-white transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-black">{SHIFT_LABEL[shift.shiftType] || shift.shiftType}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Mở lúc {new Date(shift.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                            {shift.closedAt && ` · Đóng lúc ${new Date(shift.closedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">{shift.items.length} mặt hàng</p>
+                        </div>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${SHIFT_STATUS_CLS[shift.status]}`}>
+                          {SHIFT_STATUS_LABEL[shift.status]}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Chi tiết ca kiểm kê */
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <button onClick={() => setOpenShift(null)} className={BTN_W + " text-xs"}>← Quay lại</button>
+                <div className="flex-1">
+                  <p className="font-semibold text-black">{SHIFT_LABEL[openShift.shiftType]}</p>
+                  <p className="text-xs text-gray-500">
+                    Mở: {new Date(openShift.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                    {openShift.closedAt && ` · Đóng: ${new Date(openShift.closedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`}
+                  </p>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${SHIFT_STATUS_CLS[openShift.status]}`}>
+                  {SHIFT_STATUS_LABEL[openShift.status]}
+                </span>
+              </div>
+
+              {/* Bảng hàng hóa */}
+              <div className="overflow-auto rounded-2xl border border-gray-300 mb-4" style={BG}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-gray-600 text-xs">
+                      <th className="text-left px-3 py-2.5 font-semibold">Hàng hóa</th>
+                      <th className="text-right px-3 py-2.5 font-semibold">Đầu ca</th>
+                      <th className="text-right px-3 py-2.5 font-semibold">Đã bán/cho thuê</th>
+                      <th className="text-right px-3 py-2.5 font-semibold">Trả về</th>
+                      <th className="text-right px-3 py-2.5 font-semibold">Tồn thực tế</th>
+                      {openShift.status !== "OPEN" && <th className="text-right px-3 py-2.5 font-semibold">Lệch</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {openShift.items.map(item => {
+                      const e = editItems[item.id];
+                      const disc = item.discrepancy;
+                      return (
+                        <tr key={item.id} className="border-t border-gray-100">
+                          <td className="px-3 py-2.5">
+                            <p className="font-medium text-black text-xs">{item.service.name}</p>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${item.service.type === "RENTAL" ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600"}`}>
+                              {item.service.type === "RENTAL" ? "Cho thuê" : "F&B"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-medium text-gray-700">{item.openingStock}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            {openShift.status === "OPEN" ? (
+                              <input type="number" min="0"
+                                className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-xs text-right bg-white focus:outline-none focus:border-emerald-400"
+                                value={e?.sold ?? item.sold}
+                                onChange={ev => setEditItems(prev => ({ ...prev, [item.id]: { ...prev[item.id], sold: Number(ev.target.value) } }))}
+                              />
+                            ) : <span className="text-orange-600 font-medium">{item.sold}</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            {openShift.status === "OPEN" ? (
+                              <input type="number" min="0"
+                                className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-xs text-right bg-white focus:outline-none focus:border-emerald-400"
+                                value={e?.returned ?? item.returned}
+                                onChange={ev => setEditItems(prev => ({ ...prev, [item.id]: { ...prev[item.id], returned: Number(ev.target.value) } }))}
+                              />
+                            ) : <span className="text-emerald-600 font-medium">{item.returned}</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            {openShift.status === "OPEN" ? (
+                              <input type="number" min="0"
+                                className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-xs text-right bg-white focus:outline-none focus:border-emerald-400"
+                                placeholder="Đếm"
+                                value={e?.closingStock ?? ""}
+                                onChange={ev => setEditItems(prev => ({ ...prev, [item.id]: { ...prev[item.id], closingStock: ev.target.value } }))}
+                              />
+                            ) : <span className="font-medium text-gray-700">{item.closingStock ?? "—"}</span>}
+                          </td>
+                          {openShift.status !== "OPEN" && (
+                            <td className={`px-3 py-2.5 text-right font-bold ${disc === null ? "text-gray-400" : disc === 0 ? "text-emerald-600" : "text-red-500"}`}>
+                              {disc === null ? "—" : disc === 0 ? "Khớp" : `${disc > 0 ? "+" : ""}${disc}`}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Tóm tắt lệch (khi đã đóng) */}
+              {openShift.status !== "OPEN" && (
+                <div className={CARD + " mb-3"} style={BG}>
+                  <p className="font-semibold text-black mb-2 text-sm">Tổng kết ca</p>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="bg-white/70 rounded-xl p-3">
+                      <p className="text-xs text-gray-500">Tổng đã bán</p>
+                      <p className="text-lg font-bold text-orange-500">
+                        {openShift.items.reduce((s, i) => s + i.sold, 0)}
+                      </p>
+                    </div>
+                    <div className="bg-white/70 rounded-xl p-3">
+                      <p className="text-xs text-gray-500">Hàng trả về</p>
+                      <p className="text-lg font-bold text-emerald-600">
+                        {openShift.items.reduce((s, i) => s + i.returned, 0)}
+                      </p>
+                    </div>
+                    <div className="bg-white/70 rounded-xl p-3">
+                      <p className="text-xs text-gray-500">Hàng lệch</p>
+                      <p className={`text-lg font-bold ${openShift.items.some(i => i.discrepancy !== null && i.discrepancy !== 0) ? "text-red-500" : "text-emerald-600"}`}>
+                        {openShift.items.filter(i => i.discrepancy !== null && i.discrepancy !== 0).length} mặt hàng
+                      </p>
+                    </div>
+                  </div>
+                  {openShift.notes && (
+                    <p className="text-xs text-gray-500 mt-3 bg-white/50 rounded-xl px-3 py-2">{openShift.notes}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Nút hành động */}
+              {openShift.status === "OPEN" && (
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => handleSaveShift("save")} disabled={shiftLoading} className={BTN_W}>
+                    {shiftLoading ? "Đang lưu..." : "Lưu tạm"}
+                  </button>
+                  <button onClick={() => handleSaveShift("close")} disabled={shiftLoading}
+                    className="bg-blue-500 hover:bg-blue-400 disabled:bg-blue-300 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+                    {shiftLoading ? "Đang xử lý..." : "Đóng ca & Lưu kết quả"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Lịch sử ── */}
+      {activeView === "logs" && (
         <div className="space-y-2">
           {data.logs.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
-              <div className="flex justify-center mb-3"><img src="/list.png" alt="" className="w-10 h-10 opacity-40" /></div>
               <p>Chưa có lịch sử kho</p>
             </div>
           ) : data.logs.map(log => (
