@@ -54,19 +54,35 @@ export async function PUT(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = Number((session.user as any).id);
 
-  const record = await prisma.staffAttendance.findFirst({
-    where: { staffId: userId, date: todayRange() },
-  });
-  if (!record) return NextResponse.json({ error: "Chưa check-in hôm nay" }, { status: 400 });
-  if (record.status === "COMPLETED") return NextResponse.json({ error: "Đã check-out rồi" }, { status: 400 });
+  try {
+    const record = await prisma.staffAttendance.findFirst({
+      where: { staffId: userId, date: todayRange() },
+    });
+    if (!record) return NextResponse.json({ error: "Chưa check-in hôm nay" }, { status: 400 });
+    if (record.status === "COMPLETED") return NextResponse.json({ error: "Đã check-out rồi" }, { status: 400 });
 
-  const now = new Date();
-  const checkInMs = record.checkInTime ? record.checkInTime.getTime() : now.getTime();
-  const totalHours = Math.round(((now.getTime() - checkInMs) / 3600000) * 100) / 100;
+    const now = new Date();
 
-  const updated = await prisma.staffAttendance.update({
-    where: { id: record.id },
-    data: { checkOutTime: now, totalHours, status: "COMPLETED" },
-  });
-  return NextResponse.json(updated);
+    // checkInTime là @db.Time → Prisma trả về Date với base 1970-01-01T<time>Z
+    // Phải ghép với ngày hôm nay (VN) để tính đúng tổng giờ
+    let totalHours = 0;
+    if (record.checkInTime) {
+      const t = record.checkInTime as Date;
+      const todayMs = vnMidnightUTC().getTime();
+      const checkInMs = todayMs
+        + t.getUTCHours() * 3600000
+        + t.getUTCMinutes() * 60000
+        + t.getUTCSeconds() * 1000;
+      totalHours = Math.max(0, Math.round(((now.getTime() - checkInMs) / 3600000) * 100) / 100);
+    }
+
+    const updated = await prisma.staffAttendance.update({
+      where: { id: record.id },
+      data: { checkOutTime: now, totalHours, status: "COMPLETED" },
+    });
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("PUT /api/staff/attendance error:", err);
+    return NextResponse.json({ error: "Lỗi máy chủ khi check-out." }, { status: 500 });
+  }
 }

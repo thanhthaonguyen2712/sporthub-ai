@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -29,7 +29,12 @@ export default function LoginPage() {
     if (res?.error) {
       setError(t("wrongCredentials"));
     } else {
-      router.push("/");
+      const session = await getSession();
+      const role = (session?.user as any)?.role;
+      if (role === "ADMIN") router.push("/admin/dashboard");
+      else if (role === "OWNER") router.push("/owner/dashboard");
+      else if (role === "STAFF" || role === "WAREHOUSE_MANAGER") router.push("/staff/dashboard");
+      else router.push("/");
       router.refresh();
     }
   }

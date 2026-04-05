@@ -89,7 +89,8 @@ function AttendanceTab({ info, onRefresh }: { info: StaffInfo; onRefresh: () => 
     setError("");
     setLoading(true);
     const res = await fetch("/api/staff/attendance", { method });
-    const data = await res.json();
+    let data: any = {};
+    try { data = await res.json(); } catch { /* empty body */ }
     setLoading(false);
     if (!res.ok) { setError(data.error || "Có lỗi xảy ra."); return; }
     // Cập nhật trạng thái ngay lập tức trong card, không chờ fetch
@@ -367,6 +368,7 @@ function CourtSlotPicker({
       <div className="flex gap-3 text-[10px] mb-2 flex-wrap">
         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded inline-block" style={{background:"#96CDCD"}}></span>Trống</span>
         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded inline-block" style={{background:"#EED5D2"}}></span>Đã đặt</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded inline-block" style={{background:"#D9D9D9"}}></span>Đã qua</span>
         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded inline-block" style={{background:"#9BCD9B"}}></span>Cao điểm chiều</span>
         {(weekend || holiday) && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded inline-block" style={{background:"#FFD580"}}></span>Cao điểm sáng</span>}
         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded inline-block" style={{background:"#B0C4DE"}}></span>Đang chọn</span>
@@ -374,24 +376,32 @@ function CourtSlotPicker({
 
       {/* Slots */}
       <div className="flex flex-wrap gap-1.5">
-        {slots.map(slot => {
+        {(() => {
+          const todayStr = new Date().toISOString().split("T")[0];
+          const isToday = date === todayStr;
+          const nowHHMM = isToday ? new Date().toTimeString().substring(0, 5) : null;
+          return slots.map(slot => {
           const isBooked = bookedTimes.includes(slot.time);
+          const isPast = isToday && nowHHMM !== null && slot.time < nowHHMM;
+          const isDisabled = isBooked || isPast;
           const isSelected = isThisCourt && selectedSlots.includes(slot.time);
           let bg = "#96CDCD", border = "#D1EEEE";
           if (isBooked)        { bg = "#EED5D2"; border = "#FFB5C5"; }
+          else if (isPast)     { bg = "#D9D9D9"; border = "#BDBDBD"; }
           else if (isSelected) { bg = "#B0C4DE"; border = "#7a9cbf"; }
           else if (slot.isMorningPeak) { bg = "#FFD580"; border = "#FFC107"; }
           else if (slot.isPeak)        { bg = "#9BCD9B"; border = "#a8e050"; }
           return (
-            <button key={slot.time} disabled={isBooked}
+            <button key={slot.time} disabled={isDisabled}
               onClick={() => onSelect(court.id, slot)}
-              className={`rounded-lg text-[11px] font-bold border transition-all ${slot.isPeak ? "px-3 py-2" : "px-2 py-1.5"} ${isBooked ? "cursor-not-allowed" : "cursor-pointer hover:opacity-80"} ${isSelected ? "ring-2 ring-blue-400" : ""}`}
+              className={`rounded-lg text-[11px] font-bold border transition-all ${slot.isPeak ? "px-3 py-2" : "px-2 py-1.5"} ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"} ${isSelected ? "ring-2 ring-blue-400" : ""}`}
               style={{ background: bg, borderColor: border, color: "#000", fontWeight: "bold" }}>
               <div>{slot.label}</div>
-              <div className="text-[9px] opacity-70">{getSlotPriceLabel(slot, date)}</div>
+              <div className="text-[9px] opacity-70">{isPast ? "Đã qua" : getSlotPriceLabel(slot, date)}</div>
             </button>
           );
-        })}
+        });
+        })()}
       </div>
     </div>
   );
@@ -486,7 +496,7 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
     setSelectedServices(prev=>{
       const ex=prev.find(s=>s.serviceId===svc.id);
       if(ex) return prev.map(s=>s.serviceId===svc.id?{...s,quantity:s.quantity+1}:s);
-      return [...prev,{serviceId:svc.id,name:svc.name,quantity:1,price:Number(svc.price)}];
+      return [...prev,{serviceId:svc.id,name:svc.name,quantity:1,price:Number(svc.price)*1000}];
     });
   }
 
@@ -607,7 +617,7 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
                   <button key={svc.id} onClick={()=>addSvc(svc)}
                     className="text-left p-3 bg-white rounded-xl border border-gray-200 hover:border-emerald-300 transition-colors">
                     <p className="text-sm font-medium text-black">{svc.name}</p>
-                    <p className="text-xs text-gray-500">{Number(svc.price).toLocaleString("vi-VN")}đ · Còn {svc.stockQuantity}</p>
+                    <p className="text-xs text-gray-500">{(Number(svc.price) * 1000).toLocaleString("vi-VN")}đ · Còn {svc.stockQuantity}</p>
                   </button>
                 ))}
               </div>
@@ -830,7 +840,7 @@ function InventoryTab() {
                       {s.type === "RENTAL" ? "Cho thuê" : "F&B"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right text-emerald-600 font-medium">{Number(s.price).toLocaleString("vi-VN")}đ</td>
+                  <td className="px-4 py-3 text-right text-emerald-600 font-medium">{(Number(s.price) * 1000).toLocaleString("vi-VN")}đ</td>
                   <td className={`px-4 py-3 text-right font-bold ${s.stockQuantity <= 5 ? "text-red-500" : "text-gray-700"}`}>
                     {s.stockQuantity}
                     {s.stockQuantity <= 5 && <span className="ml-1 text-xs font-normal text-red-400">(thấp)</span>}
@@ -1170,7 +1180,7 @@ function EquipmentRentalMode({ services, onRefresh }: { services: Service[]; onR
     setCart(prev => {
       const ex = prev.find(s => s.serviceId === svc.id);
       if (ex) return prev.map(s => s.serviceId === svc.id ? { ...s, quantity: s.quantity + 1 } : s);
-      return [...prev, { serviceId: svc.id, name: svc.name, quantity: 1, price: Number(svc.price) }];
+      return [...prev, { serviceId: svc.id, name: svc.name, quantity: 1, price: Number(svc.price) * 1000 }];
     });
   }
 
@@ -1228,7 +1238,7 @@ function EquipmentRentalMode({ services, onRefresh }: { services: Service[]; onR
                     </span>
                   )}
                   <p className="font-semibold text-black text-sm pr-6">{svc.name}</p>
-                  <p className="text-emerald-600 font-bold text-sm mt-2">{Number(svc.price).toLocaleString("vi-VN")}đ</p>
+                  <p className="text-emerald-600 font-bold text-sm mt-2">{(Number(svc.price) * 1000).toLocaleString("vi-VN")}đ</p>
                   <p className="text-xs text-gray-400">Còn {svc.stockQuantity}</p>
                 </button>
               );
@@ -1310,7 +1320,7 @@ function FnbMode({ services, onRefresh }: { services: Service[]; onRefresh: () =
     setCart(prev => {
       const ex = prev.find(s => s.serviceId === svc.id);
       if (ex) return prev.map(s => s.serviceId === svc.id ? { ...s, quantity: s.quantity + 1 } : s);
-      return [...prev, { serviceId: svc.id, name: svc.name, quantity: 1, price: Number(svc.price) }];
+      return [...prev, { serviceId: svc.id, name: svc.name, quantity: 1, price: Number(svc.price) * 1000 }];
     });
   }
 
@@ -1368,7 +1378,7 @@ function FnbMode({ services, onRefresh }: { services: Service[]; onRefresh: () =
                   )}
                   <p className="font-semibold text-black text-sm pr-6">{svc.name}</p>
                   <p className="text-xs text-gray-400 mt-0.5 capitalize">{svc.type === "PRODUCT" ? "F&B" : "Đồ thuê"}</p>
-                  <p className="text-emerald-600 font-bold text-sm mt-2">{Number(svc.price).toLocaleString("vi-VN")}đ</p>
+                  <p className="text-emerald-600 font-bold text-sm mt-2">{(Number(svc.price) * 1000).toLocaleString("vi-VN")}đ</p>
                   <p className="text-xs text-gray-400">Còn {svc.stockQuantity}</p>
                 </button>
               );
@@ -1579,6 +1589,7 @@ export default function StaffDashboard() {
   // Check-out nhanh từ thanh trạng thái cố định
   const [quickFaceMode, setQuickFaceMode] = useState(false);
   const [quickLoading, setQuickLoading] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [QuickFaceCapture, setQuickFaceCapture] = useState<React.ComponentType<any> | null>(null);
   const [quickSavedDescriptor, setQuickSavedDescriptor] = useState<string | null>(null);
 
@@ -1602,10 +1613,13 @@ export default function StaffDashboard() {
     setQuickFaceMode(false);
     setQuickLoading(true);
     const res = await fetch("/api/staff/attendance", { method: "PUT" });
-    const data = await res.json();
+    let data: any = {};
+    try { data = await res.json(); } catch { /* empty body */ }
     setQuickLoading(false);
     if (res.ok) {
       await loadInfo();
+      setCheckoutSuccess(true);
+      setTimeout(() => setCheckoutSuccess(false), 4000);
     } else {
       alert(data.error || "Có lỗi xảy ra khi check-out.");
     }
@@ -1623,6 +1637,13 @@ export default function StaffDashboard() {
     if (status === "authenticated") loadInfo();
   }, [status, loadInfo]);
 
+  // Nếu chưa check-in, buộc về tab chấm công
+  useEffect(() => {
+    if (!info) return;
+    const checkedIn = info.attendance?.status === "WORKING" || info.attendance?.status === "COMPLETED";
+    if (!checkedIn && activeTab !== "attendance") setActiveTab("attendance");
+  }, [info, activeTab]);
+
   if (status === "loading" || !info) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
@@ -1633,13 +1654,18 @@ export default function StaffDashboard() {
 
   const facility = info.facilityStaff?.facility;
 
+  // Chỉ cho phép dùng các chức năng khi đang trong ca làm việc (WORKING)
+  const hasCheckedIn = info.attendance?.status === "WORKING";
+
   const TABS = [
     { id: "attendance", label: "Chấm công",    icon: "" },
-    { id: "pos",        label: "Bán hàng",     icon: "" },
-    { id: "bookings",   label: "Lịch hôm nay", icon: "" },
-    { id: "invoice",    label: "Đặt hộ",       icon: "" },
-    ...(isWarehouse ? [{ id: "inventory", label: "Kho hàng", icon: "" }] : []),
-    { id: "report",     label: "Báo cáo",      icon: "" },
+    ...(hasCheckedIn ? [
+      { id: "pos",      label: "Bán hàng",     icon: "" },
+      { id: "bookings", label: "Lịch hôm nay", icon: "" },
+      { id: "invoice",  label: "Đặt hộ",       icon: "" },
+      ...(isWarehouse ? [{ id: "inventory", label: "Kho hàng", icon: "" }] : []),
+      { id: "report",   label: "Báo cáo",      icon: "" },
+    ] : []),
   ];
 
   const workingAtt = info?.attendance?.status === "WORKING" ? info.attendance : null;
@@ -1647,6 +1673,15 @@ export default function StaffDashboard() {
   return (
     <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
       <Navbar />
+
+      {/* Toast check-out thành công */}
+      {checkoutSuccess && (
+        <div className="fixed top-4 left-0 right-0 z-50 flex justify-center pointer-events-none">
+          <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-xl text-sm font-semibold">
+            Check-out thành công! Chúc bạn nghỉ ngơi vui vẻ.
+          </div>
+        </div>
+      )}
 
       {/* Face Capture modal cho quick checkout */}
       {quickFaceMode && QuickFaceCapture && (
@@ -1695,6 +1730,13 @@ export default function StaffDashboard() {
           {!facility && (
             <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2 text-xs text-yellow-700">
               Bạn chưa được gắn vào cơ sở nào. Liên hệ chủ sân để được thêm vào.
+            </div>
+          )}
+          {!hasCheckedIn && (
+            <div className="mt-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2 text-xs text-orange-700 font-medium">
+              {info.attendance?.status === "COMPLETED"
+                ? "Ca hôm nay đã kết thúc. Không thể sử dụng các chức năng khác."
+                : "Vui lòng check-in để bắt đầu ca làm việc trước khi sử dụng các chức năng khác."}
             </div>
           )}
         </div>

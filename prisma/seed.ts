@@ -42,7 +42,22 @@ async function main() {
   // ===================== 2. USERS =====================
   console.log("👤 Tạo users...");
 
-  const hashedPassword = await bcrypt.hash("123456", 10);
+  const hashedPassword      = await bcrypt.hash("123456", 10);
+  const hashedAdminPassword = await bcrypt.hash("sporthubAiadmin58!", 10);
+
+  // ── Tài khoản admin hệ thống cố định ──
+  await prisma.user.upsert({
+    where: { email: "Adminsporthub58@gmail.com" },
+    update: { password: hashedAdminPassword },
+    create: {
+      email:    "Adminsporthub58@gmail.com",
+      phone:    "0900000000",
+      fullName: "Admin SportHub",
+      password: hashedAdminPassword,
+      role:     "ADMIN",
+      wallet:   { create: { balance: 0 } },
+    },
+  });
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@sporthub.vn" },
@@ -50,7 +65,7 @@ async function main() {
     create: {
       email: "admin@sporthub.vn",
       phone: "0900000001",
-      fullName: "Admin SportHub",
+      fullName: "Admin Test",
       password: hashedPassword,
       role: "ADMIN",
       wallet: { create: { balance: 0 } },
