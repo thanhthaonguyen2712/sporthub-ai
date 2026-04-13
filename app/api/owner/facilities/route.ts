@@ -26,6 +26,7 @@ export async function GET() {
       name: f.name,
       address: f.address,
       description: f.description,
+      imageUrl: f.imageUrl,
       isActive: f.isActive,
       courtCount: f.courts.length,
       staffCount: f.facilityStaff.length,
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const ownerId = Number((session.user as any).id);
-  const { name, address, description, latitude, longitude, sportIds } = await req.json();
+  const { name, address, description, latitude, longitude, sportIds, imageUrl } = await req.json();
   if (!name || !address) return NextResponse.json({ error: "Thiếu tên hoặc địa chỉ" }, { status: 400 });
 
   const facility = await prisma.facility.create({
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
       name,
       address,
       description: description || null,
+      imageUrl: imageUrl || null,
       latitude: latitude ? Number(latitude) : null,
       longitude: longitude ? Number(longitude) : null,
       ownerId,

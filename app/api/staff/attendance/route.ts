@@ -3,10 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// Tính ngày hôm nay theo giờ Việt Nam (UTC+7) và trả về midnight UTC
-// để tránh lỗi khi PostgreSQL chạy timezone UTC khác server
 function vnMidnightUTC(): Date {
-  const vn = new Date(Date.now() + 7 * 3600 * 1000); // shift sang UTC+7
+  const vn = new Date(Date.now() + 7 * 3600 * 1000);
   return new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate()));
 }
 
@@ -22,6 +20,9 @@ export async function GET() {
 
   const record = await prisma.staffAttendance.findFirst({
     where: { staffId: userId, date: todayRange() },
+    include: {
+      shift: { select: { id: true, name: true, startTime: true, endTime: true } },
+    },
   });
   return NextResponse.json(record || null);
 }
@@ -41,8 +42,42 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const todayDate = vnMidnightUTC();
 
+  // Tìm ca làm hôm nay của nhân viên (đã được duyệt)
+  const todayShift = await prisma.shiftRegistration.findFirst({
+    where: {
+      staffId: userId,
+      status: "APPROVED",
+      shift: { shiftDate: { gte: todayDate, lt: new Date(todayDate.getTime() + 86400000) } },
+    },
+    include: { shift: true },
+  });
+
+  // Xác định check-in trễ (so với giờ bắt đầu ca, hoặc 8:00 mặc định)
+  let isLate = false;
+  if (todayShift?.shift) {
+    const shiftStart = todayShift.shift.startTime as Date;
+    const shiftStartMs = todayDate.getTime()
+      + shiftStart.getUTCHours() * 3600000
+      + shiftStart.getUTCMinutes() * 60000;
+    // Trễ nếu check-in sau 5 phút so với giờ bắt đầu ca
+    isLate = now.getTime() > shiftStartMs + 5 * 60000;
+  } else {
+    // Mặc định: trễ nếu sau 8:00
+    const nowVn = new Date(now.getTime() + 7 * 3600000);
+    const h = nowVn.getUTCHours();
+    const m = nowVn.getUTCMinutes();
+    isLate = h > 8 || (h === 8 && m > 0);
+  }
+
   const record = await prisma.staffAttendance.create({
-    data: { staffId: userId, date: todayDate, checkInTime: now, status: "WORKING" },
+    data: {
+      staffId: userId,
+      date: todayDate,
+      checkInTime: now,
+      status: "WORKING",
+      isLate,
+      shiftId: todayShift?.shiftId ?? null,
+    },
   });
   return NextResponse.json(record, { status: 201 });
 }
@@ -57,28 +92,40 @@ export async function PUT(req: NextRequest) {
   try {
     const record = await prisma.staffAttendance.findFirst({
       where: { staffId: userId, date: todayRange() },
+      include: { shift: true },
     });
     if (!record) return NextResponse.json({ error: "Chưa check-in hôm nay" }, { status: 400 });
     if (record.status === "COMPLETED") return NextResponse.json({ error: "Đã check-out rồi" }, { status: 400 });
 
     const now = new Date();
+    const todayDate = vnMidnightUTC();
 
-    // checkInTime là @db.Time → Prisma trả về Date với base 1970-01-01T<time>Z
-    // Phải ghép với ngày hôm nay (VN) để tính đúng tổng giờ
     let totalHours = 0;
     if (record.checkInTime) {
       const t = record.checkInTime as Date;
-      const todayMs = vnMidnightUTC().getTime();
-      const checkInMs = todayMs
+      const checkInMs = todayDate.getTime()
         + t.getUTCHours() * 3600000
         + t.getUTCMinutes() * 60000
         + t.getUTCSeconds() * 1000;
       totalHours = Math.max(0, Math.round(((now.getTime() - checkInMs) / 3600000) * 100) / 100);
     }
 
+    // Tính overtime nếu có ca và check-out trễ hơn giờ kết thúc ca
+    let overtimeMinutes = 0;
+    if (record.shift) {
+      const shiftEnd = record.shift.endTime as Date;
+      const shiftEndMs = todayDate.getTime()
+        + shiftEnd.getUTCHours() * 3600000
+        + shiftEnd.getUTCMinutes() * 60000;
+      const diff = now.getTime() - shiftEndMs;
+      if (diff > 0) {
+        overtimeMinutes = Math.floor(diff / 60000);
+      }
+    }
+
     const updated = await prisma.staffAttendance.update({
       where: { id: record.id },
-      data: { checkOutTime: now, totalHours, status: "COMPLETED" },
+      data: { checkOutTime: now, totalHours, status: "COMPLETED", overtimeMinutes },
     });
     return NextResponse.json(updated);
   } catch (err) {

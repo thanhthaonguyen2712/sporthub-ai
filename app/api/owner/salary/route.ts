@@ -39,18 +39,38 @@ export async function GET(req: NextRequest) {
     const cfg = wageConfigs.find(w => w.staffId === fs.user.id);
     const att = attendanceRecords.filter(a => a.staffId === fs.user.id);
     const sal = salaryRecords.find(s => s.staffId === fs.user.id);
+    const isDaily = cfg?.wageType === "DAILY";
     const totalHours  = Math.round(att.reduce((sum, r) => sum + Number(r.totalHours || 0), 0) * 100) / 100;
     const presentDays = att.length;
+    const lateDays = att.filter(r => r.isLate).length;
+    const forgotCheckOutCount = att.filter(r => r.forgotCheckOut).length;
+    const overtimeTotalMinutes = att.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
+    const overtimeHours = Math.round(overtimeTotalMinutes / 60 * 100) / 100;
+
     return {
       userId:     fs.user.id,
       fullName:   fs.user.fullName,
       role:       fs.role,
       wageConfig: cfg ? { wageType: cfg.wageType, wageRate: Number(cfg.wageRate) } : null,
-      attendance: { totalHours, presentDays },
+      attendance: {
+        totalHours: isDaily ? null : totalHours,
+        presentDays,
+        lateDays,
+        forgotCheckOutCount,
+        overtimeHours,
+      },
       salaryRecord: sal ? {
-        id: sal.id, baseSalary: Number(sal.baseSalary), bonus: Number(sal.bonus),
-        finalSalary: Number(sal.finalSalary), wageRate: Number(sal.wageRate),
-        wageType: sal.wageType, isPaid: sal.isPaid, paidAt: sal.paidAt,
+        id: sal.id,
+        baseSalary: Number(sal.baseSalary),
+        bonus: Number(sal.bonus),
+        overtimeHours: Number(sal.overtimeHours),
+        overtimePay: Number(sal.overtimePay),
+        penaltyAmount: Number(sal.penaltyAmount),
+        finalSalary: Number(sal.finalSalary),
+        wageRate: Number(sal.wageRate),
+        wageType: sal.wageType,
+        isPaid: sal.isPaid,
+        paidAt: sal.paidAt,
       } : null,
     };
   });
@@ -65,7 +85,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const ownerId = Number((session.user as any).id);
-  const { facilityId, staffId, month, year, bonus, wageRate, wageType } = await req.json();
+  const { facilityId, staffId, month, year, bonus, wageRate, wageType, overtimePay, penaltyAmount } = await req.json();
 
   const facility = await prisma.facility.findFirst({ where: { id: Number(facilityId), ownerId } });
   if (!facility) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
@@ -84,15 +104,36 @@ export async function POST(req: NextRequest) {
 
   const totalHours  = records.reduce((sum, r) => sum + Number(r.totalHours || 0), 0);
   const presentDays = records.length;
+  const overtimeTotalMin = records.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
+  const overtimeHours = Math.round(overtimeTotalMin / 60 * 100) / 100;
+
   const base = wageType === "HOURLY"
     ? totalHours * Number(wageRate)
     : presentDays * Number(wageRate);
-  const finalSalary = base + Number(bonus || 0);
+
+  const bonusVal    = Number(bonus || 0);
+  const overtimeVal = Number(overtimePay || 0);
+  const penaltyVal  = Number(penaltyAmount || 0);
+  const finalSalary = base + bonusVal + overtimeVal - penaltyVal;
 
   const record = await prisma.staffSalaryRecord.upsert({
     where: { staffId_facilityId_month_year: { staffId: Number(staffId), facilityId: Number(facilityId), month: Number(month), year: Number(year) } },
-    update: { totalHours, wageRate: Number(wageRate), wageType, baseSalary: base, bonus: Number(bonus || 0), finalSalary, isPaid: false, paidAt: null },
-    create: { staffId: Number(staffId), facilityId: Number(facilityId), month: Number(month), year: Number(year), totalHours, wageRate: Number(wageRate), wageType, baseSalary: base, bonus: Number(bonus || 0), finalSalary },
+    update: {
+      totalHours, wageRate: Number(wageRate), wageType,
+      baseSalary: base, bonus: bonusVal,
+      overtimeHours, overtimePay: overtimeVal,
+      penaltyAmount: penaltyVal,
+      finalSalary, isPaid: false, paidAt: null,
+    },
+    create: {
+      staffId: Number(staffId), facilityId: Number(facilityId),
+      month: Number(month), year: Number(year),
+      totalHours, wageRate: Number(wageRate), wageType,
+      baseSalary: base, bonus: bonusVal,
+      overtimeHours, overtimePay: overtimeVal,
+      penaltyAmount: penaltyVal,
+      finalSalary,
+    },
   });
 
   return NextResponse.json({ success: true, record });

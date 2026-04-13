@@ -46,7 +46,6 @@ export default function ResetPasswordPage() {
       style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
       <div className="w-full max-w-md border border-gray-300 rounded-2xl p-8" style={{ background: "#E0EEE0" }}>
         <div className="text-center mb-6">
-          <div className="text-4xl mb-2">🔑</div>
           <h1 className="text-2xl font-bold text-black">Đặt lại mật khẩu</h1>
         </div>
 

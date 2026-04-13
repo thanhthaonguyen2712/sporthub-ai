@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
   const monthEnd   = new Date(year, month, 1);
   const yearStart  = new Date(year, 0, 1);
   const yearEnd    = new Date(year + 1, 0, 1);
-  const weekAgo    = new Date(Date.now() - 7 * 24 * 3600 * 1000);
 
   // ── Doanh thu từ invoice (booking + court) ──────────────────────
   const invoicesMonth = await prisma.invoice.findMany({
@@ -70,27 +69,57 @@ export async function GET(req: NextRequest) {
     select: { quantity: true, price: true, service: { select: { name: true } } },
   });
 
-  // ── Hàng bán chậm (7 ngày qua, PRODUCT, sold <= 20) ─────────────
-  const slowSellLogs = await prisma.stockLog.findMany({
-    where: {
-      service: { facilityId, isActive: true, type: "PRODUCT" },
-      type: "SOLD",
-      createdAt: { gte: weekAgo },
-    },
-    select: { quantity: true, serviceId: true },
-  });
+  // ── Hàng bán chậm: tính từ InvoiceItem + DirectSaleItem theo tháng đang xem ──
+  // (Không dùng StockLog vì log chỉ ghi khi dùng API thực tế)
+
+  const [invItemsSold, dsItemsSold] = await Promise.all([
+    prisma.invoiceItem.groupBy({
+      by: ["serviceId"],
+      where: {
+        serviceId: { not: null },
+        invoice: {
+          booking: { court: { facilityId } },
+          createdAt: { gte: monthStart, lt: monthEnd },
+        },
+      },
+      _sum: { quantity: true },
+    }),
+    prisma.directSaleItem.groupBy({
+      by: ["serviceId"],
+      where: { sale: { facilityId, createdAt: { gte: monthStart, lt: monthEnd } } },
+      _sum: { quantity: true },
+    }),
+  ]);
 
   const soldByService: Record<number, number> = {};
-  slowSellLogs.forEach(l => { soldByService[l.serviceId] = (soldByService[l.serviceId] || 0) + l.quantity; });
+  invItemsSold.forEach(r => {
+    if (r.serviceId) soldByService[r.serviceId] = (soldByService[r.serviceId] ?? 0) + (r._sum.quantity ?? 0);
+  });
+  dsItemsSold.forEach(r => {
+    soldByService[r.serviceId] = (soldByService[r.serviceId] ?? 0) + (r._sum.quantity ?? 0);
+  });
 
   const allProducts = await prisma.service.findMany({
     where: { facilityId, isActive: true, type: "PRODUCT" },
-    select: { id: true, name: true, stockQuantity: true },
+    select: { id: true, name: true, stockQuantity: true, monthlyThreshold: true },
   });
 
+  // Ngưỡng bán chậm:
+  //   - Nếu chủ sân đã đặt monthlyThreshold > 0: cảnh báo khi bán < threshold
+  //   - Nếu chưa đặt: fallback 5% tồn kho (tối thiểu 3 sp), bỏ qua hàng tồn < 10
   const slowSelling = allProducts
-    .map(p => ({ ...p, soldLast7Days: soldByService[p.id] || 0 }))
-    .filter(p => p.soldLast7Days <= 20);
+    .map(p => {
+      const soldThisMonth = soldByService[p.id] ?? 0;
+      const threshold = p.monthlyThreshold > 0
+        ? p.monthlyThreshold
+        : Math.max(Math.round(p.stockQuantity * 0.05), 3);
+      return { ...p, soldThisMonth, threshold };
+    })
+    .filter(p => {
+      if (p.monthlyThreshold === 0 && p.stockQuantity < 10) return false;
+      return p.soldThisMonth < p.threshold;
+    })
+    .map(p => ({ ...p, soldLast7Days: p.soldThisMonth })); // giữ field name để FE dùng chung
 
   // ── Nhóm theo ngày trong tháng ──────────────────────────────────
   const daysInMonth = new Date(year, month, 0).getDate();

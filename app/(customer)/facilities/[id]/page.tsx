@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
+import { useTranslations, useLocale } from "next-intl";
 import {
   generateCourtSlots, getSlotPrice, getSlotPriceLabel,
   isHoliday, isWeekend, CourtSlot,
@@ -61,6 +62,9 @@ const ONE_HOUR_SPORTS_CUSTOMER = ["Bóng đá", "Bóng rổ"];
 
 function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; selectedDate: string; facilityId: number }) {
   const router = useRouter();
+  const t = useTranslations("facility");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [booked, setBooked] = useState<string[]>([]);
 
@@ -116,13 +120,13 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
             <p className="font-semibold text-black">{court.name}</p>
             <p className="text-gray-500 text-xs">
               {sportName} ·{" "}
-              {isOneHour ? "Tối thiểu 1h · Đặt liên tiếp" : hasGapRule ? "30p/slot · Liên tiếp hoặc cách ≥1h" : "Tối thiểu 1h · Đặt liên tiếp"}
+              {isOneHour ? t("minOneHour") : hasGapRule ? t("thirtyMinSlot") : t("minOneHour")}
             </p>
           </div>
         </div>
         <div className="flex gap-1 shrink-0">
-          {weekend && !holiday && <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">Cuối tuần</span>}
-          {holiday && <span className="text-[11px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">Ngày lễ +15%</span>}
+          {weekend && !holiday && <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">{t("weekend")}</span>}
+          {holiday && <span className="text-[11px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">{t("holiday")}</span>}
         </div>
       </div>
 
@@ -130,30 +134,30 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
       <div className="flex gap-3 text-xs mb-4 flex-wrap">
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#96CDCD", border: "1px solid #D1EEEE" }}></span>
-          <span className="text-black">{isOneHour ? "Còn trống (80k/1h)" : "Còn trống (40k/30p)"}</span>
+          <span className="text-black">{isOneHour ? t("available1h") : t("available30m")}</span>
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#EED5D2" }}></span>
-          <span className="text-black">Đã đặt</span>
+          <span className="text-black">{t("bookedLegend")}</span>
         </span>
         {(weekend || holiday) && (
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded inline-block" style={{ background: "#FFD580" }}></span>
-            <span className="text-black">Cao điểm sáng 7–9h</span>
+            <span className="text-black">{t("morningPeak")}</span>
           </span>
         )}
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#9BCD9B" }}></span>
-          <span className="text-black">Cao điểm chiều {holiday ? "(+15%)" : "(160k/2h)"}</span>
+          <span className="text-black">{holiday ? t("afternoonPeakHoliday") : t("afternoonPeakNormal")}</span>
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded inline-block" style={{ background: "#B0C4DE" }}></span>
-          <span className="text-black">Đang chọn</span>
+          <span className="text-black">{t("selectedSlot")}</span>
         </span>
         {isToday && (
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded inline-block" style={{ background: "#D1D5DB", border: "1px solid #9CA3AF" }}></span>
-            <span className="text-black">Đã qua</span>
+            <span className="text-black">{t("past")}</span>
           </span>
         )}
       </div>
@@ -204,8 +208,8 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
       {selectedSlots.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
           <div>
-            <p className="text-xs text-gray-500">{selectedSlots.length} slot · {totalMinutes} phút{holiday ? " · Ngày lễ" : ""}</p>
-            <p className="font-bold text-emerald-600 text-lg">{totalPrice.toLocaleString("vi-VN")}đ</p>
+            <p className="text-xs text-gray-500">{holiday ? t("slotSummaryHoliday", { count: selectedSlots.length, minutes: totalMinutes }) : t("slotSummary", { count: selectedSlots.length, minutes: totalMinutes })}</p>
+            <p className="font-bold text-emerald-600 text-lg">{totalPrice.toLocaleString(dateLocale)}đ</p>
           </div>
           <button onClick={() => {
               const sorted = [...selectedSlots].sort((a, b) => toMinutes(a) - toMinutes(b));
@@ -217,7 +221,7 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
               router.push(`/bookings?${params}`);
             }}
             className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-6 py-2.5 rounded-lg transition-colors font-medium">
-            Đặt sân →
+            {t("bookCourt")}
           </button>
         </div>
       )}
@@ -245,16 +249,18 @@ interface MatchPost {
   totalPrice: number | null;
 }
 
-const LEVEL_LABEL: Record<string, string> = {
-  BEGINNER: "Người mới",
-  INTERMEDIATE: "Trung bình",
-  PRO: "Chuyên nghiệp",
-};
-
 export default function FacilityDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { data: session } = useSession();
+  const t = useTranslations("facility");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
+  const LEVEL_LABEL: Record<string, string> = {
+    BEGINNER: t("beginner"),
+    INTERMEDIATE: t("intermediate"),
+    PRO: t("pro"),
+  };
   const [facility, setFacility] = useState<Facility | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("courts");
@@ -275,6 +281,8 @@ export default function FacilityDetailPage() {
   const [joinModal, setJoinModal] = useState<MatchPost | null>(null);
   const [joining, setJoining] = useState(false);
   const [joinToast, setJoinToast] = useState("");
+  const [joinToastSuccess, setJoinToastSuccess] = useState(false);
+  const [reviewToastSuccess, setReviewToastSuccess] = useState(false);
   // Form đăng tìm đồng đội trong tab
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -326,7 +334,8 @@ export default function FacilityDetailPage() {
     setJoining(false);
     setJoinModal(null);
     if (res.ok) {
-      setJoinToast("Tham gia thành công!");
+      setJoinToast(t("joinSuccess"));
+      setJoinToastSuccess(true);
       // Reload match posts
       fetch(`/api/match-posts?facilityId=${id}&status=OPEN`)
         .then((r) => r.json())
@@ -335,7 +344,8 @@ export default function FacilityDetailPage() {
         fetch("/api/wallet").then((r) => r.json()).then((d) => setWalletBalance(Number(d.balance) || 0));
       }
     } else {
-      setJoinToast(data.error || "Tham gia thất bại!");
+      setJoinToast(data.error || t("joinFailed"));
+      setJoinToastSuccess(false);
     }
     setTimeout(() => setJoinToast(""), 4000);
   }
@@ -401,7 +411,8 @@ export default function FacilityDetailPage() {
     e.preventDefault();
     if (!session) { router.push("/login"); return; }
     if (!createForm.categoryId || !createForm.courtId || !createForm.matchDate || !createForm.startTime || !createForm.endTime) {
-      setJoinToast("Vui lòng chọn sân và khung giờ!");
+      setJoinToast(t("createValidation"));
+      setJoinToastSuccess(false);
       setTimeout(() => setJoinToast(""), 3000);
       return;
     }
@@ -434,7 +445,8 @@ export default function FacilityDetailPage() {
     const data = await res.json();
     setCreateSubmitting(false);
     if (res.ok) {
-      setJoinToast("✓ Đã đặt sân & đăng bài tìm đồng đội thành công!");
+      setJoinToast(t("createSuccess"));
+      setJoinToastSuccess(true);
       setShowCreateForm(false);
       setCreateForm({
         categoryId: "", courtId: "", courtName: "",
@@ -451,7 +463,8 @@ export default function FacilityDetailPage() {
       // Refresh số dư ví sau khi trừ tiền
       fetch("/api/wallet").then((r) => r.json()).then((d) => setWalletBalance(Number(d.balance) || 0));
     } else {
-      setJoinToast(data.error || "Có lỗi xảy ra!");
+      setJoinToast(data.error || t("createError"));
+      setJoinToastSuccess(false);
     }
     setTimeout(() => setJoinToast(""), 5000);
   }
@@ -471,11 +484,13 @@ export default function FacilityDetailPage() {
       setShowReviewForm(false);
       setReviewRating(0);
       setReviewComment("");
-      setReviewToast("Cảm ơn bạn đã đánh giá!");
-      // Reload để hiển thị review mới
+      setReviewToast(t("thankYou"));
+      setReviewToastSuccess(true);
+      // Reload
       fetch(`/api/facilities/${id}`).then(r => r.json()).then(data => setFacility(data));
     } else {
-      setReviewToast(data.error || "Có lỗi xảy ra!");
+      setReviewToast(data.error || t("reviewError"));
+      setReviewToastSuccess(false);
     }
     setTimeout(() => setReviewToast(""), 4000);
   }
@@ -495,7 +510,7 @@ export default function FacilityDetailPage() {
     return (
       <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
         <Navbar />
-        <div className="text-center py-20 text-gray-500">Không tìm thấy sân</div>
+        <div className="text-center py-20 text-gray-500">{t("notFound")}</div>
       </div>
     );
   }
@@ -512,10 +527,10 @@ export default function FacilityDetailPage() {
     : sportGroups;
 
   const tabs = [
-    { id: "courts", icon: <img src="/list.png" className="w-4 h-4 inline-block" alt="list" />, label: `Danh sách sân (${facility.courts.length})` },
-    { id: "teammate", icon: <img src="/group.png" className="w-4 h-4 inline-block" alt="group" />, label: "Tìm đồng đội" },
-    { id: "services", icon: <img src="/shopping-cart.png" className="w-4 h-4 inline-block" alt="cart" />, label: `Dịch vụ (${facility.services.length})` },
-    { id: "reviews", icon: <img src="/star.png" className="w-4 h-4 inline-block" alt="star" />, label: `Đánh giá (${facility.reviews.length})` },
+    { id: "courts", icon: <img src="/list.png" className="w-4 h-4 inline-block" alt="list" />, label: t("courtsTab", { count: facility.courts.length }) },
+    { id: "teammate", icon: <img src="/group.png" className="w-4 h-4 inline-block" alt="group" />, label: t("teammateTab") },
+    { id: "services", icon: <img src="/shopping-cart.png" className="w-4 h-4 inline-block" alt="cart" />, label: t("servicesTab", { count: facility.services.length }) },
+    { id: "reviews", icon: <img src="/star.png" className="w-4 h-4 inline-block" alt="star" />, label: t("reviewsTab", { count: facility.reviews.length }) },
   ];
 
   return (
@@ -540,7 +555,7 @@ export default function FacilityDetailPage() {
                 ))}
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span>{facility.courts.length} sân</span>
+                <span>{t("courtsCount", { count: facility.courts.length })}</span>
                 <span className="flex items-center gap-1"><img src="/call.png" className="w-4 h-4 inline-block" alt="call" /> {facility.owner.phone}</span>
                 {facility.avgRating && <span className="flex items-center gap-1"><img src="/star.png" alt="" className="w-3 h-3" />{facility.avgRating}</span>}
               </div>
@@ -548,7 +563,7 @@ export default function FacilityDetailPage() {
             </div>
           </div>
           <button className="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors flex-shrink-0">
-            Đặt sân ngay
+            {t("bookNow")}
           </button>
         </div>
 
@@ -573,7 +588,7 @@ export default function FacilityDetailPage() {
         {activeTab === "courts" && (
           <div>
             <div className="flex items-center gap-3 mb-5">
-              <label className="text-sm font-medium text-gray-700 flex items-center gap-1"><img src="/calendar.png" className="w-4 h-4 inline-block" alt="calendar" /> Chọn ngày:</label>
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-1"><img src="/calendar.png" className="w-4 h-4 inline-block" alt="calendar" /> {t("selectDate")}</label>
               <input
                 type="date"
                 value={selectedDate}
@@ -592,7 +607,7 @@ export default function FacilityDetailPage() {
                     : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
                 }`}
               >
-                Tất cả sân
+                {t("allCourts")}
               </button>
               {facility.sports.map((sport) => (
                 <button
@@ -611,13 +626,13 @@ export default function FacilityDetailPage() {
             </div>
 
             {filteredGroups.length === 0 ? (
-              <div className="text-center py-10 text-gray-500">Không có sân nào</div>
+              <div className="text-center py-10 text-gray-500">{t("noCourts")}</div>
             ) : (
               filteredGroups.map((group) => (
                 <div key={group.sport.id} className="mb-6">
                   <div className="flex items-center gap-2 mb-4">
                     <img src={group.sport.iconUrl} className="w-5 h-5" alt={group.sport.name} />
-                    <h3 className="font-bold text-black text-base">Sân {group.sport.name}</h3>
+                    <h3 className="font-bold text-black text-base">{t("courtGroupTitle", { sport: group.sport.name })}</h3>
                     <div className="flex-1 h-0.5 bg-emerald-400 rounded ml-1" />
                   </div>
                   {group.courts.map((court) => (
@@ -634,7 +649,7 @@ export default function FacilityDetailPage() {
           <div>
             {joinToast && (
               <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium text-white flex items-center gap-2 ${
-                joinToast.startsWith("✓") || joinToast.includes("thành công") ? "bg-emerald-500" : "bg-red-500"
+                joinToastSuccess ? "bg-emerald-500" : "bg-red-500"
               }`}>
                 {joinToast}
               </div>
@@ -643,7 +658,7 @@ export default function FacilityDetailPage() {
             {/* Nút đăng bài */}
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-semibold text-gray-700">
-                {matchPosts.length > 0 ? `${matchPosts.length} bài đăng đang mở` : "Chưa có bài đăng"}
+                {matchPosts.length > 0 ? t("postsOpen", { count: matchPosts.length }) : t("noPostsYet")}
               </p>
               {session && (
                 <button
@@ -654,7 +669,7 @@ export default function FacilityDetailPage() {
                       : "bg-emerald-500 hover:bg-emerald-400 text-white"
                   }`}
                 >
-                  {showCreateForm ? "✕ Đóng" : "+ Đăng tìm đồng đội"}
+                  {showCreateForm ? t("closeForm") : t("createPost")}
                 </button>
               )}
             </div>
@@ -668,35 +683,35 @@ export default function FacilityDetailPage() {
               >
                 <h3 className="font-bold text-black text-base flex items-center gap-2">
                   <img src="/group.png" className="w-5 h-5" alt="" />
-                  Đăng tìm đồng đội tại {facility.name}
+                  {t("createFormTitle", { name: facility.name })}
                 </h3>
 
                 {/* Môn thể thao + Trình độ */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-600 font-medium mb-1 block">Môn thể thao *</label>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">{t("sportLabel")}</label>
                     <select
                       value={createForm.categoryId}
                       onChange={(e) => handleCreateSportChange(e.target.value)}
                       required
                       className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
                     >
-                      <option value="">-- Chọn môn --</option>
+                      <option value="">{t("chooseSport")}</option>
                       {facility.sports.map((s) => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600 font-medium mb-1 block">Trình độ *</label>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">{t("levelLabel")}</label>
                     <select
                       value={createForm.level}
                       onChange={(e) => setCreateForm((f) => ({ ...f, level: e.target.value }))}
                       className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
                     >
-                      <option value="BEGINNER">Người mới</option>
-                      <option value="INTERMEDIATE">Trung bình</option>
-                      <option value="PRO">Chuyên nghiệp</option>
+                      <option value="BEGINNER">{t("beginner")}</option>
+                      <option value="INTERMEDIATE">{t("intermediate")}</option>
+                      <option value="PRO">{t("pro")}</option>
                     </select>
                   </div>
                 </div>
@@ -704,9 +719,9 @@ export default function FacilityDetailPage() {
                 {/* Chọn sân cụ thể */}
                 {createForm.categoryId && (
                   <div>
-                    <label className="text-xs text-gray-600 font-medium mb-1 block">Sân *</label>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">{t("courtLabel")}</label>
                     {createFilteredCourts.length === 0 ? (
-                      <p className="text-xs text-gray-400">Không có sân nào cho môn này</p>
+                      <p className="text-xs text-gray-400">{t("noCourtsForSport")}</p>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">
                         {createFilteredCourts.map((court) => (
@@ -743,7 +758,7 @@ export default function FacilityDetailPage() {
                 {/* Ngày chơi */}
                 {createForm.courtId && (
                   <div>
-                    <label className="text-xs text-gray-600 font-medium mb-1 block">Ngày chơi *</label>
+                    <label className="text-xs text-gray-600 font-medium mb-1 block">{t("matchDate")}</label>
                     <input
                       type="date"
                       value={createForm.matchDate}
@@ -772,30 +787,29 @@ export default function FacilityDetailPage() {
                   }, 0);
                   return (
                     <div>
-                      <label className="text-xs text-gray-600 font-medium mb-2 block">Chọn khung giờ *</label>
-                      {/* Chú thích */}
+                      <label className="text-xs text-gray-600 font-medium mb-2 block">{t("selectSlot")}</label>
                       <div className="flex gap-2 flex-wrap text-xs mb-3">
                         <span className="flex items-center gap-1">
                           <span className="w-3 h-3 rounded inline-block" style={{ background: "#96CDCD", border: "1px solid #D1EEEE" }}></span>
-                          <span className="text-gray-600">Còn trống</span>
+                          <span className="text-gray-600">{t("availableLegend")}</span>
                         </span>
                         <span className="flex items-center gap-1">
                           <span className="w-3 h-3 rounded inline-block" style={{ background: "#EED5D2" }}></span>
-                          <span className="text-gray-600">Đã đặt</span>
+                          <span className="text-gray-600">{t("bookedLegend")}</span>
                         </span>
                         {(weekend3 || holiday3) && (
                           <span className="flex items-center gap-1">
                             <span className="w-3 h-3 rounded inline-block" style={{ background: "#FFD580" }}></span>
-                            <span className="text-gray-600">Cao điểm sáng</span>
+                            <span className="text-gray-600">{t("morningPeakLegend")}</span>
                           </span>
                         )}
                         <span className="flex items-center gap-1">
                           <span className="w-3 h-3 rounded inline-block" style={{ background: "#9BCD9B" }}></span>
-                          <span className="text-gray-600">Cao điểm chiều</span>
+                          <span className="text-gray-600">{t("afternoonPeakLegend")}</span>
                         </span>
                         <span className="flex items-center gap-1">
                           <span className="w-3 h-3 rounded inline-block" style={{ background: "#B0C4DE" }}></span>
-                          <span className="text-gray-600">Đang chọn</span>
+                          <span className="text-gray-600">{t("selectedLegend")}</span>
                         </span>
                       </div>
                       {createLoadingSlots ? (
@@ -843,11 +857,11 @@ export default function FacilityDetailPage() {
                       {createSelectedSlots.length > 0 && (
                         <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between">
                           <div>
-                            <p className="text-xs text-gray-500">{createSelectedSlots.length} slot · {createForm.startTime} – {createForm.endTime}</p>
-                            <p className="font-bold text-emerald-600">{totalCreatePrice.toLocaleString("vi-VN")}đ</p>
+                            <p className="text-xs text-gray-500">{t("slotRange", { count: createSelectedSlots.length, start: createForm.startTime, end: createForm.endTime })}</p>
+                            <p className="font-bold text-emerald-600">{totalCreatePrice.toLocaleString(dateLocale)}đ</p>
                           </div>
                           <button type="button" onClick={() => { setCreateSelectedSlots([]); setCreateForm((f) => ({ ...f, startTime: "", endTime: "", totalPrice: "" })); }}
-                            className="text-xs text-gray-400 hover:text-red-500 transition-colors">Xóa chọn</button>
+                            className="text-xs text-gray-400 hover:text-red-500 transition-colors">{t("clearSelection")}</button>
                         </div>
                       )}
                     </div>
@@ -856,7 +870,7 @@ export default function FacilityDetailPage() {
 
                 {/* Số người */}
                 <div>
-                  <label className="text-xs text-gray-600 font-medium mb-1 block">Cần bao nhiêu người? *</label>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">{t("playersNeededLabel")}</label>
                   <input
                     type="number"
                     value={createForm.requiredPlayers}
@@ -864,16 +878,16 @@ export default function FacilityDetailPage() {
                     min="2" max="30" required
                     className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Tổng số người cần (bao gồm bạn)</p>
+                  <p className="text-xs text-gray-400 mt-1">{t("playersHint")}</p>
                 </div>
 
                 {/* Mô tả */}
                 <div>
-                  <label className="text-xs text-gray-600 font-medium mb-1 block">Mô tả (không bắt buộc)</label>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">{t("descLabel")}</label>
                   <textarea
                     value={createForm.description}
                     onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-                    placeholder="VD: Tìm 3 người chơi pickleball trình độ beginner, vui vẻ..."
+                    placeholder={t("descPlaceholder")}
                     rows={2}
                     className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none"
                   />
@@ -881,10 +895,10 @@ export default function FacilityDetailPage() {
 
                 {createForm.totalPrice && Number(createForm.totalPrice) > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
-                    <p className="font-semibold mb-0.5">Thanh toán khi đăng bài</p>
-                    <p>Bạn sẽ thanh toán <span className="font-bold">{Number(createForm.totalPrice).toLocaleString("vi-VN")}đ</span> từ ví SportHub để đặt sân.</p>
+                    <p className="font-semibold mb-0.5">{t("paymentOnPost")}</p>
+                    <p>{t("paymentDesc", { amount: Number(createForm.totalPrice).toLocaleString(dateLocale) + "đ" })}</p>
                     {Number(createForm.requiredPlayers) > 1 && (
-                      <p className="mt-0.5">Mỗi người tham gia trả lại <span className="font-bold">{Math.ceil(Number(createForm.totalPrice) / Number(createForm.requiredPlayers)).toLocaleString("vi-VN")}đ</span> vào ví bạn.</p>
+                      <p className="mt-0.5">{t("refundNote", { amount: Math.ceil(Number(createForm.totalPrice) / Number(createForm.requiredPlayers)).toLocaleString(dateLocale) + "đ" })}</p>
                     )}
                   </div>
                 )}
@@ -894,7 +908,7 @@ export default function FacilityDetailPage() {
                   disabled={createSubmitting || !createForm.startTime}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors"
                 >
-                  {createSubmitting ? "Đang xử lý..." : createForm.totalPrice && Number(createForm.totalPrice) > 0 ? "Đặt sân & Đăng tìm đồng đội" : "Đăng tìm đồng đội"}
+                  {createSubmitting ? t("processing") : createForm.totalPrice && Number(createForm.totalPrice) > 0 ? t("bookAndPost") : t("postTeammate")}
                 </button>
               </form>
             )}
@@ -905,7 +919,7 @@ export default function FacilityDetailPage() {
                 <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
                   <h3 className="font-bold text-black text-base mb-4 flex items-center gap-2">
                     <img src="/atm-card.png" className="w-5 h-5" alt="" />
-                    Xác nhận thanh toán
+                    {t("confirmPaymentTitle")}
                   </h3>
 
                   <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
@@ -918,7 +932,7 @@ export default function FacilityDetailPage() {
                     <div className="flex items-center gap-1.5 text-gray-700">
                       <img src="/calendar.png" className="w-3.5 h-3.5 flex-shrink-0" alt="" />
                       <span>
-                        {(() => { const [y,m,d] = createForm.matchDate.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit"}); })()}
+                        {(() => { const [y,m,d] = createForm.matchDate.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(dateLocale,{weekday:"long",day:"2-digit",month:"2-digit"}); })()}
                         {" · "}{createForm.startTime} – {createForm.endTime}
                       </span>
                     </div>
@@ -926,45 +940,45 @@ export default function FacilityDetailPage() {
 
                   <div className="space-y-2 mb-5">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Tổng tiền sân:</span>
-                      <span className="font-bold text-black">{Number(createForm.totalPrice || 0).toLocaleString("vi-VN")}đ</span>
+                      <span className="text-gray-600">{t("courtTotal")}</span>
+                      <span className="font-bold text-black">{Number(createForm.totalPrice || 0).toLocaleString(dateLocale)}đ</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Số dư ví hiện tại:</span>
+                      <span className="text-gray-600">{t("currentBalance")}</span>
                       <span className={`font-semibold ${walletBalance >= Number(createForm.totalPrice) ? "text-emerald-600" : "text-red-500"}`}>
-                        {walletBalance.toLocaleString("vi-VN")}đ
+                        {walletBalance.toLocaleString(dateLocale)}đ
                       </span>
                     </div>
                     <div className="border-t border-gray-100 pt-2 flex justify-between text-sm">
-                      <span className="text-gray-600">Số dư sau thanh toán:</span>
-                      <span className="font-semibold text-gray-700">{(walletBalance - Number(createForm.totalPrice || 0)).toLocaleString("vi-VN")}đ</span>
+                      <span className="text-gray-600">{t("balanceAfter")}</span>
+                      <span className="font-semibold text-gray-700">{(walletBalance - Number(createForm.totalPrice || 0)).toLocaleString(dateLocale)}đ</span>
                     </div>
                     {Number(createForm.requiredPlayers) > 1 && Number(createForm.totalPrice) > 0 && (
                       <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-700">
-                        <p>Phí tham gia / người: <span className="font-bold">{Math.ceil(Number(createForm.totalPrice) / Number(createForm.requiredPlayers)).toLocaleString("vi-VN")}đ</span></p>
-                        <p className="mt-0.5 text-emerald-600">Tiền của người tham gia sẽ hoàn lại vào ví bạn.</p>
+                        <p>{t("feePerPerson")} <span className="font-bold">{Math.ceil(Number(createForm.totalPrice) / Number(createForm.requiredPlayers)).toLocaleString(dateLocale)}đ</span></p>
+                        <p className="mt-0.5 text-emerald-600">{t("refundToWallet")}</p>
                       </div>
                     )}
                   </div>
 
                   {walletBalance < Number(createForm.totalPrice || 0) && (
                     <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center justify-between">
-                      <span>Số dư ví không đủ.</span>
+                      <span>{t("insufficientBalance")}</span>
                       <button onClick={() => { setShowCreatePayConfirm(false); router.push("/profile?tab=wallet"); }}
-                        className="underline font-medium ml-2">Nạp ví ngay</button>
+                        className="underline font-medium ml-2">{t("topupNow")}</button>
                     </div>
                   )}
 
                   <div className="flex gap-3">
                     <button onClick={() => setShowCreatePayConfirm(false)}
                       className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                      Hủy
+                      {t("cancel")}
                     </button>
                     <button
                       onClick={handleCreateConfirmPay}
                       disabled={createSubmitting || walletBalance < Number(createForm.totalPrice || 0)}
                       className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                      {createSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
+                      {createSubmitting ? t("processing") : t("confirmPayment")}
                     </button>
                   </div>
                 </div>
@@ -978,8 +992,8 @@ export default function FacilityDetailPage() {
             ) : matchPosts.length === 0 ? (
               <div className="text-center py-16 border border-gray-300 rounded-2xl" style={{ background: "#E0EEE0" }}>
                 <div className="flex justify-center mb-3"><img src="/group.png" alt="" className="w-12 h-12 opacity-40" /></div>
-                <p className="text-sm text-gray-500">Chưa có bài tìm đồng đội nào tại sân này</p>
-                <p className="text-xs text-gray-400 mt-1">Đặt sân và đăng bài để tìm người cùng chơi!</p>
+                <p className="text-sm text-gray-500">{t("noMatchPosts")}</p>
+                <p className="text-xs text-gray-400 mt-1">{t("noMatchPostsSub")}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -987,7 +1001,7 @@ export default function FacilityDetailPage() {
                   const isCreator = session && Number((session.user as any).id) === post.creator.id;
                   const canJoin = post.status === "OPEN" && !isCreator;
                   const [py, pm, pd] = post.matchDate.toString().split("T")[0].split("-").map(Number);
-                  const dateLabel = new Date(py, pm - 1, pd).toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+                  const dateLabel = new Date(py, pm - 1, pd).toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
                   return (
                     <div key={post.id} className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
                       {/* Header */}
@@ -1000,7 +1014,7 @@ export default function FacilityDetailPage() {
                           </div>
                         </div>
                         <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${post.status === "OPEN" ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-500"}`}>
-                          {post.status === "OPEN" ? "Đang mở" : "Đủ người"}
+                          {post.status === "OPEN" ? t("postOpen") : t("postFull")}
                         </span>
                       </div>
 
@@ -1009,7 +1023,7 @@ export default function FacilityDetailPage() {
                         {/* Sân */}
                         <div className="flex items-center gap-2 text-gray-700">
                           <img src="/list.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
-                          <span className="font-medium">{post.courtName || "Chưa rõ sân"}</span>
+                          <span className="font-medium">{post.courtName || t("unknownCourt")}</span>
                           <span className="text-gray-400">·</span>
                           <span className="text-gray-500">{post.facility.name}</span>
                         </div>
@@ -1029,10 +1043,9 @@ export default function FacilityDetailPage() {
                         <div className="flex items-center gap-2 text-gray-700">
                           <img src="/group.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
                           <span>
-                            <span className="font-semibold text-emerald-600">{post.joinedPlayers}</span>
-                            <span className="text-gray-400">/{post.requiredPlayers} người tham gia</span>
+                            {t("joinedPlayers", { joined: post.joinedPlayers, required: post.requiredPlayers })}
                             {post.remaining > 0 && (
-                              <span className="ml-1.5 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">còn {post.remaining} chỗ</span>
+                              <span className="ml-1.5 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">{t("spotsLeft", { count: post.remaining })}</span>
                             )}
                           </span>
                         </div>
@@ -1040,9 +1053,9 @@ export default function FacilityDetailPage() {
                         {post.pricePerPerson != null && post.pricePerPerson > 0 && (
                           <div className="flex items-center gap-2 border-t border-gray-100 pt-2 mt-1">
                             <img src="/atm-card.png" className="w-4 h-4 flex-shrink-0 opacity-60" alt="" />
-                            <span className="text-gray-600">Mỗi người trả:</span>
-                            <span className="font-bold text-emerald-600">{post.pricePerPerson.toLocaleString("vi-VN")}đ</span>
-                            <span className="text-xs text-gray-400">(qua ví SportHub)</span>
+                            <span className="text-gray-600">{t("perPersonPays")}</span>
+                            <span className="font-bold text-emerald-600">{post.pricePerPerson.toLocaleString(dateLocale)}đ</span>
+                            <span className="text-xs text-gray-400">{t("viaWallet")}</span>
                           </div>
                         )}
                       </div>
@@ -1054,18 +1067,18 @@ export default function FacilityDetailPage() {
 
                       {/* Footer */}
                       <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-400">Đăng bởi {post.creator.fullName}</p>
+                        <p className="text-xs text-gray-400">{t("postedBy", { name: post.creator.fullName })}</p>
                         {canJoin ? (
                           <button
                             onClick={() => { if (!session) { router.push("/login"); return; } setJoinModal(post); }}
                             className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-5 py-2 rounded-xl font-medium transition-colors flex items-center gap-1.5">
                             <img src="/group.png" className="w-4 h-4" alt="" />
-                            Tham gia
+                            {t("joinBtn")}
                           </button>
                         ) : isCreator ? (
-                          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-xl">Bài của bạn</span>
+                          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-xl">{t("yourPost")}</span>
                         ) : (
-                          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-xl">Đã đủ người</span>
+                          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-xl">{t("postFull")}</span>
                         )}
                       </div>
                     </div>
@@ -1080,60 +1093,60 @@ export default function FacilityDetailPage() {
                 <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
                   <div className="flex items-center gap-2 mb-4">
                     <img src="/group.png" className="w-6 h-6" alt="" />
-                    <h3 className="font-bold text-black text-lg">Xác nhận tham gia</h3>
+                    <h3 className="font-bold text-black text-lg">{t("confirmJoinTitle")}</h3>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2 text-sm mb-4">
                     <div className="flex items-center gap-2 text-gray-700">
                       <img src="/list.png" className="w-4 h-4 opacity-60" alt="" />
-                      <span className="font-medium">{joinModal.courtName || "Sân"}</span>
+                      <span className="font-medium">{joinModal.courtName || t("unknownCourt")}</span>
                       <span className="text-gray-400">·</span>
                       <span className="text-gray-500">{joinModal.facility.name}</span>
                     </div>
                     <div className="text-xs text-gray-500 pl-6">{joinModal.facility.address}</div>
                     <div className="flex items-center gap-2 text-gray-700">
                       <img src="/calendar.png" className="w-4 h-4 opacity-60" alt="" />
-                      <span>{(() => { const [jy,jm,jd] = joinModal.matchDate.toString().split("T")[0].split("-").map(Number); return new Date(jy,jm-1,jd).toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit"}); })()}</span>
+                      <span>{(() => { const [jy,jm,jd] = joinModal.matchDate.toString().split("T")[0].split("-").map(Number); return new Date(jy,jm-1,jd).toLocaleDateString(dateLocale,{weekday:"long",day:"2-digit",month:"2-digit"}); })()}</span>
                       <span className="text-gray-400">·</span>
                       <span className="font-medium">{joinModal.startTime} – {joinModal.endTime}</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-700">
                       <img src="/group.png" className="w-4 h-4 opacity-60" alt="" />
-                      <span>{joinModal.joinedPlayers}/{joinModal.requiredPlayers} người · còn {joinModal.remaining} chỗ</span>
+                      <span>{t("spotsInfo", { joined: joinModal.joinedPlayers, required: joinModal.requiredPlayers, remaining: joinModal.remaining })}</span>
                     </div>
                   </div>
 
                   {joinModal.pricePerPerson != null && joinModal.pricePerPerson > 0 ? (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-4">
                       <p className="text-sm text-emerald-800 font-semibold mb-1">
-                        Phí tham gia: {joinModal.pricePerPerson.toLocaleString("vi-VN")}đ
+                        {t("joinFee")} {joinModal.pricePerPerson.toLocaleString(dateLocale)}đ
                       </p>
                       <p className="text-xs text-emerald-700">
-                        Số dư ví: <span className={walletBalance >= joinModal.pricePerPerson ? "font-semibold text-emerald-600" : "font-semibold text-red-500"}>{walletBalance.toLocaleString("vi-VN")}đ</span>
+                        {t("walletBalanceLabel")} <span className={walletBalance >= joinModal.pricePerPerson ? "font-semibold text-emerald-600" : "font-semibold text-red-500"}>{walletBalance.toLocaleString(dateLocale)}đ</span>
                       </p>
                       {walletBalance < joinModal.pricePerPerson && (
                         <p className="text-xs text-red-600 mt-1">
-                          Số dư không đủ.{" "}
-                          <button onClick={() => { setJoinModal(null); router.push("/profile?tab=wallet"); }} className="underline font-medium">Nạp ví ngay</button>
+                          {t("insufficientWallet")}{" "}
+                          <button onClick={() => { setJoinModal(null); router.push("/profile?tab=wallet"); }} className="underline font-medium">{t("topupNow")}</button>
                         </p>
                       )}
                     </div>
                   ) : (
                     <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4">
-                      <p className="text-sm text-blue-700">Tham gia miễn phí</p>
+                      <p className="text-sm text-blue-700">{t("freeJoin")}</p>
                     </div>
                   )}
 
                   <div className="flex gap-3">
                     <button onClick={() => setJoinModal(null)}
                       className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                      Hủy
+                      {t("cancel")}
                     </button>
                     <button
                       onClick={() => handleJoin(joinModal)}
                       disabled={joining || (joinModal.pricePerPerson != null && joinModal.pricePerPerson > 0 && walletBalance < joinModal.pricePerPerson)}
                       className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                      {joining ? "Đang xử lý..." : "Xác nhận tham gia"}
+                      {joining ? t("processing") : t("confirmJoin")}
                     </button>
                   </div>
                 </div>
@@ -1146,20 +1159,20 @@ export default function FacilityDetailPage() {
         {activeTab === "services" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {facility.services.length === 0 ? (
-              <p className="text-gray-500 text-sm col-span-3 text-center py-10">Chưa có dịch vụ</p>
+              <p className="text-gray-500 text-sm col-span-3 text-center py-10">{t("noServices")}</p>
             ) : (
               facility.services.map((s) => (
                 <div key={s.id} className="border border-gray-300 rounded-xl p-4" style={{ background: "#E0EEE0" }}>
                   <div className="flex items-start justify-between mb-2">
                     <p className="font-semibold text-black text-sm">{s.name}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${s.type === "RENTAL" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
-                      {s.type === "RENTAL" ? "Thuê" : "Mua"}
+                      {s.type === "RENTAL" ? t("serviceRental") : t("serviceSale")}
                     </span>
                   </div>
-                  <p className="text-emerald-600 font-bold text-sm">{Number(s.price).toLocaleString("vi-VN")}đ</p>
-                  <p className="text-gray-400 text-xs mt-1">Còn {s.stockQuantity} sản phẩm</p>
+                  <p className="text-emerald-600 font-bold text-sm">{Number(s.price).toLocaleString(dateLocale)}đ</p>
+                  <p className="text-gray-400 text-xs mt-1">{t("stockLeft", { count: s.stockQuantity })}</p>
                   <button className="mt-3 w-full bg-white border border-emerald-400 text-emerald-600 hover:bg-emerald-50 text-sm py-2 rounded-lg transition-colors">
-                    + Thêm vào đơn
+                    {t("addToOrder")}
                   </button>
                 </div>
               ))
@@ -1174,19 +1187,19 @@ export default function FacilityDetailPage() {
             {session && !hasReviewed && !showReviewForm && (
               <div className="border border-amber-200 rounded-xl p-4 flex items-center justify-between" style={{ background: "#fffbeb" }}>
                 <div>
-                  <p className="text-sm font-medium text-black">Bạn đã từng chơi tại đây?</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Chia sẻ trải nghiệm để giúp người khác tìm sân!</p>
+                  <p className="text-sm font-medium text-black">{t("reviewPrompt")}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{t("reviewPromptSub")}</p>
                 </div>
                 <button
                   onClick={() => setShowReviewForm(true)}
                   className="bg-amber-500 hover:bg-amber-400 text-white text-sm px-4 py-2 rounded-xl transition-colors font-medium flex-shrink-0">
-                  <img src="/star.png" className="w-4 h-4 inline mr-1" alt="" />Viết đánh giá
+                  <img src="/star.png" className="w-4 h-4 inline mr-1" alt="" />{t("writeReview")}
                 </button>
               </div>
             )}
             {session && hasReviewed && (
               <div className="border border-emerald-200 rounded-xl p-3 text-center text-sm text-emerald-700" style={{ background: "#f0fdf4" }}>
-                Bạn đã đánh giá cơ sở này
+                {t("alreadyReviewed")}
               </div>
             )}
 
@@ -1194,7 +1207,7 @@ export default function FacilityDetailPage() {
             {showReviewForm && (
               <div className="border border-amber-300 rounded-2xl p-5" style={{ background: "#fffbeb" }}>
                 <h3 className="font-semibold text-black mb-3 flex items-center gap-2">
-                  <img src="/star.png" alt="" className="w-5 h-5" /> Viết đánh giá của bạn
+                  <img src="/star.png" alt="" className="w-5 h-5" /> {t("writeYourReview")}
                 </h3>
                 <div className="flex gap-2 mb-3">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -1205,25 +1218,25 @@ export default function FacilityDetailPage() {
                   ))}
                   {reviewRating > 0 && (
                     <span className="text-sm text-gray-500 ml-2 self-center">
-                      {["", "Rất tệ", "Tệ", "Bình thường", "Tốt", "Tuyệt vời"][reviewRating]}
+                      {["", t("rating1"), t("rating2"), t("rating3"), t("rating4"), t("rating5")][reviewRating]}
                     </span>
                   )}
                 </div>
                 <textarea
                   value={reviewComment}
                   onChange={(e) => setReviewComment(e.target.value)}
-                  placeholder="Chia sẻ trải nghiệm của bạn... (không bắt buộc)"
+                  placeholder={t("reviewPlaceholder")}
                   rows={3}
                   className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 resize-none mb-3"
                 />
                 <div className="flex gap-3">
                   <button onClick={() => { setShowReviewForm(false); setReviewRating(0); setReviewComment(""); }}
                     className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                    Hủy
+                    {t("cancel")}
                   </button>
                   <button onClick={submitFacilityReview} disabled={reviewSubmitting || reviewRating === 0}
                     className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-300 text-white py-2 rounded-xl text-sm font-medium transition-colors">
-                    {reviewSubmitting ? "Đang gửi..." : "Gửi đánh giá"}
+                    {reviewSubmitting ? t("submitting") : t("submitReview")}
                   </button>
                 </div>
               </div>
@@ -1231,7 +1244,7 @@ export default function FacilityDetailPage() {
 
             {/* Toast */}
             {reviewToast && (
-              <div className={`px-4 py-3 rounded-xl text-sm font-medium text-white ${reviewToast.includes("Cảm ơn") || reviewToast.includes("thành công") ? "bg-emerald-500" : "bg-red-500"}`}>
+              <div className={`px-4 py-3 rounded-xl text-sm font-medium text-white ${reviewToastSuccess ? "bg-emerald-500" : "bg-red-500"}`}>
                 {reviewToast}
               </div>
             )}
@@ -1239,8 +1252,8 @@ export default function FacilityDetailPage() {
             {facility.reviews.length === 0 && !showReviewForm ? (
               <div className="text-center py-16 text-gray-500 border border-gray-300 rounded-2xl" style={{ background: "#E0EEE0" }}>
                 <div className="flex justify-center mb-3"><img src="/star.png" alt="" className="w-12 h-12 opacity-40" /></div>
-                <p className="text-sm">Chưa có đánh giá nào</p>
-                <p className="text-xs mt-1 text-gray-400">Hãy là người đầu tiên đánh giá!</p>
+                <p className="text-sm">{t("noReviews")}</p>
+                <p className="text-xs mt-1 text-gray-400">{t("beFirst")}</p>
               </div>
             ) : (
               facility.reviews.map((r) => (
@@ -1250,7 +1263,7 @@ export default function FacilityDetailPage() {
                     <span className="flex items-center gap-0.5">{Array.from({ length: r.rating }).map((_, i) => <img key={i} src="/star.png" alt="" className="w-3.5 h-3.5" />)}</span>
                   </div>
                   {r.comment && <p className="text-gray-600 text-sm">{r.comment}</p>}
-                  <p className="text-gray-400 text-xs mt-2">{new Date(r.createdAt).toLocaleDateString("vi-VN")}</p>
+                  <p className="text-gray-400 text-xs mt-2">{new Date(r.createdAt).toLocaleDateString(dateLocale)}</p>
                 </div>
               ))
             )}
@@ -1258,7 +1271,7 @@ export default function FacilityDetailPage() {
         )}
 
         <button onClick={() => router.back()} className="mt-8 text-sm text-gray-500 hover:text-black transition-colors">
-          ← Quay lại
+          {t("back")}
         </button>
       </div>
     </div>

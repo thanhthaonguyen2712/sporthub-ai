@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -7,18 +7,23 @@ import VietnamAddressInput from "@/components/VietnamAddressInput";
 import { useTranslations } from "next-intl";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-interface Facility { id: number; name: string; address: string; description: string; isActive: boolean; courtCount: number; staffCount: number; sports: { id: number; name: string }[] }
+interface Facility { id: number; name: string; address: string; description: string; isActive: boolean; courtCount: number; staffCount: number; imageUrl?: string | null; sports: { id: number; name: string }[] }
 interface StaffRecord { staffRecordId: number; facilityId: number; facilityName: string; role: string; joinedAt: string; user: { id: number; fullName: string; email: string; phone: string; role: string; isLocked: boolean }; wageConfig: { wageType: string; wageRate: number } | null }
-interface AttendanceStaff { userId: number; fullName: string; role: string; totalHours: number; presentDays: number; records: { id: number; date: string; checkIn: string | null; checkOut: string | null; totalHours: string | null; status: string }[] }
-interface SalaryRecord { id: number; staffId: number; month: number; year: number; totalHours: number; wageRate: number; wageType: string; baseSalary: number; bonus: number; finalSalary: number; isPaid: boolean; paidAt: string | null; staff: { fullName: string; email: string } }
+interface AttendanceRecord { id: number; date: string; checkIn: string | null; checkOut: string | null; totalHours: string | null; status: string; isLate: boolean; forgotCheckIn: boolean; forgotCheckOut: boolean; overtimeMinutes: number; shift: { id: number; name: string; startTime: string; endTime: string } | null }
+interface AttendanceStaff { userId: number; fullName: string; role: string; wageType: string | null; totalHours: number | null; presentDays: number; lateDays: number; forgotCheckInCount: number; forgotCheckOutCount: number; overtimeTotalMinutes: number; records: AttendanceRecord[] }
+interface SalaryStaffRow { userId: number; fullName: string; role: string; wageConfig: { wageType: string; wageRate: number } | null; attendance: { totalHours: number | null; presentDays: number; lateDays: number; forgotCheckOutCount: number; overtimeHours: number }; salaryRecord: { id: number; baseSalary: number; bonus: number; overtimeHours: number; overtimePay: number; penaltyAmount: number; finalSalary: number; wageRate: number; wageType: string; isPaid: boolean; paidAt: string | null } | null }
 interface WageConfig { id: number; staffId: number; wageType: string; wageRate: number; staff: { id: number; fullName: string } }
-interface Service { id: number; name: string; type: string; price: string; stockQuantity: number; isActive: boolean; imageUrl?: string | null }
+interface Service { id: number; name: string; type: string; price: string; stockQuantity: number; monthlyThreshold: number; isActive: boolean; imageUrl?: string | null; soldThisMonth?: number }
 interface Invoice { id: number; createdAt: string; finalTotal: string; paymentMethod: string; staffName: string; customerName: string; courtName: string; items: { name: string; quantity: number; price: string }[] }
+interface PricingRule { id?: number; startTime: string; endTime: string; pricePerHour: number; dayType: "WEEKDAY" | "WEEKEND" | "HOLIDAY"; isPeak: boolean; priority: number }
+interface WorkShift { id: number; name: string; shiftDate: string; startTime: string; endTime: string; maxStaff: number; status: string; note: string | null; registrations: { id: number; staffId: number; status: string; staff: { id: number; fullName: string; phone: string } }[] }
+interface CourtLock { id: number; reason: string; note: string | null; startDate: string; endDate: string; isActive: boolean; locker: { fullName: string } }
 
 const TAB_IDS = [
   { id: "overview",   labelKey: "tabOverview"   },
   { id: "facilities", labelKey: "tabFacilities" },
   { id: "staff",      labelKey: "tabStaff"      },
+  { id: "shifts",     labelKey: "tabShifts"     },
   { id: "attendance", labelKey: "tabAttendance" },
   { id: "salary",     labelKey: "tabSalary"     },
   { id: "invoices",   labelKey: "tabInvoices"   },
@@ -62,12 +67,22 @@ function FacilitiesTab() {
   const [sports, setSports] = useState<{ id: number; name: string }[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: "", address: "", description: "", sportIds: [] as number[], latitude: "", longitude: "" });
+  const [form, setForm] = useState({ name: "", address: "", description: "", sportIds: [] as number[], latitude: "", longitude: "", imageUrl: "" });
   const [geocoding, setGeocoding] = useState(false);
+  const [facilityImgUploading, setFacilityImgUploading] = useState(false);
   const [courtForm, setCourtForm] = useState({ name: "", categoryId: "", weekdayPrice: "", weekendPrice: "", peakPrice: "" });
   const [facilityId, setFacilityId] = useState<number | null>(null);
   const [courts, setCourts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  // Court detail management
+  const [managingCourtId, setManagingCourtId] = useState<number | null>(null);
+  const [managingTab, setManagingTab] = useState<"pricing" | "schedule" | "lock">("pricing");
+  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [scheduleData, setScheduleData] = useState<any>(null);
+  const [scheduleDate, setScheduleDate] = useState(() => { const d = new Date(); return d.toISOString().substring(0,10); });
+  const [courtLocks, setCourtLocks] = useState<CourtLock[]>([]);
+  const [lockForm, setLockForm] = useState({ reason: "INCIDENT", note: "", startDate: "", endDate: "", notifyCustomers: true });
 
   useEffect(() => {
     fetch("/api/owner/facilities").then(r => r.json()).then(setFacilities);
@@ -81,13 +96,92 @@ function FacilitiesTab() {
     setExpandedId(fid);
   }, []);
 
+  async function openCourtManage(courtId: number, tab: "pricing" | "schedule" | "lock") {
+    setManagingCourtId(courtId);
+    setManagingTab(tab);
+    if (tab === "pricing") {
+      const court = courts.find((c: any) => c.id === courtId);
+      if (court?.pricingRules) {
+        setPricingRules(court.pricingRules.map((r: any) => ({
+          id: r.id,
+          startTime: new Date(r.startTime).toISOString().substring(11,16),
+          endTime: new Date(r.endTime).toISOString().substring(11,16),
+          pricePerHour: Number(r.pricePerHour),
+          dayType: r.dayType,
+          isPeak: r.isPeak || false,
+          priority: r.priority || 0,
+        })));
+      } else {
+        setPricingRules([]);
+      }
+    } else if (tab === "schedule") {
+      await loadSchedule(courtId);
+    } else if (tab === "lock") {
+      await loadLocks(courtId);
+    }
+  }
+
+  async function loadSchedule(courtId: number) {
+    const endDate = new Date(); endDate.setDate(endDate.getDate() + 30);
+    const res = await fetch(`/api/owner/courts/${courtId}/schedule?startDate=${scheduleDate}&endDate=${endDate.toISOString().substring(0,10)}`);
+    const data = await res.json();
+    setScheduleData(data);
+  }
+
+  async function loadLocks(courtId: number) {
+    const res = await fetch(`/api/owner/courts/${courtId}/lock`);
+    const data = await res.json();
+    setCourtLocks(Array.isArray(data) ? data : []);
+  }
+
+  async function savePricingRules() {
+    if (!managingCourtId) return;
+    setSavingPricing(true);
+    await fetch(`/api/owner/courts/${managingCourtId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pricingRules }),
+    });
+    setSavingPricing(false);
+    alert("Đã lưu khung giờ & giá!");
+    if (facilityId) loadCourts(facilityId);
+  }
+
+  function addPricingRule() {
+    setPricingRules(prev => [...prev, { startTime: "06:00", endTime: "17:00", pricePerHour: 0, dayType: "WEEKDAY", isPeak: false, priority: 0 }]);
+  }
+
+  function removePricingRule(idx: number) {
+    setPricingRules(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  async function addLock() {
+    if (!managingCourtId || !lockForm.startDate || !lockForm.endDate) { alert("Vui lòng điền đầy đủ thông tin"); return; }
+    const res = await fetch(`/api/owner/courts/${managingCourtId}/lock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lockForm),
+    });
+    if (res.ok) {
+      setLockForm({ reason: "INCIDENT", note: "", startDate: "", endDate: "", notifyCustomers: true });
+      await loadLocks(managingCourtId);
+    } else { const d = await res.json(); alert(d.error); }
+  }
+
+  async function removeLock(lockId: number) {
+    if (!managingCourtId) return;
+    if (!confirm("Mở khóa sân này?")) return;
+    await fetch(`/api/owner/courts/${managingCourtId}/lock?lockId=${lockId}`, { method: "DELETE" });
+    await loadLocks(managingCourtId);
+  }
+
   async function createFacility() {
     setLoading(true);
     const res = await fetch("/api/owner/facilities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     setLoading(false);
     if (res.ok) {
       setShowForm(false);
-      setForm({ name: "", address: "", description: "", sportIds: [], latitude: "", longitude: "" });
+      setForm({ name: "", address: "", description: "", sportIds: [], latitude: "", longitude: "", imageUrl: "" });
       fetch("/api/owner/facilities").then(r => r.json()).then(setFacilities);
     } else { const d = await res.json(); alert(d.error); }
   }
@@ -181,6 +275,15 @@ function FacilitiesTab() {
               )}
             </div>
             <textarea className={INPUT} rows={2} placeholder="Mô tả" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            <div className="border border-gray-200 rounded-xl p-3 bg-white/50">
+              <p className="text-xs text-gray-500 font-medium mb-2">Ảnh cơ sở</p>
+              <ImageUpload
+                value={form.imageUrl}
+                onChange={url => setForm(f => ({ ...f, imageUrl: url }))}
+                uploading={facilityImgUploading}
+                setUploading={setFacilityImgUploading}
+              />
+            </div>
             <div>
               <p className="text-xs text-gray-500 mb-1.5">Môn thể thao:</p>
               <div className="flex flex-wrap gap-2">
@@ -203,8 +306,13 @@ function FacilitiesTab() {
       <div className="space-y-3">
         {facilities.map(f => (
           <div key={f.id} className={CARD} style={BG}>
-            <div className="flex justify-between items-start">
-              <div>
+            <div className="flex justify-between items-start gap-3">
+              {f.imageUrl && (
+                <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200 shrink-0">
+                  <img src={f.imageUrl} alt={f.name} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-black">{f.name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{f.address}</p>
                 <div className="flex gap-2 mt-1.5 flex-wrap">
@@ -225,12 +333,164 @@ function FacilitiesTab() {
                 {courts.length === 0 ? <p className="text-xs text-gray-400">Chưa có sân nào</p> : (
                   <div className="space-y-2 mb-4">
                     {courts.map((c: any) => (
-                      <div key={c.id} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5 border border-gray-200">
-                        <div>
-                          <p className="text-sm font-medium text-black">{c.name}</p>
-                          <p className="text-xs text-gray-500">{c.category?.name}</p>
+                      <div key={c.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                          <div>
+                            <p className="text-sm font-medium text-black">{c.name}</p>
+                            <p className="text-xs text-gray-500">{c.category?.name}</p>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button onClick={() => openCourtManage(c.id, "pricing")}
+                              className="bg-blue-500 hover:bg-blue-400 text-white px-2.5 py-1 rounded-lg text-xs transition-colors">
+                              Khung giờ & giá
+                            </button>
+                            <button onClick={() => openCourtManage(c.id, "schedule")}
+                              className="bg-purple-500 hover:bg-purple-400 text-white px-2.5 py-1 rounded-lg text-xs transition-colors">
+                              Lịch sân
+                            </button>
+                            <button onClick={() => openCourtManage(c.id, "lock")}
+                              className="bg-orange-500 hover:bg-orange-400 text-white px-2.5 py-1 rounded-lg text-xs transition-colors">
+                              Khóa sân
+                            </button>
+                            <button onClick={() => deleteCourt(c.id)} className={BTN_R}>Xóa</button>
+                          </div>
                         </div>
-                        <button onClick={() => deleteCourt(c.id)} className={BTN_R}>Xóa</button>
+
+                        {/* Court management panel */}
+                        {managingCourtId === c.id && (
+                          <div className="border-t border-gray-100 bg-gray-50 p-4">
+                            <div className="flex gap-1 mb-3">
+                              {(["pricing", "schedule", "lock"] as const).map(t => (
+                                <button key={t} onClick={() => { setManagingTab(t); if(t==="schedule") loadSchedule(c.id); if(t==="lock") loadLocks(c.id); }}
+                                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${managingTab === t ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300"}`}>
+                                  {t === "pricing" ? "Khung giờ & Giá" : t === "schedule" ? "Lịch hiện tại" : "Khóa sân"}
+                                </button>
+                              ))}
+                              <button onClick={() => setManagingCourtId(null)} className="ml-auto text-gray-400 hover:text-gray-600 text-xs">✕ Đóng</button>
+                            </div>
+
+                            {/* Pricing tab */}
+                            {managingTab === "pricing" && (
+                              <div>
+                                <div className="space-y-2 mb-3">
+                                  {pricingRules.map((rule, idx) => (
+                                    <div key={idx} className="grid grid-cols-6 gap-1.5 items-center bg-white p-2 rounded-lg border border-gray-200">
+                                      <select className={INPUT + " text-xs py-1"} value={rule.dayType}
+                                        onChange={e => setPricingRules(prev => prev.map((r,i) => i===idx ? {...r, dayType: e.target.value as any} : r))}>
+                                        <option value="WEEKDAY">Ngày thường</option>
+                                        <option value="WEEKEND">Cuối tuần</option>
+                                        <option value="HOLIDAY">Ngày lễ</option>
+                                      </select>
+                                      <input type="time" className={INPUT + " text-xs py-1"} value={rule.startTime}
+                                        onChange={e => setPricingRules(prev => prev.map((r,i) => i===idx ? {...r, startTime: e.target.value} : r))} />
+                                      <input type="time" className={INPUT + " text-xs py-1"} value={rule.endTime}
+                                        onChange={e => setPricingRules(prev => prev.map((r,i) => i===idx ? {...r, endTime: e.target.value} : r))} />
+                                      <input type="number" placeholder="Giá/giờ (đ)" className={INPUT + " text-xs py-1"} value={rule.pricePerHour}
+                                        onChange={e => setPricingRules(prev => prev.map((r,i) => i===idx ? {...r, pricePerHour: Number(e.target.value)} : r))} />
+                                      <label className="flex items-center gap-1 text-xs cursor-pointer">
+                                        <input type="checkbox" checked={rule.isPeak}
+                                          onChange={e => setPricingRules(prev => prev.map((r,i) => i===idx ? {...r, isPeak: e.target.checked, priority: e.target.checked ? 1 : 0} : r))} />
+                                        <span className={rule.isPeak ? "text-amber-600 font-semibold" : "text-gray-500"}>Cao điểm</span>
+                                      </label>
+                                      <button onClick={() => removePricingRule(idx)} className="text-red-400 hover:text-red-600 text-xs">✕ Xóa</button>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button onClick={addPricingRule} className={BTN_W + " text-xs py-1.5"}>+ Thêm khung giờ</button>
+                                  <button onClick={savePricingRules} disabled={savingPricing} className={BTN_G + " text-xs py-1.5"}>{savingPricing ? "Đang lưu..." : "Lưu tất cả"}</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Schedule tab */}
+                            {managingTab === "schedule" && (
+                              <div>
+                                <div className="flex gap-2 mb-3 items-center">
+                                  <input type="date" className={INPUT + " w-44 text-xs py-1"} value={scheduleDate}
+                                    onChange={e => setScheduleDate(e.target.value)} />
+                                  <button onClick={() => loadSchedule(c.id)} className={BTN_G + " text-xs py-1.5"}>Xem</button>
+                                </div>
+                                {scheduleData && (
+                                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                                    {scheduleData.locks?.length > 0 && (
+                                      <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-700 mb-2">
+                                        🔒 Sân đang bị khóa ({scheduleData.locks.map((l: any) => `${new Date(l.startDate).toLocaleDateString("vi-VN")} - ${new Date(l.endDate).toLocaleDateString("vi-VN")}`).join(", ")})
+                                      </div>
+                                    )}
+                                    {[...scheduleData.bookings || [], ...scheduleData.guestBookings || []].length === 0 ? (
+                                      <p className="text-xs text-gray-400 py-2">Không có lịch đặt</p>
+                                    ) : [...scheduleData.bookings || [], ...scheduleData.guestBookings || []].sort((a: any, b: any) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime()).map((b: any, idx: number) => (
+                                      <div key={idx} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs flex justify-between">
+                                        <div>
+                                          <span className="font-medium">{new Date(b.bookingDate).toLocaleDateString("vi-VN")}</span>
+                                          <span className="ml-2 text-gray-500">{new Date(b.startTime).toISOString().substring(11,16)} – {new Date(b.endTime).toISOString().substring(11,16)}</span>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="font-medium">{b.customer?.fullName || b.guestName || b.walkInName || "Khách vãng lai"}</p>
+                                          <p className="text-gray-400">{b.customer?.phone || b.guestPhone || ""}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Lock tab */}
+                            {managingTab === "lock" && (
+                              <div>
+                                {/* Existing locks */}
+                                {courtLocks.length > 0 && (
+                                  <div className="mb-3 space-y-1">
+                                    <p className="text-xs font-semibold text-gray-600 mb-1">Đang khóa:</p>
+                                    {courtLocks.map(lock => (
+                                      <div key={lock.id} className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex justify-between items-center text-xs">
+                                        <div>
+                                          <span className="font-medium text-red-700">{lock.reason === "INCIDENT" ? "Sự cố" : lock.reason === "MONTHLY_RENTAL" ? "Thuê tháng" : lock.reason === "ANNUAL_RENTAL" ? "Thuê năm" : "Bảo trì"}</span>
+                                          <span className="ml-2 text-gray-500">{new Date(lock.startDate).toLocaleDateString("vi-VN")} – {new Date(lock.endDate).toLocaleDateString("vi-VN")}</span>
+                                          {lock.note && <p className="text-gray-400 mt-0.5">{lock.note}</p>}
+                                        </div>
+                                        <button onClick={() => removeLock(lock.id)} className="text-gray-400 hover:text-red-500 transition-colors">Mở khóa</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* Add lock form */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                                  <p className="text-xs font-semibold text-gray-600">Thêm lịch khóa sân:</p>
+                                  <select className={INPUT + " text-xs py-1"} value={lockForm.reason}
+                                    onChange={e => setLockForm(f => ({ ...f, reason: e.target.value }))}>
+                                    <option value="INCIDENT">Sự cố / Hỏng hóc</option>
+                                    <option value="MAINTENANCE">Bảo trì</option>
+                                    <option value="MONTHLY_RENTAL">Cho thuê bao tháng</option>
+                                    <option value="ANNUAL_RENTAL">Cho thuê bao năm</option>
+                                  </select>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <p className="text-xs text-gray-500 mb-1">Từ ngày</p>
+                                      <input type="date" className={INPUT + " text-xs py-1"} value={lockForm.startDate}
+                                        onChange={e => setLockForm(f => ({ ...f, startDate: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-gray-500 mb-1">Đến ngày</p>
+                                      <input type="date" className={INPUT + " text-xs py-1"} value={lockForm.endDate}
+                                        onChange={e => setLockForm(f => ({ ...f, endDate: e.target.value }))} />
+                                    </div>
+                                  </div>
+                                  <input className={INPUT + " text-xs py-1"} placeholder="Ghi chú (tùy chọn)" value={lockForm.note}
+                                    onChange={e => setLockForm(f => ({ ...f, note: e.target.value }))} />
+                                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                    <input type="checkbox" checked={lockForm.notifyCustomers}
+                                      onChange={e => setLockForm(f => ({ ...f, notifyCustomers: e.target.checked }))} />
+                                    Gửi thông báo đến khách hàng có lịch đặt
+                                  </label>
+                                  <button onClick={addLock} className={BTN_G + " text-xs py-1.5 w-full"}>Khóa sân</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -355,11 +615,11 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
             <input className={INPUT} placeholder="Số điện thoại *" type="tel" autoComplete="off" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
             <input className={INPUT} placeholder="Mật khẩu *" type="password" autoComplete="new-password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
             <select className={INPUT} value={form.employmentType} onChange={e => setForm(f => ({ ...f, employmentType: e.target.value }))}>
-              <option value="PARTTIME">Bán thời gian (Part-time)</option>
-              <option value="FULLTIME">Toàn thời gian (Full-time)</option>
+              <option value="PARTTIME">Theo giờ (Hourly)</option>
+              <option value="FULLTIME">Theo ngày (Daily)</option>
             </select>
             <input className={INPUT} type="number" min="0"
-              placeholder={form.employmentType === "PARTTIME" ? "Lương theo giờ (nghìn đ)" : "Lương cơ bản/ngày (nghìn đ)"}
+              placeholder={form.employmentType === "PARTTIME" ? "Mức lương (nghìn đ/giờ)" : "Mức lương (nghìn đ/ngày)"}
               value={form.wageRate} onChange={e => setForm(f => ({ ...f, wageRate: e.target.value }))} />
           </div>
           <div className="flex gap-2 justify-end mt-3">
@@ -381,11 +641,11 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
               <option value="WAREHOUSE_MANAGER">Quản lý kho</option>
             </select>
             <select className={INPUT} value={editForm.employmentType} onChange={e => setEditForm(f => ({ ...f, employmentType: e.target.value }))}>
-              <option value="PARTTIME">Bán thời gian (Part-time)</option>
-              <option value="FULLTIME">Toàn thời gian (Full-time)</option>
+              <option value="PARTTIME">Theo giờ (Hourly)</option>
+              <option value="FULLTIME">Theo ngày (Daily)</option>
             </select>
             <input className={INPUT} type="number" min="0"
-              placeholder={editForm.employmentType === "PARTTIME" ? "Lương theo giờ (nghìn đ)" : "Lương cơ bản/ngày (nghìn đ)"}
+              placeholder={editForm.employmentType === "PARTTIME" ? "Mức lương (nghìn đ/giờ)" : "Mức lương (nghìn đ/ngày)"}
               value={editForm.wageRate} onChange={e => setEditForm(f => ({ ...f, wageRate: e.target.value }))} />
             <div className="flex items-center text-xs text-gray-500 px-1">
               Ngày bắt đầu: {new Date(editingStaff.joinedAt).toLocaleDateString("vi-VN")}
@@ -432,7 +692,7 @@ function StaffTab({ facilities }: { facilities: Facility[] }) {
                   {s.wageConfig ? (
                     <div>
                       <span className={`px-2 py-0.5 rounded-full ${s.wageConfig.wageType === "DAILY" ? "bg-purple-100 text-purple-700" : "bg-sky-100 text-sky-700"}`}>
-                        {s.wageConfig.wageType === "DAILY" ? "Full-time" : "Part-time"}
+                        {s.wageConfig.wageType === "DAILY" ? "Theo ngày" : "Theo giờ"}
                       </span>
                       <p className="text-gray-500 mt-0.5">{Number(s.wageConfig.wageRate).toLocaleString("vi-VN")}đ/{s.wageConfig.wageType === "DAILY" ? "ngày" : "giờ"}</p>
                     </div>
@@ -469,10 +729,15 @@ function AttendanceTab({ facilities }: { facilities: Facility[] }) {
   const [data, setData] = useState<AttendanceStaff[]>([]);
   const [expandedStaff, setExpandedStaff] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [viewMode, setViewMode] = useState<"month" | "day">("month");
+  const [selectedDate, setSelectedDate] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`);
 
   async function load() {
     if (!facilityId) { alert("Vui lòng chọn cơ sở"); return; }
-    const res = await fetch(`/api/owner/attendance?facilityId=${facilityId}&month=${month}&year=${year}`);
+    const params = viewMode === "day"
+      ? `facilityId=${facilityId}&viewMode=day&date=${selectedDate}`
+      : `facilityId=${facilityId}&viewMode=month&month=${month}&year=${year}`;
+    const res = await fetch(`/api/owner/attendance?${params}`);
     const d = await res.json();
     setData(d);
     setLoaded(true);
@@ -483,6 +748,14 @@ function AttendanceTab({ facilities }: { facilities: Facility[] }) {
   return (
     <div>
       <div className={CARD} style={BG}>
+        <div className="flex gap-1 mb-3">
+          {(["month", "day"] as const).map(v => (
+            <button key={v} onClick={() => setViewMode(v)}
+              className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors border ${viewMode === v ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"}`}>
+              {v === "month" ? "Theo tháng" : "Theo ngày"}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-3 items-end">
           <div>
             <p className="text-xs text-gray-500 mb-1">Cơ sở</p>
@@ -491,18 +764,28 @@ function AttendanceTab({ facilities }: { facilities: Facility[] }) {
               {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Tháng</p>
-            <select className={INPUT + " w-28"} value={month} onChange={e => setMonth(Number(e.target.value))}>
-              {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>)}
-            </select>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Năm</p>
-            <select className={INPUT + " w-28"} value={year} onChange={e => setYear(Number(e.target.value))}>
-              {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
+          {viewMode === "month" ? (
+            <>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Tháng</p>
+                <select className={INPUT + " w-28"} value={month} onChange={e => setMonth(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>)}
+                </select>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Năm</p>
+                <select className={INPUT + " w-28"} value={year} onChange={e => setYear(Number(e.target.value))}>
+                  {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Ngày</p>
+              <input type="date" className={INPUT + " w-44"} value={selectedDate}
+                onChange={e => { setSelectedDate(e.target.value); }} />
+            </div>
+          )}
           <button onClick={load} className={BTN_G}>Xem</button>
         </div>
       </div>
@@ -512,35 +795,79 @@ function AttendanceTab({ facilities }: { facilities: Facility[] }) {
           <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpandedStaff(expandedStaff === staff.userId ? null : staff.userId)}>
             <div>
               <p className="font-semibold text-black">{staff.fullName}</p>
-              <p className="text-xs text-gray-500">{staff.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Nhân viên"}</p>
+              <p className="text-xs text-gray-500">{staff.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Nhân viên"}{staff.wageType === "DAILY" ? " · Toàn thời gian" : ""}</p>
             </div>
-            <div className="flex gap-4 text-right text-sm">
+            <div className="flex gap-3 text-right text-sm flex-wrap justify-end">
               <div><p className="font-bold text-emerald-600">{staff.presentDays}</p><p className="text-xs text-gray-500">ngày</p></div>
-              <div><p className="font-bold text-blue-600">{staff.totalHours}h</p><p className="text-xs text-gray-500">giờ</p></div>
+              {staff.totalHours !== null && (
+                <div><p className="font-bold text-blue-600">{staff.totalHours}h</p><p className="text-xs text-gray-500">giờ</p></div>
+              )}
+              {staff.lateDays > 0 && (
+                <div><p className="font-bold text-orange-500">{staff.lateDays}</p><p className="text-xs text-gray-500">trễ</p></div>
+              )}
+              {staff.forgotCheckInCount > 0 && (
+                <div><p className="font-bold text-red-500">{staff.forgotCheckInCount}</p><p className="text-xs text-gray-500">quên vào</p></div>
+              )}
+              {staff.forgotCheckOutCount > 0 && (
+                <div><p className="font-bold text-red-500">{staff.forgotCheckOutCount}</p><p className="text-xs text-gray-500">quên ra</p></div>
+              )}
+              {staff.overtimeTotalMinutes > 0 && (
+                <div><p className="font-bold text-purple-600">{Math.round(staff.overtimeTotalMinutes / 60 * 10) / 10}h</p><p className="text-xs text-gray-500">tăng ca</p></div>
+              )}
               <span className="text-gray-400">{expandedStaff === staff.userId ? "▲" : "▼"}</span>
             </div>
           </div>
+
           {expandedStaff === staff.userId && (
             <div className="mt-3 overflow-auto">
               <table className="w-full text-xs">
-                <thead><tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Ngày</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Vào</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Ra</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Giờ</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Trạng thái</th>
-                </tr></thead>
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-3 font-semibold text-gray-600">Ngày</th>
+                    {viewMode === "day" && <th className="text-left py-2 px-3 font-semibold text-gray-600">Ca làm</th>}
+                    {viewMode === "day" && <th className="text-left py-2 px-3 font-semibold text-gray-600">Bắt đầu ca</th>}
+                    <th className="text-left py-2 px-3 font-semibold text-gray-600">Check-in</th>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-600">Check-out</th>
+                    {viewMode === "day" && <th className="text-left py-2 px-3 font-semibold text-gray-600">Kết thúc ca</th>}
+                    {staff.totalHours !== null && <th className="text-left py-2 px-3 font-semibold text-gray-600">Giờ</th>}
+                    <th className="text-left py-2 px-3 font-semibold text-gray-600">Nhãn</th>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-600">Trạng thái</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {staff.records.length === 0 ? (
-                    <tr><td colSpan={5} className="py-4 text-center text-gray-400">Không có dữ liệu</td></tr>
+                    <tr><td colSpan={8} className="py-4 text-center text-gray-400">Không có dữ liệu</td></tr>
                   ) : staff.records.map(r => (
                     <tr key={r.id} className="border-t border-gray-100">
                       <td className="py-2 px-3">{new Date(r.date).toLocaleDateString("vi-VN")}</td>
-                      <td className="py-2 px-3">{r.checkIn ? new Date(r.checkIn).toISOString().substring(11, 16) : "—"}</td>
-                      <td className="py-2 px-3">{r.checkOut ? new Date(r.checkOut).toISOString().substring(11, 16) : "—"}</td>
-                      <td className="py-2 px-3 font-medium">{r.totalHours ?? "—"}</td>
+                      {viewMode === "day" && (
+                        <td className="py-2 px-3 text-blue-600 font-medium">{r.shift?.name ?? "—"}</td>
+                      )}
+                      {viewMode === "day" && (
+                        <td className="py-2 px-3 text-gray-500">{r.shift ? new Date(r.shift.startTime).toISOString().substring(11,16) : "—"}</td>
+                      )}
+                      <td className={`py-2 px-3 ${r.isLate ? "text-red-500 font-semibold" : ""}`}>
+                        {r.checkIn ? new Date(r.checkIn).toISOString().substring(11,16) : (r.forgotCheckIn ? <span className="text-red-400 italic">Quên</span> : "—")}
+                      </td>
+                      <td className={`py-2 px-3 ${r.forgotCheckOut ? "text-orange-500" : ""}`}>
+                        {r.checkOut ? new Date(r.checkOut).toISOString().substring(11,16) : (r.forgotCheckOut ? <span className="text-orange-400 italic">Quên</span> : "—")}
+                      </td>
+                      {viewMode === "day" && (
+                        <td className="py-2 px-3 text-gray-500">{r.shift ? new Date(r.shift.endTime).toISOString().substring(11,16) : "—"}</td>
+                      )}
+                      {staff.totalHours !== null && (
+                        <td className="py-2 px-3 font-medium">{r.totalHours ?? "—"}</td>
+                      )}
                       <td className="py-2 px-3">
-                        <span className={`px-2 py-0.5 rounded-full ${r.status === "ABSENT" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700"}`}>
+                        <div className="flex flex-wrap gap-1">
+                          {r.isLate && <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-600">Trễ</span>}
+                          {r.forgotCheckIn && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-600">Quên check-in</span>}
+                          {r.forgotCheckOut && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-600">Quên check-out</span>}
+                          {r.overtimeMinutes > 0 && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">+{Math.round(r.overtimeMinutes/60*10)/10}h TC</span>}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`px-2 py-0.5 rounded-full ${r.status === "ABSENT" ? "bg-red-100 text-red-600" : r.status === "WORKING" ? "bg-yellow-100 text-yellow-700" : "bg-emerald-100 text-emerald-700"}`}>
                           {STATUS_LABEL[r.status] || r.status}
                         </span>
                       </td>
@@ -557,13 +884,6 @@ function AttendanceTab({ facilities }: { facilities: Facility[] }) {
 }
 
 // ─── Salary Tab ──────────────────────────────────────────────────────────────
-interface SalaryStaffRow {
-  userId: number; fullName: string; role: string;
-  wageConfig: { wageType: string; wageRate: number } | null;
-  attendance: { totalHours: number; presentDays: number };
-  salaryRecord: { id: number; baseSalary: number; bonus: number; finalSalary: number; wageRate: number; wageType: string; isPaid: boolean; paidAt: string | null } | null;
-}
-
 function SalaryTab({ facilities }: { facilities: Facility[] }) {
   const now = new Date();
   const [facilityId, setFacilityId] = useState<string>("");
@@ -571,8 +891,9 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
   const [year, setYear] = useState(now.getFullYear());
   const [staffData, setStaffData] = useState<SalaryStaffRow[]>([]);
   const [loaded, setLoaded] = useState(false);
-  // bonus đang nhập inline per nhân viên (userId → bonus string)
   const [bonusInputs, setBonusInputs] = useState<Record<number, string>>({});
+  const [overtimeInputs, setOvertimeInputs] = useState<Record<number, string>>({});
+  const [penaltyInputs, setPenaltyInputs] = useState<Record<number, string>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
 
   async function load() {
@@ -581,12 +902,17 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
     if (res.ok) {
       const d = await res.json();
       setStaffData(d.staffData || []);
-      // Khởi tạo bonus input từ salary record đã lưu
       const initBonus: Record<number, string> = {};
+      const initOvertime: Record<number, string> = {};
+      const initPenalty: Record<number, string> = {};
       (d.staffData || []).forEach((s: SalaryStaffRow) => {
         initBonus[s.userId] = s.salaryRecord ? String(s.salaryRecord.bonus / 1000) : "0";
+        initOvertime[s.userId] = s.salaryRecord ? String(s.salaryRecord.overtimePay / 1000) : "0";
+        initPenalty[s.userId] = s.salaryRecord ? String(s.salaryRecord.penaltyAmount / 1000) : "0";
       });
       setBonusInputs(initBonus);
+      setOvertimeInputs(initOvertime);
+      setPenaltyInputs(initPenalty);
       setLoaded(true);
     }
   }
@@ -595,11 +921,14 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
     if (!row.wageConfig) { alert("Nhân viên chưa có cấu hình lương. Vào tab Nhân viên để cài đặt."); return; }
     setSavingId(row.userId);
     const bonus = Number(bonusInputs[row.userId] || 0) * 1000;
+    const overtimePay = Number(overtimeInputs[row.userId] || 0) * 1000;
+    const penaltyAmount = Number(penaltyInputs[row.userId] || 0) * 1000;
     const res = await fetch("/api/owner/salary", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         facilityId: Number(facilityId), staffId: row.userId, month, year,
-        wageType: row.wageConfig.wageType, wageRate: row.wageConfig.wageRate, bonus,
+        wageType: row.wageConfig.wageType, wageRate: row.wageConfig.wageRate,
+        bonus, overtimePay, penaltyAmount,
       }),
     });
     setSavingId(null);
@@ -617,20 +946,55 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
     else { const d = await res.json(); alert(d.error); }
   }
 
-  // Tính lương dự kiến client-side
   function calcSalary(row: SalaryStaffRow) {
     if (!row.wageConfig) return null;
     const { wageType, wageRate } = row.wageConfig;
     const base = wageType === "HOURLY"
-      ? row.attendance.totalHours * wageRate
+      ? (row.attendance.totalHours ?? 0) * wageRate
       : row.attendance.presentDays * wageRate;
     const bonus = Number(bonusInputs[row.userId] || 0) * 1000;
-    return { base, bonus, total: base + bonus };
+    const overtime = Number(overtimeInputs[row.userId] || 0) * 1000;
+    const penalty = Number(penaltyInputs[row.userId] || 0) * 1000;
+    return { base, bonus, overtime, penalty, total: base + bonus + overtime - penalty };
   }
 
   const savedRows   = staffData.filter(s => s.salaryRecord);
   const totalPaid   = savedRows.filter(s => s.salaryRecord?.isPaid).reduce((a, s) => a + (s.salaryRecord?.finalSalary ?? 0), 0);
   const totalUnpaid = savedRows.filter(s => !s.salaryRecord?.isPaid).reduce((a, s) => a + (s.salaryRecord?.finalSalary ?? 0), 0);
+
+  function exportSalaryExcel() {
+    const cell = (v: string | number, type: "String" | "Number" = "String") =>
+      `<Cell><Data ss:Type="${type}">${String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</Data></Cell>`;
+    const xmlRow = (...cells: string[]) => `<Row>${cells.join("")}</Row>`;
+    const sheet = `<Worksheet ss:Name="Bảng lương T${month}-${year}"><Table>
+      ${xmlRow(cell("Họ tên"), cell("Chức danh"), cell("Ngày làm"), cell("Giờ làm"), cell("Lương cơ bản (đ)"), cell("Thưởng (đ)"), cell("Tăng ca (h)"), cell("Lương tăng ca (đ)"), cell("Tiền phạt (đ)"), cell("Trễ (ngày)"), cell("Quên check-out"), cell("Tổng lương (đ)"), cell("Trạng thái"))}
+      ${staffData.map(r => {
+        const calc = calcSalary(r);
+        const sal = r.salaryRecord;
+        return xmlRow(
+          cell(r.fullName),
+          cell(r.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Nhân viên"),
+          cell(r.attendance.presentDays, "Number"),
+          cell(r.attendance.totalHours ?? 0, "Number"),
+          cell(calc ? Number(calc.base) : sal ? Number(sal.baseSalary) : 0, "Number"),
+          cell(sal ? Number(sal.bonus) : Number(bonusInputs[r.userId] || 0) * 1000, "Number"),
+          cell(r.attendance.overtimeHours, "Number"),
+          cell(sal ? Number(sal.overtimePay) : Number(overtimeInputs[r.userId] || 0) * 1000, "Number"),
+          cell(sal ? Number(sal.penaltyAmount) : Number(penaltyInputs[r.userId] || 0) * 1000, "Number"),
+          cell(r.attendance.lateDays ?? 0, "Number"),
+          cell(r.attendance.forgotCheckOutCount ?? 0, "Number"),
+          cell(calc ? Number(calc.total) : sal ? Number(sal.finalSalary) : 0, "Number"),
+          cell(sal?.isPaid ? "Đã trả" : "Chưa trả"),
+        );
+      }).join("\n")}
+    </Table></Worksheet>`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${sheet}</Workbook>`;
+    const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `bang-luong-T${month}-${year}.xls`; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div>
@@ -657,6 +1021,11 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
             </select>
           </div>
           <button onClick={load} className={BTN_G}>Xem</button>
+          {loaded && staffData.length > 0 && (
+            <button onClick={exportSalaryExcel} className={BTN_W + " flex items-center gap-1.5"}>
+              ⬇ Xuất Excel
+            </button>
+          )}
         </div>
         <p className="text-xs text-gray-400 mt-2">Ngày trả lương mặc định: <span className="font-semibold text-gray-600">mùng 10 hằng tháng</span></p>
       </div>
@@ -668,90 +1037,128 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
             <span className="text-xs text-gray-500">{staffData.length} nhân viên</span>
           </div>
 
-          <div className="space-y-3 mb-4">
-            {staffData.length === 0 && (
-              <p className="text-center py-8 text-gray-400 text-sm">Chưa có nhân viên trong cơ sở này</p>
-            )}
-            {staffData.map(row => {
-              const calc = calcSalary(row);
-              const sal  = row.salaryRecord;
-              return (
-                <div key={row.userId} className={CARD + " !mb-0"} style={BG}>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    {/* Tên + loại hợp đồng */}
-                    <div className="min-w-0">
-                      <p className="font-semibold text-black">{row.fullName}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {row.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Nhân viên"}
-                        {row.wageConfig && (
-                          <span className="ml-2">· {row.wageConfig.wageType === "DAILY" ? "Full-time" : "Part-time"} · {Number(row.wageConfig.wageRate).toLocaleString("vi-VN")}đ/{row.wageConfig.wageType === "DAILY" ? "ngày" : "giờ"}</span>
+          <div className="overflow-auto rounded-2xl border border-gray-300 mb-4" style={BG}>
+            <table className="w-full text-sm min-w-max">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Họ tên</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Chức danh</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-700">Ngày làm</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-700">Giờ làm</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-700">Lương CB</th>
+                  <th className="text-center px-4 py-3 font-semibold text-amber-600">Thưởng (nghìn)</th>
+                  <th className="text-center px-4 py-3 font-semibold text-purple-600">Tăng ca (h)</th>
+                  <th className="text-center px-4 py-3 font-semibold text-purple-600">Lương TC (nghìn)</th>
+                  <th className="text-center px-4 py-3 font-semibold text-red-500">Tiền phạt (nghìn)</th>
+                  <th className="text-right px-4 py-3 font-semibold text-orange-500">Trễ / Q.CO</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-700">Tổng lương</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffData.length === 0 && (
+                  <tr><td colSpan={12} className="text-center py-8 text-gray-400">Chưa có nhân viên trong cơ sở này</td></tr>
+                )}
+                {staffData.map(row => {
+                  const calc = calcSalary(row);
+                  const sal = row.salaryRecord;
+                  return (
+                    <tr key={row.userId} className="border-t border-gray-100 hover:bg-white/50">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-black">{row.fullName}</p>
+                        {row.wageConfig ? (
+                          <p className="text-xs text-gray-400">{Number(row.wageConfig.wageRate).toLocaleString("vi-VN")}đ/{row.wageConfig.wageType === "DAILY" ? "ngày" : "giờ"}</p>
+                        ) : (
+                          <p className="text-xs text-amber-500">Chưa cấu hình lương</p>
                         )}
-                        {!row.wageConfig && <span className="ml-2 text-amber-500">Chưa cấu hình lương</span>}
-                      </p>
-                    </div>
-                    {/* Trạng thái thanh toán */}
-                    {sal?.isPaid && (
-                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full shrink-0">Đã trả lương</span>
-                    )}
-                  </div>
-
-                  {/* Thống kê chấm công + lương */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
-                      <p className="text-xs text-gray-500">Ngày làm</p>
-                      <p className="font-bold text-gray-800">{row.attendance.presentDays} ngày</p>
-                    </div>
-                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
-                      <p className="text-xs text-gray-500">Giờ làm</p>
-                      <p className="font-bold text-gray-800">{row.attendance.totalHours}h</p>
-                    </div>
-                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
-                      <p className="text-xs text-gray-500">Lương cơ bản</p>
-                      <p className="font-bold text-blue-600">
-                        {calc ? Number(calc.base).toLocaleString("vi-VN") : "—"}đ
-                      </p>
-                    </div>
-                    <div className="bg-white/70 rounded-xl px-3 py-2 text-center">
-                      <p className="text-xs text-gray-500">Tổng lương</p>
-                      <p className="font-bold text-emerald-600">
-                        {calc ? Number(calc.total).toLocaleString("vi-VN") : "—"}đ
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Thưởng + nút lưu */}
-                  {!sal?.isPaid && (
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className="text-xs text-gray-500 shrink-0">Thưởng (nghìn đ):</span>
-                      <input
-                        type="number" min="0" placeholder="0"
-                        className={INPUT + " max-w-[120px] py-1.5 text-sm"}
-                        value={bonusInputs[row.userId] ?? "0"}
-                        onChange={e => setBonusInputs(prev => ({ ...prev, [row.userId]: e.target.value }))}
-                      />
-                      <button
-                        onClick={() => saveSalary(row)}
-                        disabled={savingId === row.userId || !row.wageConfig}
-                        className={BTN_G + " text-xs py-1.5"}>
-                        {savingId === row.userId ? "Đang lưu..." : sal ? "Cập nhật lương" : "Lưu lương"}
-                      </button>
-                      {sal && !sal.isPaid && (
-                        <button onClick={() => paySalary(sal.id)}
-                          className="bg-amber-500 hover:bg-amber-400 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition-colors">
-                          💸 Thanh toán
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {sal?.isPaid && (
-                    <p className="text-xs text-emerald-600 mt-2">
-                      Đã thanh toán {sal.paidAt ? new Date(sal.paidAt).toLocaleDateString("vi-VN") : ""}
-                      · Tổng: <span className="font-bold">{Number(sal.finalSalary).toLocaleString("vi-VN")}đ</span>
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600">{row.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Nhân viên"}</td>
+                      <td className="px-4 py-3 text-right font-medium">{row.attendance.presentDays}</td>
+                      <td className="px-4 py-3 text-right font-medium">{row.attendance.totalHours !== null ? `${row.attendance.totalHours}h` : "—"}</td>
+                      <td className="px-4 py-3 text-right font-medium text-blue-600">
+                        {calc ? Number(calc.base).toLocaleString("vi-VN") + "đ" : "—"}
+                      </td>
+                      {/* Thưởng */}
+                      <td className="px-4 py-3 text-center">
+                        {sal?.isPaid ? (
+                          <span className="text-gray-600">{Number(sal.bonus).toLocaleString("vi-VN")}đ</span>
+                        ) : (
+                          <input type="number" min="0" placeholder="0"
+                            className={INPUT + " max-w-[80px] py-1 text-xs text-center"}
+                            value={bonusInputs[row.userId] ?? "0"}
+                            onChange={e => setBonusInputs(prev => ({ ...prev, [row.userId]: e.target.value }))}
+                          />
+                        )}
+                      </td>
+                      {/* Tăng ca */}
+                      <td className="px-4 py-3 text-center text-purple-600 font-medium">
+                        {row.attendance.overtimeHours > 0 ? `${row.attendance.overtimeHours}h` : "—"}
+                      </td>
+                      {/* Lương tăng ca */}
+                      <td className="px-4 py-3 text-center">
+                        {sal?.isPaid ? (
+                          <span className="text-purple-600">{Number(sal.overtimePay).toLocaleString("vi-VN")}đ</span>
+                        ) : (
+                          <input type="number" min="0" placeholder="0"
+                            className={INPUT + " max-w-[80px] py-1 text-xs text-center"}
+                            value={overtimeInputs[row.userId] ?? "0"}
+                            onChange={e => setOvertimeInputs(prev => ({ ...prev, [row.userId]: e.target.value }))}
+                          />
+                        )}
+                      </td>
+                      {/* Tiền phạt */}
+                      <td className="px-4 py-3 text-center">
+                        {sal?.isPaid ? (
+                          <span className="text-red-500">{Number(sal.penaltyAmount) > 0 ? `-${Number(sal.penaltyAmount).toLocaleString("vi-VN")}đ` : "—"}</span>
+                        ) : (
+                          <input type="number" min="0" placeholder="0"
+                            className={INPUT + " max-w-[80px] py-1 text-xs text-center"}
+                            value={penaltyInputs[row.userId] ?? "0"}
+                            onChange={e => setPenaltyInputs(prev => ({ ...prev, [row.userId]: e.target.value }))}
+                          />
+                        )}
+                      </td>
+                      {/* Trễ / Quên check-out */}
+                      <td className="px-4 py-3 text-right text-xs">
+                        {(row.attendance.lateDays ?? 0) > 0 && (
+                          <span className="text-orange-500 font-semibold block">{row.attendance.lateDays} trễ</span>
+                        )}
+                        {(row.attendance.forgotCheckOutCount ?? 0) > 0 && (
+                          <span className="text-red-500 font-semibold block">{row.attendance.forgotCheckOutCount} Q.CO</span>
+                        )}
+                        {!(row.attendance.lateDays ?? 0) && !(row.attendance.forgotCheckOutCount ?? 0) && (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600">
+                        {calc ? Number(calc.total).toLocaleString("vi-VN") + "đ" : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {sal?.isPaid ? (
+                          <div>
+                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Đã trả</span>
+                            <p className="text-xs text-gray-400 mt-0.5">{sal.paidAt ? new Date(sal.paidAt).toLocaleDateString("vi-VN") : ""}</p>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1 justify-end">
+                            <button onClick={() => saveSalary(row)} disabled={savingId === row.userId || !row.wageConfig}
+                              className={BTN_G + " text-xs py-1 px-2"}>
+                              {savingId === row.userId ? "..." : sal ? "Cập nhật" : "Lưu"}
+                            </button>
+                            {sal && !sal.isPaid && (
+                              <button onClick={() => paySalary(sal.id)}
+                                className="bg-amber-500 hover:bg-amber-400 text-white px-2 py-1 rounded-lg text-xs">
+                                Trả
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           {/* Tổng kết */}
@@ -780,6 +1187,394 @@ function SalaryTab({ facilities }: { facilities: Facility[] }) {
   );
 }
 
+
+// ─── Work Shifts Tab ─────────────────────────────────────────────────────────
+const DOW_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+function WorkShiftsTab({ facilities }: { facilities: Facility[] }) {
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  const fmt = (d: Date) => d.toISOString().substring(0, 10);
+
+  const [facilityId, setFacilityId] = useState<string>("");
+  const [viewStart, setViewStart] = useState(fmt(weekStart));
+  const [viewEnd, setViewEnd] = useState(fmt(weekEnd));
+  const [shifts, setShifts] = useState<WorkShift[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [expandedShift, setExpandedShift] = useState<number | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    name: "Ca sáng",
+    fromDate: fmt(weekStart),
+    toDate: fmt(weekEnd),
+    daysOfWeek: [1, 2, 3, 4, 5] as number[], // T2-T6 mặc định
+    startTime: "06:00",
+    endTime: "14:00",
+    maxStaff: "5",
+    note: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [facilityStaff, setFacilityStaff] = useState<{ userId: number; fullName: string }[]>([]);
+
+  async function load() {
+    if (!facilityId) { alert("Vui lòng chọn cơ sở"); return; }
+    try {
+      const res = await fetch(`/api/owner/work-shifts?facilityId=${facilityId}&startDate=${viewStart}&endDate=${viewEnd}`);
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Lỗi tải ca làm"); return; }
+      setShifts(Array.isArray(data) ? data : []);
+      setLoaded(true);
+      const staffRes = await fetch(`/api/owner/staff?facilityId=${facilityId}`);
+      const staffData = await staffRes.json();
+      setFacilityStaff(Array.isArray(staffData) ? staffData.map((s: any) => ({ userId: s.user.id, fullName: s.user.fullName })) : []);
+    } catch {
+      alert("Lỗi kết nối máy chủ. Vui lòng thử lại.");
+    }
+  }
+
+  function toggleDow(d: number) {
+    setForm(f => ({
+      ...f,
+      daysOfWeek: f.daysOfWeek.includes(d) ? f.daysOfWeek.filter(x => x !== d) : [...f.daysOfWeek, d],
+    }));
+  }
+
+  // Tính preview số ca sẽ tạo
+  function previewCount() {
+    if (!form.fromDate || !form.toDate || form.daysOfWeek.length === 0) return 0;
+    const from = new Date(form.fromDate);
+    const to = new Date(form.toDate);
+    let count = 0;
+    const cur = new Date(from);
+    while (cur <= to) {
+      if (form.daysOfWeek.includes(cur.getDay())) count++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+  }
+
+  async function createShifts() {
+    if (!facilityId) return;
+    if (form.daysOfWeek.length === 0) { alert("Vui lòng chọn ít nhất một ngày trong tuần"); return; }
+    const count = previewCount();
+    if (!confirm(`Sẽ tạo ${count} ca làm cho "${form.name}" từ ${form.fromDate} đến ${form.toDate}. Xác nhận?`)) return;
+    setSaving(true);
+    const res = await fetch("/api/owner/work-shifts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, facilityId: Number(facilityId), maxStaff: Number(form.maxStaff) }),
+    });
+    setSaving(false);
+    const d = await res.json();
+    if (res.ok) {
+      alert(`Đã tạo ${d.created} ca làm thành công!`);
+      setShowForm(false);
+      // Cập nhật view range sang khoảng vừa tạo
+      setViewStart(form.fromDate);
+      setViewEnd(form.toDate);
+      setTimeout(load, 100);
+    } else {
+      alert(d.error || "Lỗi tạo ca");
+    }
+  }
+
+  async function deleteBulkShifts(name: string) {
+    if (!facilityId) return;
+    if (!confirm(`Xóa tất cả ca "${name}" trong khoảng ${viewStart} – ${viewEnd}?`)) return;
+    await fetch(`/api/owner/work-shifts?facilityId=${facilityId}&fromDate=${viewStart}&toDate=${viewEnd}&name=${encodeURIComponent(name)}`, { method: "DELETE" });
+    load();
+  }
+
+  async function deleteShift(shiftId: number) {
+    if (!confirm("Xóa ca này?")) return;
+    await fetch(`/api/owner/work-shifts/${shiftId}`, { method: "DELETE" });
+    load();
+  }
+
+  async function approveReg(shiftId: number, registrationId: number, action: "approve" | "reject") {
+    await fetch(`/api/owner/work-shifts/${shiftId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, registrationId }),
+    });
+    load();
+  }
+
+  async function assignStaff(shiftId: number, staffId: number) {
+    await fetch(`/api/owner/work-shifts/${shiftId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "assign", staffId }),
+    });
+    load();
+  }
+
+  async function closeShift(shiftId: number) {
+    await fetch(`/api/owner/work-shifts/${shiftId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CLOSED" }),
+    });
+    load();
+  }
+
+  const REG_STATUS: Record<string, { label: string; color: string }> = {
+    PENDING:  { label: "Chờ duyệt", color: "bg-yellow-100 text-yellow-700" },
+    APPROVED: { label: "Đã duyệt",  color: "bg-emerald-100 text-emerald-700" },
+    REJECTED: { label: "Từ chối",   color: "bg-red-100 text-red-600" },
+  };
+
+  // Group shifts by name for bulk actions
+  const shiftGroups = shifts.reduce<Record<string, WorkShift[]>>((acc, s) => {
+    if (!acc[s.name]) acc[s.name] = [];
+    acc[s.name].push(s);
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      {/* Filter / view header */}
+      <div className={CARD} style={BG}>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Cơ sở</p>
+            <select className={INPUT + " w-48"} value={facilityId} onChange={e => setFacilityId(e.target.value)}>
+              <option value="">-- Chọn cơ sở --</option>
+              {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Xem từ ngày</p>
+            <input type="date" className={INPUT + " w-40"} value={viewStart} onChange={e => setViewStart(e.target.value)} />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Đến ngày</p>
+            <input type="date" className={INPUT + " w-40"} value={viewEnd} onChange={e => setViewEnd(e.target.value)} />
+          </div>
+          <button onClick={load} className={BTN_G}>Xem</button>
+          {facilityId && (
+            <button onClick={() => setShowForm(!showForm)} className={BTN_W}>
+              {showForm ? "Đóng" : "+ Tạo lịch ca"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Create shifts form */}
+      {showForm && (
+        <div className={CARD} style={BG}>
+          <h3 className="font-semibold text-black mb-4">Tạo lịch ca theo khoảng ngày</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Tên ca */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Tên ca *</p>
+              <input className={INPUT} placeholder="Ca sáng / Ca chiều / Ca tối..." value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            {/* Số NV tối đa */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Số nhân viên tối đa</p>
+              <input type="number" min="1" className={INPUT} value={form.maxStaff}
+                onChange={e => setForm(f => ({ ...f, maxStaff: e.target.value }))} />
+            </div>
+            {/* Áp dụng từ ngày */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Áp dụng từ ngày *</p>
+              <input type="date" className={INPUT} value={form.fromDate}
+                onChange={e => setForm(f => ({ ...f, fromDate: e.target.value }))} />
+            </div>
+            {/* Đến ngày */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Đến ngày *</p>
+              <input type="date" className={INPUT} value={form.toDate}
+                onChange={e => setForm(f => ({ ...f, toDate: e.target.value }))} />
+            </div>
+            {/* Giờ bắt đầu */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Giờ bắt đầu ca *</p>
+              <input type="time" className={INPUT} value={form.startTime}
+                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
+            </div>
+            {/* Giờ kết thúc */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Giờ kết thúc ca *</p>
+              <input type="time" className={INPUT} value={form.endTime}
+                onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Chọn ngày trong tuần */}
+          <div className="mt-3">
+            <p className="text-xs text-gray-500 mb-2">Áp dụng vào các ngày trong tuần *</p>
+            <div className="flex gap-2 flex-wrap">
+              {DOW_LABELS.map((label, idx) => (
+                <button key={idx} type="button" onClick={() => toggleDow(idx)}
+                  className={`w-10 h-10 rounded-xl text-sm font-semibold border transition-colors ${
+                    form.daysOfWeek.includes(idx)
+                      ? "bg-emerald-500 text-white border-emerald-500"
+                      : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"
+                  }`}>
+                  {label}
+                </button>
+              ))}
+              <button type="button" onClick={() => setForm(f => ({ ...f, daysOfWeek: [1,2,3,4,5] }))}
+                className="px-3 h-10 rounded-xl text-xs border border-gray-300 bg-white text-gray-600 hover:border-emerald-300 transition-colors">
+                T2–T6
+              </button>
+              <button type="button" onClick={() => setForm(f => ({ ...f, daysOfWeek: [0,1,2,3,4,5,6] }))}
+                className="px-3 h-10 rounded-xl text-xs border border-gray-300 bg-white text-gray-600 hover:border-emerald-300 transition-colors">
+                Tất cả
+              </button>
+              <button type="button" onClick={() => setForm(f => ({ ...f, daysOfWeek: [0, 6] }))}
+                className="px-3 h-10 rounded-xl text-xs border border-gray-300 bg-white text-gray-600 hover:border-emerald-300 transition-colors">
+                Cuối tuần
+              </button>
+            </div>
+          </div>
+
+          {/* Ghi chú */}
+          <div className="mt-3">
+            <p className="text-xs text-gray-500 mb-1">Ghi chú</p>
+            <input className={INPUT} placeholder="Ghi chú (tùy chọn)" value={form.note}
+              onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
+          </div>
+
+          {/* Preview */}
+          {form.fromDate && form.toDate && form.daysOfWeek.length > 0 && (
+            <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm text-emerald-700">
+              Sẽ tạo <strong>{previewCount()} ca làm</strong> "{form.name}" từ{" "}
+              {new Date(form.fromDate).toLocaleDateString("vi-VN")} đến{" "}
+              {new Date(form.toDate).toLocaleDateString("vi-VN")},
+              vào các ngày: {form.daysOfWeek.sort().map(d => DOW_LABELS[d]).join(", ")}
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-4 justify-end">
+            <button onClick={() => setShowForm(false)} className={BTN_W}>Hủy</button>
+            <button onClick={createShifts} disabled={saving || previewCount() === 0} className={BTN_G}>
+              {saving ? "Đang tạo..." : `Tạo ${previewCount()} ca`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Shift list — grouped by name */}
+      {loaded && shifts.length === 0 && (
+        <div className={CARD + " text-center text-gray-400"} style={BG}>Chưa có ca làm trong khoảng thời gian này</div>
+      )}
+
+      {loaded && Object.entries(shiftGroups).map(([groupName, groupShifts]) => {
+        const totalPending = groupShifts.reduce((s, sh) => s + sh.registrations.filter(r => r.status === "PENDING").length, 0);
+        return (
+          <div key={groupName} className={CARD} style={BG}>
+            {/* Group header */}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="font-bold text-black text-base">{groupName}</p>
+                <p className="text-xs text-gray-500">
+                  {groupShifts.length} ngày ·{" "}
+                  {new Date(groupShifts[0].startTime).toISOString().substring(11,16)} – {new Date(groupShifts[0].endTime).toISOString().substring(11,16)}
+                  {totalPending > 0 && <span className="ml-2 text-yellow-600 font-medium">{totalPending} chờ duyệt</span>}
+                </p>
+              </div>
+              <button onClick={() => deleteBulkShifts(groupName)}
+                className="text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors">
+                Xóa cả nhóm
+              </button>
+            </div>
+
+            {/* Days in group */}
+            <div className="space-y-1.5">
+              {groupShifts.map(shift => {
+                const approvedCount = shift.registrations.filter(r => r.status === "APPROVED").length;
+                const pendingCount = shift.registrations.filter(r => r.status === "PENDING").length;
+                const isExpanded = expandedShift === shift.id;
+                return (
+                  <div key={shift.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 cursor-pointer"
+                      onClick={() => setExpandedShift(isExpanded ? null : shift.id)}>
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">
+                            {new Date(shift.shiftDate).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}
+                          </p>
+                          <div className="flex gap-1.5 mt-0.5">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${shift.status === "OPEN" ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                              {shift.status === "OPEN" ? "Mở" : "Đóng"}
+                            </span>
+                            {pendingCount > 0 && (
+                              <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">{pendingCount} chờ</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-sm font-bold ${approvedCount >= shift.maxStaff ? "text-emerald-600" : "text-gray-500"}`}>
+                          {approvedCount}/{shift.maxStaff} NV
+                        </span>
+                        <span className="text-gray-400 text-xs">{isExpanded ? "▲" : "▼"}</span>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+                        <div className="flex gap-2 mb-3 flex-wrap">
+                          {shift.status === "OPEN" && (
+                            <button onClick={() => closeShift(shift.id)}
+                              className="bg-gray-500 hover:bg-gray-400 text-white px-3 py-1 rounded-lg text-xs">Đóng đăng ký</button>
+                          )}
+                          <button onClick={() => deleteShift(shift.id)} className={BTN_R}>Xóa ngày này</button>
+                        </div>
+
+                        {/* Registrations */}
+                        <p className="text-xs font-semibold text-gray-600 mb-1.5">Nhân viên đăng ký:</p>
+                        {shift.registrations.length === 0 ? (
+                          <p className="text-xs text-gray-400 mb-3">Chưa có ai đăng ký</p>
+                        ) : (
+                          <div className="space-y-1 mb-3">
+                            {shift.registrations.map(reg => (
+                              <div key={reg.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-1.5 border border-gray-200">
+                                <p className="text-xs font-medium">{reg.staff.fullName}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${REG_STATUS[reg.status]?.color}`}>
+                                    {REG_STATUS[reg.status]?.label}
+                                  </span>
+                                  {reg.status === "PENDING" && (
+                                    <>
+                                      <button onClick={() => approveReg(shift.id, reg.id, "approve")}
+                                        className="bg-emerald-500 text-white px-2 py-0.5 rounded text-xs">✓</button>
+                                      <button onClick={() => approveReg(shift.id, reg.id, "reject")}
+                                        className="bg-red-500 text-white px-2 py-0.5 rounded text-xs">✕</button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Direct assign */}
+                        <p className="text-xs font-semibold text-gray-600 mb-1.5">Giao ca trực tiếp:</p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {facilityStaff
+                            .filter(s => !shift.registrations.some(r => r.staffId === s.userId && r.status === "APPROVED"))
+                            .map(s => (
+                              <button key={s.userId} onClick={() => assignStaff(shift.id, s.userId)}
+                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg text-xs transition-colors">
+                                + {s.fullName}
+                              </button>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Bar Chart ───────────────────────────────────────────────────────────────
 function BarChart({ items, labelKey, valueKey, color = "#10b981" }: {
@@ -859,123 +1654,59 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [occupancy, setOccupancy] = useState<any>(null);
-  const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
-  const [chartView, setChartView] = useState<"day" | "hour" | "court" | "sport" | "month">("day");
-  const [revenueView, setRevenueView] = useState<"day" | "week">("day");
   const [exporting, setExporting] = useState(false);
 
   const PM_LABEL: Record<string, string> = { CASH: "Tiền mặt", TRANSFER: "Chuyển khoản", QR: "VNPay", WALLET: "Ví SportHub" };
 
   async function load() {
     if (!facilityId) return;
-    const [invRes, occRes, mRes] = await Promise.all([
-      fetch(`/api/owner/invoices?facilityId=${facilityId}&month=${month}&year=${year}`),
-      fetch(`/api/owner/occupancy?facilityId=${facilityId}&month=${month}&year=${year}`),
-      fetch(`/api/owner/occupancy?facilityId=${facilityId}&year=${year}&period=year`),
-    ]);
+    const invRes = await fetch(`/api/owner/invoices?facilityId=${facilityId}&month=${month}&year=${year}`);
     const invData = await invRes.json();
-    const occData = await occRes.json();
-    const mData = await mRes.json();
     setInvoices(Array.isArray(invData) ? invData : []);
-    setOccupancy(occData.dailyStats ? occData : null);
-    setMonthlyStats(mData.monthlyStats || []);
     setLoaded(true);
   }
 
   const total = invoices.reduce((s, i) => s + Number(i.finalTotal), 0);
 
-  const CHART_VIEWS = [
-    { key: "day",   label: "Ngày" },
-    { key: "hour",  label: "Giờ" },
-    { key: "court", label: "Sân" },
-    { key: "sport", label: "Môn" },
-    { key: "month", label: "Tháng" },
-  ] as const;
-
-  function getChartItems() {
-    if (!occupancy && chartView !== "month") return [];
-    switch (chartView) {
-      case "day":
-        return (occupancy?.dailyStats || []).map((d: any) => ({ label: `${d.day}`, value: d.count }));
-      case "hour":
-        return (occupancy?.hourlyStats || []).map((h: any) => ({
-          label: h.hour.replace(":00", "h"),
-          value: h.count,
-          highlight: parseInt(h.hour) >= 7 && parseInt(h.hour) < 9,
-        }));
-      case "court":
-        return (occupancy?.courtStats || []).map((c: any) => ({ label: c.courtName, value: c.count }));
-      case "sport":
-        return (occupancy?.sportStats || []).map((s: any) => ({ label: s.name, value: s.count }));
-      case "month":
-        return monthlyStats.map((m: any) => ({ label: `T${m.month}`, value: m.count, rate: m.rate }));
-    }
-  }
-
-  function getRevenueItems() {
-    const map: Record<string, number> = {};
-    invoices.forEach(inv => {
-      const d = new Date(inv.createdAt);
-      const key = revenueView === "week"
-        ? `Tuần ${Math.ceil(d.getDate() / 7)}`
-        : `${d.getDate()}/${d.getMonth() + 1}`;
-      map[key] = (map[key] || 0) + Number(inv.finalTotal);
-    });
-    return Object.entries(map).map(([label, value]) => ({ label, value }));
-  }
-
-  function getUserHabitsInsights() {
-    if (!occupancy) return null;
-    const hourly = (occupancy.hourlyStats || []) as any[];
-    const courts = (occupancy.courtStats || []) as any[];
-    const sports = (occupancy.sportStats || []) as any[];
-    const peakHour = hourly.reduce((b: any, h: any) => (!b || h.count > b.count) ? h : b, null);
-    const slowHour = hourly.filter((h: any) => h.count > 0).reduce((b: any, h: any) => (!b || h.count < b.count) ? h : b, null);
-    const topCourt = courts.reduce((b: any, c: any) => (!b || c.count > b.count) ? c : b, null);
-    const topSport = sports.reduce((b: any, s: any) => (!b || s.count > b.count) ? s : b, null);
-    const lowCourt = courts.reduce((b: any, c: any) => (!b || c.count < b.count) ? c : b, null);
-    return { peakHour, slowHour, topCourt, topSport, lowCourt };
-  }
-
-  async function exportToExcel() {
+  function exportToExcel() {
     if (!facilityId) return;
     setExporting(true);
-    const [svcRes, salRes] = await Promise.all([
-      fetch(`/api/owner/services?facilityId=${facilityId}`),
-      fetch(`/api/owner/salary?facilityId=${facilityId}&month=${month}&year=${year}`),
-    ]);
-    const services: Service[] = svcRes.ok ? await svcRes.json() : [];
-    const salaryData = salRes.ok ? await salRes.json() : {};
-    const salaryRecords: SalaryRecord[] = salaryData.salaryRecords || [];
-    setExporting(false);
 
     const cell = (v: string | number, type: "String" | "Number" = "String") =>
       `<Cell><Data ss:Type="${type}">${String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</Data></Cell>`;
-    const row = (...cells: string[]) => `<Row>${cells.join("")}</Row>`;
+    const xmlRow = (...cells: string[]) => `<Row>${cells.join("")}</Row>`;
 
-    const sheet1 = `<Worksheet ss:Name="Doanh thu"><Table>
-      ${row(cell("Mã HĐ"), cell("Thời gian"), cell("Sân"), cell("Khách hàng"), cell("Phương thức"), cell("Tổng tiền (đ)"))}
-      ${invoices.map(inv => row(cell(inv.id), cell(new Date(inv.createdAt).toLocaleString("vi-VN")), cell(inv.courtName), cell(inv.customerName), cell(inv.paymentMethod), cell(Number(inv.finalTotal), "Number"))).join("\n")}
-      ${row(cell(""), cell(""), cell(""), cell(""), cell("TỔNG"), cell(total, "Number"))}
+    // Sort invoices by date ascending
+    const sorted = [...invoices].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    const itemRows: string[] = [];
+    for (const inv of sorted) {
+      const dt = new Date(inv.createdAt);
+      const dateStr = `${dt.getDate().toString().padStart(2,"0")}/${(dt.getMonth()+1).toString().padStart(2,"0")}/${dt.getFullYear()} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
+      for (const item of inv.items) {
+        itemRows.push(xmlRow(
+          cell(dateStr),
+          cell(inv.staffName),
+          cell(item.name),
+          cell(item.quantity, "Number"),
+          cell(Number(item.price), "Number"),
+          cell(Number(item.price) * item.quantity, "Number"),
+        ));
+      }
+    }
+
+    const sheet = `<Worksheet ss:Name="Hóa đơn T${month}-${year}"><Table>
+      ${xmlRow(cell("Ngày giờ"), cell("Nhân viên"), cell("Dịch vụ"), cell("Số lượng"), cell("Đơn giá (đ)"), cell("Thành tiền (đ)"))}
+      ${itemRows.join("\n") || xmlRow(cell("Không có dữ liệu"))}
     </Table></Worksheet>`;
 
-    const sheet2 = `<Worksheet ss:Name="Tồn kho"><Table>
-      ${row(cell("Mã SP"), cell("Tên sản phẩm"), cell("Loại"), cell("Giá bán (đ)"), cell("Tồn kho"), cell("Trạng thái"))}
-      ${(Array.isArray(services) ? services : []).filter(s => s.type === "PRODUCT").map(s => row(cell(s.id), cell(s.name), cell("F&B"), cell(Number(s.price), "Number"), cell(s.stockQuantity, "Number"), cell(s.isActive ? "Hoạt động" : "Ẩn"))).join("\n") || row(cell("Không có dữ liệu"))}
-    </Table></Worksheet>`;
-
-    const sheet3 = `<Worksheet ss:Name="Bảng lương"><Table>
-      ${row(cell("Nhân viên"), cell("Email"), cell("Loại lương"), cell("Giờ/Ngày"), cell("Lương cơ bản (đ)"), cell("Thưởng (đ)"), cell("Tổng lương (đ)"), cell("Trạng thái"))}
-      ${salaryRecords.map(r => row(cell(r.staff.fullName), cell(r.staff.email), cell(r.wageType === "HOURLY" ? "Theo giờ" : "Theo ngày"), cell(r.totalHours, "Number"), cell(Number(r.baseSalary), "Number"), cell(Number(r.bonus), "Number"), cell(Number(r.finalSalary), "Number"), cell(r.isPaid ? "Đã trả" : "Chưa trả"))).join("\n") || row(cell("Không có dữ liệu"))}
-    </Table></Worksheet>`;
-
-    const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${sheet1}${sheet2}${sheet3}</Workbook>`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${sheet}</Workbook>`;
     const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `bao-cao-T${month}-${year}.xls`; a.click();
+    a.href = url; a.download = `hoa-don-T${month}-${year}.xls`; a.click();
     URL.revokeObjectURL(url);
+    setExporting(false);
   }
 
   return (
@@ -1048,123 +1779,6 @@ function InvoicesTab({ facilities }: { facilities: Facility[] }) {
             ))}
           </div>
 
-          {/* Revenue trend */}
-          <div className={CARD} style={BG}>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <h3 className="font-semibold text-black">Xu hướng doanh thu</h3>
-              <div className="flex gap-1">
-                {(["day", "week"] as const).map(v => (
-                  <button key={v} onClick={() => setRevenueView(v)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${revenueView === v ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"}`}>
-                    {v === "day" ? "Ngày" : "Tuần"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {invoices.length === 0
-              ? <div className="text-center text-gray-400 py-6 text-sm">Không có dữ liệu doanh thu</div>
-              : <LineChart items={getRevenueItems()} labelKey="label" valueKey="value" color="#10b981"
-                  formatValue={v => v >= 1000000 ? (v / 1000000).toFixed(1) + "M" : v >= 1000 ? (v / 1000).toFixed(0) + "K" : String(v)} />}
-            <div className="flex gap-3 mt-3 flex-wrap">
-              <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 flex-1 text-center">
-                <p className="text-xs text-gray-500">Doanh thu tháng</p>
-                <p className="font-bold text-emerald-600">{total.toLocaleString("vi-VN")}đ</p>
-              </div>
-              {invoices.length > 0 && (
-                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 flex-1 text-center">
-                  <p className="text-xs text-gray-500">TB/hóa đơn</p>
-                  <p className="font-bold text-blue-600">{Math.round(total / invoices.length).toLocaleString("vi-VN")}đ</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Occupancy chart */}
-          <div className={CARD} style={BG}>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <h3 className="font-semibold text-black">Tỉ lệ lấp đầy</h3>
-              <div className="flex gap-1 flex-wrap">
-                {CHART_VIEWS.map(v => (
-                  <button key={v.key} onClick={() => setChartView(v.key)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${
-                      chartView === v.key
-                        ? "bg-emerald-500 text-white border-emerald-500"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"
-                    }`}>
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Summary row */}
-            {occupancy && chartView !== "month" && (
-              <div className="flex gap-3 mb-4 flex-wrap">
-                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
-                  <p className="text-xs text-gray-500">Tổng lượt đặt</p>
-                  <p className="font-bold text-emerald-600 text-lg">
-                    {(occupancy.dailyStats || []).reduce((s: number, d: any) => s + d.count, 0)}
-                  </p>
-                </div>
-                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
-                  <p className="text-xs text-gray-500">Ngày cao nhất</p>
-                  <p className="font-bold text-blue-600 text-lg">
-                    {Math.max(...(occupancy.dailyStats || [{ count: 0 }]).map((d: any) => d.count))} lượt
-                  </p>
-                </div>
-                <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
-                  <p className="text-xs text-gray-500">Lấp đầy TB/ngày</p>
-                  <p className="font-bold text-orange-600 text-lg">
-                    {(() => {
-                      const days = (occupancy.dailyStats || []);
-                      const avg = days.length ? Math.round(days.reduce((s: number, d: any) => s + d.rate, 0) / days.length) : 0;
-                      return avg + "%";
-                    })()}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <BarChart
-              items={getChartItems()}
-              labelKey="label"
-              valueKey="value"
-              color="#10b981"
-            />
-
-            {chartView === "hour" && (
-              <p className="text-xs text-gray-400 mt-2">Màu vàng = khung giờ cao điểm (7h–9h)</p>
-            )}
-            {chartView === "month" && (
-              <p className="text-xs text-gray-400 mt-2">Tổng lượt đặt theo từng tháng — năm {year}</p>
-            )}
-          </div>
-
-          {/* User habits */}
-          {(() => {
-            const h = getUserHabitsInsights();
-            if (!h) return null;
-            const insights: { icon: string; text: string; tip: string; color: string }[] = [];
-            if (h.peakHour) insights.push({ icon: "🔥", text: `Khung giờ đông nhất: ${h.peakHour.hour}`, tip: "Tăng giá khung giờ cao điểm hoặc chạy ưu đãi combo để tối ưu doanh thu", color: "border-orange-200 bg-orange-50" });
-            if (h.slowHour && h.slowHour.hour !== h.peakHour?.hour) insights.push({ icon: "📉", text: `Khung giờ vắng nhất: ${h.slowHour.hour}`, tip: "Tung voucher giảm giá cho khung giờ thấp điểm để tăng tỉ lệ lấp đầy", color: "border-blue-200 bg-blue-50" });
-            if (h.topSport) insights.push({ icon: "🏆", text: `Môn thể thao phổ biến nhất: ${h.topSport.name}`, tip: "Nhập thêm thiết bị/phụ kiện cho môn này, tạo giải đấu để thu hút thêm khách", color: "border-emerald-200 bg-emerald-50" });
-            if (h.topCourt) insights.push({ icon: "🎯", text: `Sân được đặt nhiều nhất: ${h.topCourt.courtName}`, tip: "Bảo trì định kỳ và nâng cấp dịch vụ tại sân này để duy trì chất lượng", color: "border-purple-200 bg-purple-50" });
-            if (h.lowCourt && h.lowCourt.courtName !== h.topCourt?.courtName) insights.push({ icon: "💡", text: `Sân ít được đặt nhất: ${h.lowCourt.courtName}`, tip: "Tạo ưu đãi đặc biệt hoặc gói combo cho sân này để cân bằng tỉ lệ sử dụng", color: "border-yellow-200 bg-yellow-50" });
-            if (insights.length === 0) return null;
-            return (
-              <div className={CARD} style={BG}>
-                <h3 className="font-semibold text-black mb-3">Thói quen người dùng &amp; Gợi ý kinh doanh</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {insights.map((ins, i) => (
-                    <div key={i} className={`rounded-xl border p-3.5 ${ins.color}`}>
-                      <p className="font-semibold text-sm text-gray-800">{ins.icon} {ins.text}</p>
-                      <p className="text-xs text-gray-500 mt-1">💬 {ins.tip}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
         </>
       )}
     </div>
@@ -1180,23 +1794,117 @@ interface RevData {
   slowSelling: { id: number; name: string; stockQuantity: number; soldLast7Days: number }[];
 }
 
-function RevBarChart({ data, labelFn }: { data: { label: string; value: number }[]; labelFn?: (v: number) => string }) {
-  const max = Math.max(...data.map(d => d.value), 1);
-  const fmt = labelFn ?? ((v: number) => (v / 1e6).toFixed(1) + "M");
+function RevLineChart({ data, labelFn }: { data: { label: string; value: number }[]; labelFn?: (v: number) => string }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  if (data.length === 0)
+    return <div className="h-48 flex items-center justify-center text-gray-400 text-sm">Chưa có dữ liệu</div>;
+
+  const max  = Math.max(...data.map(d => d.value), 1);
+  const fmt  = labelFn ?? ((v: number) => v >= 1_000_000 ? (v / 1_000_000).toFixed(1) + "M" : (v / 1_000).toFixed(0) + "K");
+
+  // SVG canvas
+  const W = 520; const H = 170;
+  const PAD = { top: 22, right: 12, bottom: 30, left: 48 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top  - PAD.bottom;
+  const n  = data.length;
+
+  const px = (i: number) => PAD.left + (n > 1 ? (i / (n - 1)) * cW : cW / 2);
+  const py = (v: number) => PAD.top  + cH - (v / max) * cH;
+
+  const linePath = data.map((d, i) => `${i === 0 ? "M" : "L"}${px(i).toFixed(1)},${py(d.value).toFixed(1)}`).join(" ");
+  const areaPath = [
+    ...data.map((d, i) => `${i === 0 ? "M" : "L"}${px(i).toFixed(1)},${py(d.value).toFixed(1)}`),
+    `L${px(n - 1).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
+    `L${px(0).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
+    "Z",
+  ].join(" ");
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(r => ({ v: r * max, y: PAD.top + cH - r * cH }));
+  const xStep  = n > 24 ? 5 : n > 16 ? 4 : n > 10 ? 3 : n > 6 ? 2 : 1;
+
   return (
-    <div className="flex items-end gap-1 h-36 w-full overflow-x-auto pb-1">
-      {data.map((d, i) => (
-        <div key={i} className="flex flex-col items-center flex-1 min-w-[28px]">
-          <span className="text-xs text-gray-500 mb-0.5 whitespace-nowrap" style={{ fontSize: 9 }}>
-            {d.value > 0 ? fmt(d.value) : ""}
-          </span>
-          <div
-            className="w-full rounded-t-md bg-emerald-400 transition-all"
-            style={{ height: `${Math.max((d.value / max) * 100, d.value > 0 ? 4 : 0)}%` }}
-          />
-          <span className="text-gray-400 mt-1 whitespace-nowrap" style={{ fontSize: 9 }}>{d.label}</span>
-        </div>
-      ))}
+    <div className="w-full select-none">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 190 }} aria-hidden>
+        <defs>
+          <linearGradient id="lgRev" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#10b981" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0.01" />
+          </linearGradient>
+          <clipPath id="cpRev">
+            <rect x={PAD.left} y={PAD.top} width={cW} height={cH} />
+          </clipPath>
+        </defs>
+
+        {/* Y-axis grid + labels */}
+        {yTicks.map((tk, i) => (
+          <g key={i}>
+            <line x1={PAD.left} y1={tk.y} x2={W - PAD.right} y2={tk.y}
+              stroke="#e5e7eb" strokeWidth={i === 0 ? 1 : 0.7}
+              strokeDasharray={i === 0 ? "" : "4 3"} />
+            {i > 0 && (
+              <text x={PAD.left - 5} y={tk.y + 3.5} textAnchor="end" fontSize={9} fill="#9ca3af">
+                {fmt(tk.v)}
+              </text>
+            )}
+          </g>
+        ))}
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#lgRev)" clipPath="url(#cpRev)" />
+
+        {/* Line */}
+        <path d={linePath} fill="none" stroke="#10b981" strokeWidth={2}
+          strokeLinejoin="round" strokeLinecap="round" clipPath="url(#cpRev)" />
+
+        {/* Hover vertical guide */}
+        {hovered !== null && (
+          <line x1={px(hovered)} y1={PAD.top} x2={px(hovered)} y2={PAD.top + cH}
+            stroke="#10b981" strokeWidth={1} strokeDasharray="4 3" opacity={0.4} />
+        )}
+
+        {/* Dots */}
+        {data.map((d, i) => {
+          const cx = px(i); const cy = py(d.value);
+          const active = hovered === i;
+          return (
+            <g key={i}>
+              {active && <circle cx={cx} cy={cy} r={10} fill="#10b981" opacity={0.1} />}
+              <circle cx={cx} cy={cy} r={active ? 5 : 3}
+                fill={d.value > 0 ? "#10b981" : "#d1fae5"}
+                stroke="white" strokeWidth={1.5}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ cursor: "crosshair" }}
+              />
+              {/* Tooltip */}
+              {active && d.value > 0 && (() => {
+                const ttW = 64; const ttH = 20;
+                const ttX = Math.min(Math.max(cx - ttW / 2, PAD.left), W - PAD.right - ttW);
+                const ttY = cy - ttH - 8;
+                return (
+                  <g>
+                    <rect x={ttX} y={ttY} width={ttW} height={ttH} rx={5} fill="#064e3b" opacity={0.92} />
+                    <text x={ttX + ttW / 2} y={ttY + 13} textAnchor="middle" fontSize={9.5} fill="white" fontWeight="bold">
+                      {fmt(d.value)}
+                    </text>
+                  </g>
+                );
+              })()}
+            </g>
+          );
+        })}
+
+        {/* X-axis labels */}
+        {data.map((d, i) =>
+          i % xStep === 0 ? (
+            <text key={i} x={px(i)} y={H - 5} textAnchor="middle" fontSize={9} fill="#9ca3af">
+              {d.label}
+            </text>
+          ) : null
+        )}
+      </svg>
     </div>
   );
 }
@@ -1232,13 +1940,56 @@ function RevenueTab({ facilities }: { facilities: Facility[] }) {
   const [groupMode, setGroupMode] = useState<"court" | "service">("court");
   const [data, setData] = useState<RevData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [occupancy, setOccupancy] = useState<any>(null);
+  const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
+  const [chartView, setChartView] = useState<"day" | "hour" | "court" | "sport" | "month">("day");
 
   async function load(fid: string) {
     if (!fid) return;
     setLoading(true);
-    const res = await fetch(`/api/owner/revenue?facilityId=${fid}&year=${year}&month=${month}`);
-    if (res.ok) setData(await res.json());
+    const [revRes, occRes, mRes] = await Promise.all([
+      fetch(`/api/owner/revenue?facilityId=${fid}&year=${year}&month=${month}`),
+      fetch(`/api/owner/occupancy?facilityId=${fid}&month=${month}&year=${year}`),
+      fetch(`/api/owner/occupancy?facilityId=${fid}&year=${year}&period=year`),
+    ]);
+    if (revRes.ok) setData(await revRes.json());
+    const occData = await occRes.json();
+    const mData = await mRes.json();
+    setOccupancy(occData.dailyStats ? occData : null);
+    setMonthlyStats(mData.monthlyStats || []);
     setLoading(false);
+  }
+
+  const CHART_VIEWS = [
+    { key: "day",   label: "Ngày" },
+    { key: "hour",  label: "Giờ" },
+    { key: "court", label: "Sân" },
+    { key: "sport", label: "Môn" },
+    { key: "month", label: "Tháng" },
+  ] as const;
+
+  function getChartItems() {
+    if (!occupancy && chartView !== "month") return [];
+    switch (chartView) {
+      case "day":   return (occupancy?.dailyStats || []).map((d: any) => ({ label: `${d.day}`, value: d.count }));
+      case "hour":  return (occupancy?.hourlyStats || []).map((h: any) => ({ label: h.hour.replace(":00", "h"), value: h.count, highlight: parseInt(h.hour) >= 7 && parseInt(h.hour) < 9 }));
+      case "court": return (occupancy?.courtStats || []).map((c: any) => ({ label: c.courtName, value: c.count }));
+      case "sport": return (occupancy?.sportStats || []).map((s: any) => ({ label: s.name, value: s.count }));
+      case "month": return monthlyStats.map((m: any) => ({ label: `T${m.month}`, value: m.count }));
+    }
+  }
+
+  function getUserHabitsInsights() {
+    if (!occupancy) return null;
+    const hourly = (occupancy.hourlyStats || []) as any[];
+    const courts = (occupancy.courtStats || []) as any[];
+    const sports = (occupancy.sportStats || []) as any[];
+    const peakHour = hourly.reduce((b: any, h: any) => (!b || h.count > b.count) ? h : b, null);
+    const slowHour = hourly.filter((h: any) => h.count > 0).reduce((b: any, h: any) => (!b || h.count < b.count) ? h : b, null);
+    const topCourt = courts.reduce((b: any, c: any) => (!b || c.count > b.count) ? c : b, null);
+    const topSport = sports.reduce((b: any, s: any) => (!b || s.count > b.count) ? s : b, null);
+    const lowCourt = courts.reduce((b: any, c: any) => (!b || c.count < b.count) ? c : b, null);
+    return { peakHour, slowHour, topCourt, topSport, lowCourt };
   }
 
   useEffect(() => { if (facilityId) load(facilityId); }, [facilityId, year, month]);
@@ -1317,7 +2068,7 @@ function RevenueTab({ facilities }: { facilities: Facility[] }) {
                 </button>
               </div>
             </div>
-            <RevBarChart data={timeMode === "day" ? dayChartData : monthChartData} />
+            <RevLineChart data={timeMode === "day" ? dayChartData : monthChartData} />
           </div>
 
           {/* Phân tích theo sân / dịch vụ */}
@@ -1338,48 +2089,139 @@ function RevenueTab({ facilities }: { facilities: Facility[] }) {
               </div>
             </div>
             {groupMode === "court"
-              ? <HBarList data={data.byCourt}   total={totalCourt} />
-              : <HBarList data={data.byService} total={totalSvc} />
+              ? <HBarList data={data.byCourt} total={totalCourt} />
+              : (
+                <div className="space-y-2">
+                  {data.byService.length === 0
+                    ? <p className="text-center py-6 text-gray-400 text-sm">Chưa có dữ liệu</p>
+                    : data.byService.map((d, i) => {
+                        const pct = totalSvc > 0 ? (d.total / totalSvc) * 100 : 0;
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between text-xs mb-0.5">
+                              <span className="text-gray-700 font-medium truncate max-w-[55%]">{d.name}</span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-gray-400">x{d.quantity} sp</span>
+                                <span className="text-emerald-600 font-semibold">{Number(d.total).toLocaleString("vi-VN")}đ</span>
+                              </div>
+                            </div>
+                            <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
+                              <div className="h-full rounded-full bg-emerald-400" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+              )
             }
-            {groupMode === "service" && data.byService.length > 0 && (
-              <div className="mt-3 border-t border-gray-200 pt-3 space-y-1">
-                {data.byService.map((s, i) => (
-                  <div key={i} className="flex justify-between text-xs text-gray-500">
-                    <span>{s.name}</span>
-                    <span>x{s.quantity} sản phẩm</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
+
+          {/* Tỉ lệ lấp đầy */}
+          {occupancy && (
+            <div className={CARD + " !mb-0"} style={BG}>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h3 className="font-semibold text-black">Tỉ lệ lấp đầy</h3>
+                <div className="flex gap-1 flex-wrap">
+                  {CHART_VIEWS.map(v => (
+                    <button key={v.key} onClick={() => setChartView(v.key)}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${chartView === v.key ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-300"}`}>
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {occupancy && chartView !== "month" && (
+                <div className="flex gap-3 mb-4 flex-wrap">
+                  <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
+                    <p className="text-xs text-gray-500">Tổng lượt đặt</p>
+                    <p className="font-bold text-emerald-600 text-lg">{(occupancy.dailyStats || []).reduce((s: number, d: any) => s + d.count, 0)}</p>
+                  </div>
+                  <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
+                    <p className="text-xs text-gray-500">Ngày cao nhất</p>
+                    <p className="font-bold text-blue-600 text-lg">{Math.max(...(occupancy.dailyStats || [{ count: 0 }]).map((d: any) => d.count))} lượt</p>
+                  </div>
+                  <div className="bg-white rounded-xl px-4 py-2 border border-gray-200 text-center">
+                    <p className="text-xs text-gray-500">Lấp đầy TB/ngày</p>
+                    <p className="font-bold text-orange-600 text-lg">
+                      {(() => { const days = occupancy.dailyStats || []; return days.length ? Math.round(days.reduce((s: number, d: any) => s + d.rate, 0) / days.length) + "%" : "0%"; })()}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <BarChart items={getChartItems()} labelKey="label" valueKey="value" color="#10b981" />
+              {chartView === "hour" && <p className="text-xs text-gray-400 mt-2">Màu vàng = khung giờ cao điểm (7h–9h)</p>}
+              {chartView === "month" && <p className="text-xs text-gray-400 mt-2">Tổng lượt đặt theo từng tháng — năm {year}</p>}
+            </div>
+          )}
+
+          {/* Thói quen người dùng & Gợi ý kinh doanh */}
+          {(() => {
+            const h = getUserHabitsInsights();
+            if (!h) return null;
+            const insights: { icon: string; text: string; tip: string; color: string }[] = [];
+            if (h.peakHour) insights.push({ icon: "🔥", text: `Khung giờ đông nhất: ${h.peakHour.hour}`, tip: "Tăng giá khung giờ cao điểm hoặc chạy ưu đãi combo để tối ưu doanh thu", color: "border-orange-200 bg-orange-50" });
+            if (h.slowHour && h.slowHour.hour !== h.peakHour?.hour) insights.push({ icon: "📉", text: `Khung giờ vắng nhất: ${h.slowHour.hour}`, tip: "Tung voucher giảm giá cho khung giờ thấp điểm để tăng tỉ lệ lấp đầy", color: "border-blue-200 bg-blue-50" });
+            if (h.topSport) insights.push({ icon: "🏆", text: `Môn thể thao phổ biến nhất: ${h.topSport.name}`, tip: "Nhập thêm thiết bị/phụ kiện cho môn này, tạo giải đấu để thu hút thêm khách", color: "border-emerald-200 bg-emerald-50" });
+            if (h.topCourt) insights.push({ icon: "🎯", text: `Sân được đặt nhiều nhất: ${h.topCourt.courtName}`, tip: "Bảo trì định kỳ và nâng cấp dịch vụ tại sân này để duy trì chất lượng", color: "border-purple-200 bg-purple-50" });
+            if (h.lowCourt && h.lowCourt.courtName !== h.topCourt?.courtName) insights.push({ icon: "💡", text: `Sân ít được đặt nhất: ${h.lowCourt.courtName}`, tip: "Tạo ưu đãi đặc biệt hoặc gói combo cho sân này để cân bằng tỉ lệ sử dụng", color: "border-yellow-200 bg-yellow-50" });
+            if (insights.length === 0) return null;
+            return (
+              <div className={CARD + " !mb-0"} style={BG}>
+                <h3 className="font-semibold text-black mb-3">Thói quen người dùng &amp; Gợi ý kinh doanh</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {insights.map((ins, i) => (
+                    <div key={i} className={`rounded-xl border p-3.5 ${ins.color}`}>
+                      <p className="font-semibold text-sm text-gray-800">{ins.icon} {ins.text}</p>
+                      <p className="text-xs text-gray-500 mt-1">💬 {ins.tip}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Cảnh báo hàng bán chậm */}
           {data.slowSelling.length > 0 && (
             <div className="border border-amber-300 bg-amber-50 rounded-2xl p-4">
               <p className="font-semibold text-amber-700 text-sm mb-2">
-                Cảnh báo tồn kho — Hàng bán chậm (7 ngày qua)
+                Cảnh báo tồn kho — Hàng bán chậm (tháng {month}/{year})
               </p>
               <p className="text-xs text-amber-600 mb-3">
-                Các mặt hàng bán được ≤ 20 sản phẩm trong 7 ngày qua — cân nhắc giảm nhập hoặc chạy khuyến mãi.
+                Các mặt hàng bán chưa đạt ngưỡng trong tháng {month}/{year} — cân nhắc giảm nhập hoặc chạy khuyến mãi.
               </p>
               <div className="space-y-2">
-                {data.slowSelling.map(item => (
-                  <div key={item.id} className="flex items-center justify-between bg-white/70 rounded-xl px-3 py-2">
-                    <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                    <div className="text-right">
-                      <p className="text-xs text-amber-600 font-semibold">
-                        Đã bán: <span className="font-bold">{item.soldLast7Days}</span> sản phẩm
-                      </p>
-                      <p className="text-xs text-gray-400">Tồn kho: {item.stockQuantity}</p>
+                {data.slowSelling.map(item => {
+                  const isOwnerSet = (item as any).monthlyThreshold > 0;
+                  const displayThreshold = (item as any).threshold as number
+                    ?? (isOwnerSet ? (item as any).monthlyThreshold : Math.max(Math.round(item.stockQuantity * 0.05), 3));
+                  const ratio = item.stockQuantity > 0
+                    ? Math.round((item.soldLast7Days / item.stockQuantity) * 100)
+                    : 0;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between bg-white/70 rounded-xl px-3 py-2">
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Tồn kho: {item.stockQuantity} · Ngưỡng:{" "}
+                          <span className={isOwnerSet ? "text-emerald-600 font-medium" : ""}>{displayThreshold} sp/tháng{isOwnerSet ? " (bạn đặt)" : " (tự động)"}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-amber-600 font-semibold">
+                          Đã bán: <span className="font-bold">{item.soldLast7Days}</span> / {displayThreshold} sp
+                        </p>
+                        <p className="text-xs text-gray-400">Tiêu thụ: {ratio}% tồn kho</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
           {data.slowSelling.length === 0 && (
             <div className="border border-emerald-200 bg-emerald-50 rounded-2xl px-4 py-3 text-xs text-emerald-700">
-              Tất cả hàng hóa đang bán tốt trong 7 ngày qua.
+              Tất cả hàng hóa đang bán tốt trong tháng {month}/{year}.
             </div>
           )}
         </div>
@@ -1473,8 +2315,8 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
   const [services, setServices] = useState<Service[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: "", type: "PRODUCT", price: "", stockQuantity: "", imageUrl: "" });
-  const [editForm, setEditForm] = useState<Partial<Omit<Service, "stockQuantity"> & { stockQuantity: string }>>({});
+  const [form, setForm] = useState({ name: "", type: "PRODUCT", price: "", stockQuantity: "", monthlyThreshold: "", imageUrl: "" });
+  const [editForm, setEditForm] = useState<Partial<Omit<Service, "stockQuantity"|"monthlyThreshold"> & { stockQuantity: string; monthlyThreshold: string }>>({});
   const [loaded, setLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editUploading, setEditUploading] = useState(false);
@@ -1487,11 +2329,11 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
   async function createService() {
     const res = await fetch("/api/owner/services", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, facilityId, price: Number(form.price) * 1000 }),
+      body: JSON.stringify({ ...form, facilityId, price: Number(form.price) * 1000, monthlyThreshold: Number(form.monthlyThreshold || 0) }),
     });
     if (res.ok) {
       setShowForm(false);
-      setForm({ name: "", type: "PRODUCT", price: "", stockQuantity: "", imageUrl: "" });
+      setForm({ name: "", type: "PRODUCT", price: "", stockQuantity: "", monthlyThreshold: "", imageUrl: "" });
       loadServices(facilityId);
     } else { const d = await res.json(); alert(d.error); }
   }
@@ -1535,7 +2377,9 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
               <option value="RENTAL">Cho thuê</option>
             </select>
             <input className={INPUT} placeholder="Giá (nghìn đ) *" type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
-            <input className={INPUT} placeholder="Tồn kho" type="number" value={form.stockQuantity} onChange={e => setForm(f => ({ ...f, stockQuantity: e.target.value }))} />
+            <input className={INPUT} placeholder="Tồn kho ban đầu" type="number" value={form.stockQuantity} onChange={e => setForm(f => ({ ...f, stockQuantity: e.target.value }))} />
+            <input className={INPUT} placeholder="Ngưỡng tối thiểu/tháng (sp)" type="number" min={0} value={form.monthlyThreshold} onChange={e => setForm(f => ({ ...f, monthlyThreshold: e.target.value }))} />
+            <p className="text-xs text-gray-400 self-center">Cảnh báo khi bán &lt; ngưỡng này trong tháng (để 0 = tự động)</p>
           </div>
           {/* Upload ảnh */}
           <div className="border border-gray-200 rounded-xl p-3 bg-white/50 mb-3">
@@ -1559,11 +2403,15 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
           {/* Stock alert summary */}
           {(() => {
             const products = services.filter(s => s.type === "PRODUCT");
-            const outOfStock = products.filter(s => s.stockQuantity === 0);
-            const lowStock = products.filter(s => s.stockQuantity > 0 && s.stockQuantity < 10);
-            if (outOfStock.length === 0 && lowStock.length === 0) return null;
+            const outOfStock  = products.filter(s => s.stockQuantity === 0);
+            // "Sắp hết": tồn kho <= ngưỡng chủ sân đặt (nếu có) hoặc <= 10
+            const lowStockThreshold = (s: Service) => s.monthlyThreshold > 0 ? s.monthlyThreshold : 10;
+            const lowStock = products.filter(s => s.stockQuantity > 0 && s.stockQuantity <= lowStockThreshold(s));
+            // "Bán chậm": đã bán tháng này < ngưỡng chủ sân đặt (chỉ hiển thị nếu ngưỡng > 0)
+            const slowSales = products.filter(s => s.monthlyThreshold > 0 && (s.soldThisMonth ?? 0) < s.monthlyThreshold && s.stockQuantity > 0);
+            if (outOfStock.length === 0 && lowStock.length === 0 && slowSales.length === 0) return null;
             return (
-              <div className="flex flex-wrap gap-3 mb-4">
+              <div className="flex flex-col gap-2 mb-4">
                 {outOfStock.length > 0 && (
                   <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
                     <span className="text-red-500 font-bold text-lg">🚫</span>
@@ -1577,8 +2425,17 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
                   <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
                     <span className="text-orange-500 font-bold text-lg">⚠️</span>
                     <div>
-                      <p className="text-xs text-orange-600 font-semibold">Sắp hết ({lowStock.length} mặt hàng)</p>
-                      <p className="text-xs text-orange-400">{lowStock.map(s => `${s.name} (${s.stockQuantity})`).join(", ")}</p>
+                      <p className="text-xs text-orange-600 font-semibold">Sắp hết tồn kho ({lowStock.length} mặt hàng)</p>
+                      <p className="text-xs text-orange-400">{lowStock.map(s => `${s.name} (còn ${s.stockQuantity})`).join(", ")}</p>
+                    </div>
+                  </div>
+                )}
+                {slowSales.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                    <span className="text-amber-500 font-bold text-lg">📉</span>
+                    <div>
+                      <p className="text-xs text-amber-700 font-semibold">Bán chậm tháng này ({slowSales.length} mặt hàng)</p>
+                      <p className="text-xs text-amber-500">{slowSales.map(s => `${s.name} (${s.soldThisMonth ?? 0}/${s.monthlyThreshold}sp)`).join(", ")}</p>
                     </div>
                   </div>
                 )}
@@ -1594,15 +2451,16 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
               <th className="text-left px-3 py-3 font-semibold text-gray-700">Loại</th>
               <th className="text-right px-3 py-3 font-semibold text-gray-700">Giá</th>
               <th className="text-right px-3 py-3 font-semibold text-gray-700">Tồn kho</th>
+              <th className="text-right px-3 py-3 font-semibold text-gray-700">Đã bán / Ngưỡng</th>
               <th className="text-center px-3 py-3 font-semibold text-gray-700">Trạng thái</th>
               <th className="px-3 py-3"></th>
             </tr></thead>
             <tbody>
               {services.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chưa có dịch vụ</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-gray-400">Chưa có dịch vụ</td></tr>
               ) : services.map(svc => (
-                <>
-                  <tr key={svc.id} className="border-t border-gray-100">
+                <React.Fragment key={svc.id}>
+                  <tr className="border-t border-gray-100">
                     {/* Thumbnail */}
                     <td className="px-3 py-2.5">
                       <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
@@ -1620,9 +2478,17 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
                     </td>
                     <td className="px-3 py-2.5 text-right font-medium text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ</td>
                     <td className="px-3 py-2.5 text-right">
-                      <span className="mr-1.5">{svc.stockQuantity}</span>
+                      <span className="mr-1.5 font-medium">{svc.stockQuantity}</span>
                       {svc.type === "PRODUCT" && svc.stockQuantity === 0 && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Hết hàng</span>}
-                      {svc.type === "PRODUCT" && svc.stockQuantity > 0 && svc.stockQuantity < 10 && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Sắp hết</span>}
+                      {svc.type === "PRODUCT" && svc.stockQuantity > 0 && svc.stockQuantity <= (svc.monthlyThreshold > 0 ? svc.monthlyThreshold : 10) && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Sắp hết</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-xs">
+                      {svc.type === "PRODUCT" ? (
+                        <span className={`font-semibold ${svc.monthlyThreshold > 0 && (svc.soldThisMonth ?? 0) < svc.monthlyThreshold ? "text-amber-600" : "text-emerald-600"}`}>
+                          {svc.soldThisMonth ?? 0}
+                          {svc.monthlyThreshold > 0 && <span className="text-gray-400 font-normal"> / {svc.monthlyThreshold}</span>}
+                        </span>
+                      ) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${svc.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
@@ -1633,7 +2499,7 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => {
                           setEditing(svc);
-                          setEditForm({ name: svc.name, type: svc.type, price: svc.price, stockQuantity: String(svc.stockQuantity), isActive: svc.isActive, imageUrl: svc.imageUrl ?? "" });
+                          setEditForm({ name: svc.name, type: svc.type, price: svc.price, stockQuantity: String(svc.stockQuantity), monthlyThreshold: String(svc.monthlyThreshold ?? 0), isActive: svc.isActive, imageUrl: svc.imageUrl ?? "" });
                         }} className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-lg text-xs transition-colors">Sửa</button>
                         <button onClick={() => deleteService(svc.id)} className={BTN_R}>Ẩn</button>
                       </div>
@@ -1641,14 +2507,18 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
                   </tr>
                   {editing?.id === svc.id && (
                     <tr className="bg-blue-50">
-                      <td colSpan={7} className="px-4 py-3">
-                        <div className="grid grid-cols-4 gap-2 mb-2">
+                      <td colSpan={8} className="px-4 py-3">
+                        <div className="grid grid-cols-2 gap-2 mb-2 sm:grid-cols-4">
                           <input className={INPUT} placeholder="Tên" value={editForm.name || ""} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                           <select className={INPUT} value={editForm.type || ""} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}>
                             <option value="PRODUCT">F&B</option><option value="RENTAL">Cho thuê</option>
                           </select>
                           <input className={INPUT} placeholder="Giá (nghìn đ)" type="number" value={editForm.price || ""} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} />
                           <input className={INPUT} placeholder="Tồn kho" type="number" value={editForm.stockQuantity || ""} onChange={e => setEditForm(f => ({ ...f, stockQuantity: e.target.value }))} />
+                          <div className="col-span-2 sm:col-span-4">
+                            <label className="block text-xs text-gray-500 mb-1">Ngưỡng bán tối thiểu/tháng (sản phẩm) — để 0 để dùng tự động</label>
+                            <input className={INPUT + " w-48"} placeholder="Ngưỡng/tháng" type="number" min={0} value={editForm.monthlyThreshold || ""} onChange={e => setEditForm(f => ({ ...f, monthlyThreshold: e.target.value }))} />
+                          </div>
                         </div>
                         {/* Upload ảnh trong edit */}
                         <div className="border border-blue-200 rounded-xl p-3 bg-white/60 mb-2">
@@ -1667,7 +2537,7 @@ function ServicesTab({ facilities }: { facilities: Facility[] }) {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -1732,6 +2602,7 @@ export default function OwnerDashboard() {
           {activeTab === "overview"   && <OverviewTab />}
           {activeTab === "facilities" && <FacilitiesTab />}
           {activeTab === "staff"      && <StaffTab facilities={facilities} />}
+          {activeTab === "shifts"     && <WorkShiftsTab facilities={facilities} />}
           {activeTab === "attendance" && <AttendanceTab facilities={facilities} />}
           {activeTab === "salary"     && <SalaryTab facilities={facilities} />}
           {activeTab === "invoices"   && <InvoicesTab facilities={facilities} />}

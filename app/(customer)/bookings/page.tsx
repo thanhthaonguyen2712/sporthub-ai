@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 interface Court {
   id: number;
@@ -47,6 +47,8 @@ export default function BookingPage() {
   const [tmForm, setTmForm] = useState({ requiredPlayers: "4", level: "BEGINNER", description: "" });
   const [tmSubmitting, setTmSubmitting] = useState(false);
   const t = useTranslations("booking");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
 
   const courtPrice = Number(priceParam) || 0;
   const serviceTotal = selectedServices.reduce((sum, item) => {
@@ -104,7 +106,7 @@ export default function BookingPage() {
       setDiscount(0);
     } else {
       setDiscount(data.discount);
-      setVoucherMsg(`Giảm ${data.discount.toLocaleString("vi-VN")}đ`);
+      setVoucherMsg(t("discountApplied", { amount: data.discount.toLocaleString(dateLocale) + "đ" }));
     }
   }
 
@@ -128,7 +130,7 @@ export default function BookingPage() {
     const data = await res.json();
     setLoading(false);
     if (res.ok) setSuccessBookingId(data.bookingId);
-    else alert(data.error || "Đặt sân thất bại!");
+    else alert(data.error || t("bookingFailed"));
   }
 
   async function handleVNPay() {
@@ -155,7 +157,7 @@ export default function BookingPage() {
     if (data.payUrl) {
       window.location.href = data.payUrl;
     } else {
-      alert(data.error || "Lỗi kết nối VNPay!");
+      alert(data.error || t("vnpayError"));
     }
   }
 
@@ -185,7 +187,7 @@ export default function BookingPage() {
     if (res.ok) setTeammateStep("done");
     else {
       const d = await res.json();
-      alert(d.error || "Không thể đăng bài!");
+      alert(d.error || t("postFailed"));
     }
   }
 
@@ -201,8 +203,8 @@ export default function BookingPage() {
           <div className="max-w-lg mx-auto px-6 py-20 text-center">
             <div className="border border-gray-300 rounded-2xl p-10" style={{ background: "#E0EEE0" }}>
               <div className="flex justify-center mb-4"><img src="/group.png" className="w-16 h-16" alt="" /></div>
-              <h2 className="text-2xl font-bold text-black mb-2">Đã đăng tìm đồng đội!</h2>
-              <p className="text-gray-600 text-sm mb-6">Bài đăng của bạn đã được công khai. Người khác sẽ thấy và tham gia nhóm.</p>
+              <h2 className="text-2xl font-bold text-black mb-2">{t("teammatePosted")}</h2>
+              <p className="text-gray-600 text-sm mb-6">{t("teammatePostedMsg")}</p>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => router.push("/profile?tab=bookings")}
                   className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
@@ -227,7 +229,7 @@ export default function BookingPage() {
             <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
               <div className="flex items-center gap-3 mb-5">
                 <img src="/group.png" className="w-8 h-8" alt="" />
-                <h2 className="text-xl font-bold text-black">Tìm đồng đội</h2>
+                <h2 className="text-xl font-bold text-black">{t("findTeammate")}</h2>
               </div>
 
               {/* Thông tin sân đã đặt */}
@@ -242,20 +244,20 @@ export default function BookingPage() {
                 <div className="flex items-center gap-2 text-gray-700">
                   <img src="/calendar.png" className="w-4 h-4 flex-shrink-0" alt="" />
                   <span>
-                    {date ? new Date(date).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" }) : ""}
+                    {date ? new Date(date).toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "2-digit" }) : ""}
                     {" · "}{startTime} – {endTime}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-700 border-t border-gray-100 pt-2">
                   <img src="/atm-card.png" className="w-4 h-4 flex-shrink-0" alt="" />
-                  <span>Tổng đã trả: <span className="font-semibold text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span></span>
+                  <span>{t("totalPaid")} <span className="font-semibold text-emerald-600">{finalTotal.toLocaleString(dateLocale)}đ</span></span>
                 </div>
               </div>
 
               {/* Form */}
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-gray-600 font-medium mb-1 block">Cần bao nhiêu người? (bao gồm bạn)</label>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">{t("playersNeeded")}</label>
                   <input type="number" min="2" max="30"
                     value={tmForm.requiredPlayers}
                     onChange={(e) => setTmForm((f) => ({ ...f, requiredPlayers: e.target.value }))}
@@ -267,29 +269,29 @@ export default function BookingPage() {
                 {pricePerPerson > 0 && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
                     <p className="text-xs text-emerald-700 font-medium">
-                      Mỗi người trả: <span className="text-base font-bold">{pricePerPerson.toLocaleString("vi-VN")}đ</span>
+                      {t("perPerson")} <span className="text-base font-bold">{pricePerPerson.toLocaleString(dateLocale)}đ</span>
                     </p>
                     <p className="text-xs text-emerald-600 mt-0.5">
-                      = {finalTotal.toLocaleString("vi-VN")}đ ÷ {tmForm.requiredPlayers} người · Thanh toán qua ví SportHub
+                      {t("perPersonCalc", { total: finalTotal.toLocaleString(dateLocale) + "đ", count: tmForm.requiredPlayers })}
                     </p>
                   </div>
                 )}
 
                 <div>
-                  <label className="text-xs text-gray-600 font-medium mb-1 block">Trình độ</label>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">{t("level")}</label>
                   <select value={tmForm.level} onChange={(e) => setTmForm((f) => ({ ...f, level: e.target.value }))}
                     className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400">
-                    <option value="BEGINNER">Người mới</option>
-                    <option value="INTERMEDIATE">Trung bình</option>
-                    <option value="PRO">Chuyên nghiệp</option>
+                    <option value="BEGINNER">{t("beginner")}</option>
+                    <option value="INTERMEDIATE">{t("intermediate")}</option>
+                    <option value="PRO">{t("pro")}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-600 font-medium mb-1 block">Mô tả (không bắt buộc)</label>
+                  <label className="text-xs text-gray-600 font-medium mb-1 block">{t("descriptionOptional")}</label>
                   <textarea value={tmForm.description}
                     onChange={(e) => setTmForm((f) => ({ ...f, description: e.target.value }))}
-                    placeholder="VD: Tìm 3 bạn cùng chơi cầu lông, vui vẻ là chính..."
+                    placeholder={t("descPlaceholder")}
                     rows={3}
                     className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none"
                   />
@@ -298,11 +300,11 @@ export default function BookingPage() {
                 <div className="flex gap-3">
                   <button onClick={handleTeammatePost} disabled={tmSubmitting}
                     className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
-                    {tmSubmitting ? "Đang đăng..." : "Đăng tìm đồng đội"}
+                    {tmSubmitting ? t("posting") : t("postFindTeammate")}
                   </button>
                   <button onClick={() => router.push("/profile?tab=bookings")}
                     className="flex-1 bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 py-3 rounded-xl text-sm transition-colors">
-                    Bỏ qua
+                    {t("skip")}
                   </button>
                 </div>
               </div>
@@ -326,13 +328,13 @@ export default function BookingPage() {
             <div className="bg-white border border-emerald-200 rounded-xl px-5 py-4 mb-6 text-left">
               <div className="flex items-center gap-2 mb-2">
                 <img src="/group.png" className="w-5 h-5" alt="" />
-                <span className="font-semibold text-black text-sm">Bạn muốn tìm đồng đội?</span>
+                <span className="font-semibold text-black text-sm">{t("findTeammateQ")}</span>
               </div>
-              <p className="text-xs text-gray-500 mb-3">Đăng bài để mọi người cùng tham gia và chia sẻ chi phí sân.</p>
+              <p className="text-xs text-gray-500 mb-3">{t("findTeammateDesc")}</p>
               <button onClick={() => setTeammateStep("form")}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
                 <img src="/group.png" className="w-4 h-4" alt="" />
-                Tìm đồng đội
+                {t("findTeammate")}
               </button>
             </div>
 
@@ -373,7 +375,7 @@ export default function BookingPage() {
             <div className="flex justify-between">
               <span className="text-gray-600">{t("date")}</span>
               <span className="font-medium text-black">
-                {date ? new Date(date).toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }) : ""}
+                {date ? new Date(date).toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }) : ""}
               </span>
             </div>
             <div className="flex justify-between">
@@ -382,7 +384,7 @@ export default function BookingPage() {
             </div>
             <div className="flex justify-between border-t border-gray-300 pt-2 mt-2">
               <span className="text-gray-600">{t("courtFee")}</span>
-              <span className="font-semibold text-emerald-600">{courtPrice.toLocaleString("vi-VN")}đ</span>
+              <span className="font-semibold text-emerald-600">{courtPrice.toLocaleString(dateLocale)}đ</span>
             </div>
           </div>
         </div>
@@ -403,7 +405,7 @@ export default function BookingPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-black">{svc.name}</p>
-                        <p className="text-xs text-emerald-600">{Number(svc.price).toLocaleString("vi-VN")}đ/{svc.type === "RENTAL" ? t("rental") : t("piece")}</p>
+                        <p className="text-xs text-emerald-600">{Number(svc.price).toLocaleString(dateLocale)}đ/{svc.type === "RENTAL" ? t("rental") : t("piece")}</p>
                       </div>
                     </div>
                     {selected && (
@@ -451,23 +453,23 @@ export default function BookingPage() {
           <div className="space-y-2 text-sm mb-4">
             <div className="flex justify-between">
               <span className="text-gray-600">{t("courtFee")}</span>
-              <span>{courtPrice.toLocaleString("vi-VN")}đ</span>
+              <span>{courtPrice.toLocaleString(dateLocale)}đ</span>
             </div>
             {serviceTotal > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-600">{t("service")}</span>
-                <span>{serviceTotal.toLocaleString("vi-VN")}đ</span>
+                <span>{serviceTotal.toLocaleString(dateLocale)}đ</span>
               </div>
             )}
             {discount > 0 && (
               <div className="flex justify-between text-emerald-600">
                 <span>{t("discount")}</span>
-                <span>-{discount.toLocaleString("vi-VN")}đ</span>
+                <span>-{discount.toLocaleString(dateLocale)}đ</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-base border-t border-gray-300 pt-2 mt-2">
               <span>{t("total")}</span>
-              <span className="text-emerald-600">{finalTotal.toLocaleString("vi-VN")}đ</span>
+              <span className="text-emerald-600">{finalTotal.toLocaleString(dateLocale)}đ</span>
             </div>
           </div>
 
@@ -483,7 +485,7 @@ export default function BookingPage() {
                     <img src="/wallet.png" alt="" className="w-4 h-4" />
                     {t("walletSportHub")}
                   </p>
-                  <p className="text-xs text-gray-500">{t("walletBalance")} {walletBalance.toLocaleString("vi-VN")}đ</p>
+                  <p className="text-xs text-gray-500">{t("walletBalance")} {walletBalance.toLocaleString(dateLocale)}đ</p>
                 </div>
               </div>
               <span className={`text-xs px-2 py-1 rounded-full ${walletBalance >= finalTotal ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
@@ -522,8 +524,8 @@ export default function BookingPage() {
                 : "bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-white"
             }`}>
             {loading ? t("processing") : paymentMethod === "QR"
-            ? `${t("vnpayBtn")} · ${finalTotal.toLocaleString("vi-VN")}đ`
-            : `${t("confirmBtn")} · ${finalTotal.toLocaleString("vi-VN")}đ`}
+            ? `${t("vnpayBtn")} · ${finalTotal.toLocaleString(dateLocale)}đ`
+            : `${t("confirmBtn")} · ${finalTotal.toLocaleString(dateLocale)}đ`}
           </button>
         </div>
 

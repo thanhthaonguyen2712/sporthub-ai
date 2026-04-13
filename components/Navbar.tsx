@@ -104,7 +104,7 @@ export default function Navbar() {
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-colors"
                 >
                   <img src="/group.png" alt="group" className="w-5 h-5 flex-shrink-0" />
-                  <span>Tìm đồng đội</span>
+                  <span>{t("findTeammate")}</span>
                 </button>
               )}
 
@@ -113,7 +113,7 @@ export default function Navbar() {
                 <button
                   onClick={() => setNotifOpen(!notifOpen)}
                   className="relative w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors">
-                  <img src="/bell.png" alt="Thông báo" className="w-5 h-5" />
+                  <img src="/bell.png" alt="" className="w-5 h-5" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                       {unreadCount > 9 ? "9+" : unreadCount}
@@ -126,11 +126,11 @@ export default function Navbar() {
                     <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
                       <p className="text-white text-sm font-semibold flex items-center gap-1.5">
                         <img src="/bell.png" alt="" className="w-4 h-4" />
-                        Thông báo
+                        {t("notifications")}
                       </p>
                       {unreadCount > 0 && (
                         <button onClick={markAllRead} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
-                          Đọc tất cả
+                          {t("markAllRead")}
                         </button>
                       )}
                     </div>
@@ -138,7 +138,7 @@ export default function Navbar() {
                       {notifications.length === 0 ? (
                         <div className="text-center py-8 text-slate-500">
                           <div className="flex justify-center mb-2"><img src="/bell.png" alt="" className="w-8 h-8 opacity-40" /></div>
-                          <p className="text-xs">Chưa có thông báo nào</p>
+                          <p className="text-xs">{t("noNotifications")}</p>
                         </div>
                       ) : (
                         notifications.map((n) => (
@@ -155,7 +155,7 @@ export default function Navbar() {
                                 </p>
                                 <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{n.content}</p>
                                 <p className="text-xs text-slate-500 mt-1">
-                                  {new Date(n.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                  {new Date(n.createdAt).toLocaleString(locale === "en" ? "en-US" : "vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                 </p>
                               </div>
                               {!n.isRead && <div className="w-2 h-2 bg-emerald-400 rounded-full mt-1.5 flex-shrink-0" />}
@@ -208,12 +208,12 @@ export default function Navbar() {
                     )}
                     {(session.user as any)?.role === "OWNER" && (
                       <Link href="/owner/dashboard" className="block px-4 py-2.5 text-emerald-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
-                        Quản lý sân
+                        {t("manageCourt")}
                       </Link>
                     )}
                     {((session.user as any)?.role === "STAFF" || (session.user as any)?.role === "WAREHOUSE_MANAGER") && (
                       <Link href="/staff/dashboard" className="block px-4 py-2.5 text-blue-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
-                        {(session.user as any)?.role === "WAREHOUSE_MANAGER" ? "Quản lý kho" : "Trang làm việc"}
+                        {(session.user as any)?.role === "WAREHOUSE_MANAGER" ? t("manageWarehouse") : t("workPage")}
                       </Link>
                     )}
                     <button

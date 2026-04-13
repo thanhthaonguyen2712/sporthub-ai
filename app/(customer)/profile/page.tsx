@@ -3,7 +3,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 
 export default function ProfilePage() {
@@ -42,7 +42,7 @@ export default function ProfilePage() {
     const data = await res.json();
     setAvatarUploading(false);
     if (res.ok) setAvatarUrl(data.avatarUrl);
-    else alert(data.error || "Upload thất bại");
+    else alert(data.error || t("uploadFailed"));
   }
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -50,7 +50,7 @@ export default function ProfilePage() {
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   async function handleDeleteAccount() {
-    if (!deletePassword) { setDeleteError("Vui lòng nhập mật khẩu!"); return; }
+    if (!deletePassword) { setDeleteError(t("enterPassword")); return; }
     setDeleting(true);
     const res = await fetch("/api/user/delete", {
       method: "DELETE",
@@ -62,7 +62,7 @@ export default function ProfilePage() {
     if (res.ok) {
       signOut({ callbackUrl: "/" });
     } else {
-      setDeleteError(data.error || "Có lỗi xảy ra!");
+      setDeleteError(data.error || t("deleteError"));
     }
   }
   return (
@@ -84,7 +84,7 @@ export default function ProfilePage() {
                   onClick={() => avatarInputRef.current?.click()}
                   disabled={avatarUploading}
                   className="absolute bottom-0 right-0 w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-xs border-2 border-white transition-colors disabled:opacity-50"
-                  title="Thay ảnh đại diện"
+                  title={t("changeAvatar")}
                 >
                   {avatarUploading ? "..." : "+"}
                 </button>
@@ -140,16 +140,16 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <div className="text-center mb-4">
               <div className="flex justify-center mb-2"><img src="/delete.png" alt="" className="w-10 h-10" /></div>
-              <h3 className="font-bold text-black text-lg">Xóa tài khoản</h3>
-              <p className="text-gray-500 text-sm mt-1">Hành động này không thể hoàn tác! Tất cả dữ liệu sẽ bị xóa vĩnh viễn.</p>
+              <h3 className="font-bold text-black text-lg">{t("deleteAccountTitle")}</h3>
+              <p className="text-gray-500 text-sm mt-1">{t("deleteAccountMsg")}</p>
             </div>
             <div className="mb-4">
-              <label className="text-xs text-gray-600 mb-1.5 block font-medium">Nhập mật khẩu để xác nhận</label>
+              <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("enterPasswordConfirm")}</label>
               <input
                 type="password"
                 value={deletePassword}
                 onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(""); }}
-                placeholder="Nhập mật khẩu của bạn..."
+                placeholder={t("passwordPlaceholder")}
                 className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-red-400"
               />
               {deleteError && <p className="text-red-500 text-xs mt-1">{deleteError}</p>}
@@ -158,13 +158,13 @@ export default function ProfilePage() {
               <button
                 onClick={() => { setShowDeleteConfirm(false); setDeletePassword(""); setDeleteError(""); }}
                 className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                Hủy
+                {t("cancel")}
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={deleting}
                 className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                {deleting ? "Đang xóa..." : "Xác nhận xóa"}
+                {deleting ? t("deleting") : t("confirmDelete")}
               </button>
             </div>
           </div>
@@ -213,12 +213,12 @@ function SectionInfo({ session }: { session: any }) {
     const data = await res.json();
     setSaving(false);
     if (res.ok) {
-      setMsg("Lưu thành công!");
+      setMsg(t("saveSuccess"));
       setEditing(false);
       // Reload trang để cập nhật session
       setTimeout(() => window.location.reload(), 800);
     } else {
-      setMsg(data.error || "Lỗi khi lưu!");
+      setMsg(data.error || t("saveFailed"));
     }
     setTimeout(() => setMsg(""), 3000);
   }
@@ -235,24 +235,24 @@ function SectionInfo({ session }: { session: any }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Họ và tên</label>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("fullName")}</label>
           <input value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
-            disabled={!editing} placeholder="Nhập họ tên"
+            disabled={!editing} placeholder={t("namePlaceholder")}
             className="w-full bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
         </div>
         <div>
-          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Email</label>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("email")}</label>
           <input value={session?.user?.email || ""} disabled
             className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm opacity-60" />
         </div>
         <div>
-          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Số điện thoại</label>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("phone")}</label>
           <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            disabled={!editing} placeholder="Nhập số điện thoại"
+            disabled={!editing} placeholder={t("phonePlaceholder")}
             className="w-full bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
         </div>
         <div>
-          <label className="text-xs text-gray-600 mb-1.5 block font-medium">Ngày sinh</label>
+          <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("birthday")}</label>
           <div className="flex gap-2">
             {/* Ngày */}
             <div className="flex-1">
@@ -260,7 +260,7 @@ function SectionInfo({ session }: { session: any }) {
                 onChange={(e) => handleDob("day", e.target.value)}
                 disabled={!editing} placeholder="DD" maxLength={2}
                 className="w-full bg-white border border-gray-300 text-black text-center placeholder-gray-400 rounded-xl px-2 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
-              <p className="text-xs text-gray-400 text-center mt-0.5">Ngày</p>
+              <p className="text-xs text-gray-400 text-center mt-0.5">{t("day")}</p>
             </div>
             <div className="flex items-start pt-2.5 text-gray-400">/</div>
             {/* Tháng */}
@@ -269,7 +269,7 @@ function SectionInfo({ session }: { session: any }) {
                 onChange={(e) => handleDob("month", e.target.value)}
                 disabled={!editing} placeholder="MM" maxLength={2}
                 className="w-full bg-white border border-gray-300 text-black text-center placeholder-gray-400 rounded-xl px-2 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
-              <p className="text-xs text-gray-400 text-center mt-0.5">Tháng</p>
+              <p className="text-xs text-gray-400 text-center mt-0.5">{t("month")}</p>
             </div>
             <div className="flex items-start pt-2.5 text-gray-400">/</div>
             {/* Năm */}
@@ -278,14 +278,14 @@ function SectionInfo({ session }: { session: any }) {
                 onChange={(e) => handleDob("year", e.target.value)}
                 disabled={!editing} placeholder="YYYY" maxLength={4}
                 className="w-full bg-white border border-gray-300 text-black text-center placeholder-gray-400 rounded-xl px-2 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
-              <p className="text-xs text-gray-400 text-center mt-0.5">Năm</p>
+              <p className="text-xs text-gray-400 text-center mt-0.5">{t("year")}</p>
             </div>
           </div>
         </div>
       </div>
 
       {msg && (
-        <p className={`mt-3 text-sm px-3 py-2 rounded-lg ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+        <p className={`mt-3 text-sm px-3 py-2 rounded-lg ${msg === t("saveSuccess") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
           {msg}
         </p>
       )}
@@ -302,12 +302,17 @@ function SectionInfo({ session }: { session: any }) {
 
 /* ─── LỊCH ĐẶT SÂN ─── */
 function SectionBookings() {
+  const t = useTranslations("profile");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
+
   const [bookings, setBookings] = useState<any[]>([]);
-  const [filter, setFilter] = useState("Tất cả");
+  const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState<number | null>(null);
   const [toast, setToast] = useState("");
+  const [toastSuccess, setToastSuccess] = useState(false);
   const [reviewedIds, setReviewedIds] = useState<number[]>([]);
   const [reviewModal, setReviewModal] = useState<{ facilityId: number; facilityName: string } | null>(null);
   const [reviewRating, setReviewRating] = useState(0);
@@ -339,9 +344,11 @@ function SectionBookings() {
       setReviewModal(null);
       setReviewRating(0);
       setReviewComment("");
-      setToast("Đánh giá của bạn đã được gửi thành công!");
+      setToast(t("reviewSuccess"));
+      setToastSuccess(true);
     } else {
-      setToast(data.error || "Có lỗi xảy ra!");
+      setToast(data.error || t("deleteError"));
+      setToastSuccess(false);
     }
     setTimeout(() => setToast(""), 4000);
   }
@@ -352,7 +359,13 @@ function SectionBookings() {
     const data = await res.json();
     setCancellingId(null);
     setShowConfirm(null);
-    setToast(res.ok ? data.message : data.error || "Hủy thất bại!");
+    if (res.ok) {
+      setToast(data.message);
+      setToastSuccess(true);
+    } else {
+      setToast(data.error || t("cancelFailed"));
+      setToastSuccess(false);
+    }
     setTimeout(() => setToast(""), 4000);
     if (res.ok) loadBookings();
   }
@@ -363,20 +376,29 @@ function SectionBookings() {
   const filtered = bookings.filter((b) => {
     const bookingDate = new Date(b.bookingDate);
     bookingDate.setHours(0, 0, 0, 0);
-    if (filter === "Tất cả") return true;
-    if (filter === "Sắp tới") return bookingDate >= today && (b.status === "CONFIRMED" || b.status === "PENDING");
-    if (filter === "Đã hoàn thành") return b.status === "COMPLETED" || bookingDate < today;
-    if (filter === "Đã hủy") return b.status === "CANCELLED";
+    if (filter === "all") return true;
+    if (filter === "upcoming") return bookingDate >= today && (b.status === "CONFIRMED" || b.status === "PENDING");
+    if (filter === "completed") return b.status === "COMPLETED" || bookingDate < today;
+    if (filter === "cancelled") return b.status === "CANCELLED";
     return true;
   });
 
+  const filterTabs = [
+    { key: "all",       label: t("all") },
+    { key: "upcoming",  label: t("upcoming") },
+    { key: "completed", label: t("completed") },
+    { key: "cancelled", label: t("cancelled") },
+  ];
+
   const statusLabel: Record<string, { label: string; color: string }> = {
-    PENDING:   { label: "Chờ xác nhận", color: "bg-yellow-100 text-yellow-700" },
-    CONFIRMED: { label: "Đã xác nhận",  color: "bg-emerald-100 text-emerald-700" },
-    COMPLETED: { label: "Đã hoàn thành", color: "bg-blue-100 text-blue-700" },
-    CANCELLED: { label: "Đã hủy",       color: "bg-red-100 text-red-600" },
-    NO_SHOW:   { label: "Không đến",    color: "bg-gray-100 text-gray-600" },
+    PENDING:   { label: t("pending"),   color: "bg-yellow-100 text-yellow-700" },
+    CONFIRMED: { label: t("confirmed"), color: "bg-emerald-100 text-emerald-700" },
+    COMPLETED: { label: t("completed"), color: "bg-blue-100 text-blue-700" },
+    CANCELLED: { label: t("cancelled"), color: "bg-red-100 text-red-600" },
+    NO_SHOW:   { label: t("noShow"),    color: "bg-gray-100 text-gray-600" },
   };
+
+  const ratingLabels = ["", t("rating1"), t("rating2"), t("rating3"), t("rating4"), t("rating5")];
 
   function getEffectiveStatus(b: any) {
     if (b.status === "CONFIRMED") {
@@ -389,12 +411,12 @@ function SectionBookings() {
 
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-      <h2 className="text-lg font-semibold text-black mb-4">Lịch đặt sân</h2>
+      <h2 className="text-lg font-semibold text-black mb-4">{t("mySchedule")}</h2>
       <div className="flex gap-2 mb-5 flex-wrap">
-        {["Tất cả", "Sắp tới", "Đã hoàn thành", "Đã hủy"].map((tab) => (
-          <button key={tab} onClick={() => setFilter(tab)}
-            className={`text-xs px-3 py-1.5 rounded-lg transition-colors border ${filter === tab ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"}`}>
-            {tab}
+        {filterTabs.map((tab) => (
+          <button key={tab.key} onClick={() => setFilter(tab.key)}
+            className={`text-xs px-3 py-1.5 rounded-lg transition-colors border ${filter === tab.key ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"}`}>
+            {tab.label}
           </button>
         ))}
       </div>
@@ -403,8 +425,8 @@ function SectionBookings() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <div className="flex justify-center mb-2"><img src="/list.png" alt="" className="w-10 h-10 opacity-40" /></div>
-          <p className="text-sm">Chưa có lịch đặt sân nào</p>
-          <a href="/" className="inline-block mt-3 text-emerald-600 text-sm hover:underline">Đặt sân ngay →</a>
+          <p className="text-sm">{t("noBookings")}</p>
+          <a href="/" className="inline-block mt-3 text-emerald-600 text-sm hover:underline">{t("bookNow")}</a>
         </div>
       ) : (
         <div className="space-y-3">
@@ -423,11 +445,11 @@ function SectionBookings() {
                 </span>
               </div>
               <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
-                <span className="flex items-center gap-1"><img src="/calendar.png" className="w-3.5 h-3.5" alt="" />{new Date(b.bookingDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+                <span className="flex items-center gap-1"><img src="/calendar.png" className="w-3.5 h-3.5" alt="" />{new Date(b.bookingDate).toLocaleDateString(dateLocale, { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
                 <span>{b.startTime} – {b.endTime}</span>
               </div>
               <div className="flex items-center justify-between mt-1">
-                <span className="text-emerald-600 font-bold text-sm">{Number(b.totalPrice).toLocaleString("vi-VN")}đ</span>
+                <span className="text-emerald-600 font-bold text-sm">{Number(b.totalPrice).toLocaleString(dateLocale)}đ</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400">#{b.id}</span>
                   {(b.status === "CONFIRMED" || b.status === "PENDING") &&
@@ -435,14 +457,14 @@ function SectionBookings() {
                     (new Date().getTime() - new Date(b.createdAt).getTime()) / 60000 <= 60 && (
                       <button onClick={() => setShowConfirm(b.id)}
                         className="text-xs text-red-500 hover:text-red-700 border border-red-300 hover:border-red-500 px-2 py-0.5 rounded-lg transition-colors">
-                        Hủy
+                        {t("cancelBooking")}
                       </button>
                     )}
                   {getEffectiveStatus(b) === "COMPLETED" && b.facility?.id && !reviewedIds.includes(b.facility.id) && (
                     <button
                       onClick={() => { setReviewModal({ facilityId: b.facility.id, facilityName: b.facility.name }); setReviewRating(0); setReviewComment(""); }}
                       className="text-xs text-amber-600 hover:text-amber-700 border border-amber-300 hover:border-amber-500 px-2 py-0.5 rounded-lg transition-colors">
-                      <img src="/star.png" className="w-3.5 h-3.5 inline mr-0.5" alt="" />Đánh giá
+                      <img src="/star.png" className="w-3.5 h-3.5 inline mr-0.5" alt="" />{t("rate")}
                     </button>
                   )}
                 </div>
@@ -452,64 +474,60 @@ function SectionBookings() {
         </div>
       )}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toast.includes("thành công") || toast.includes("Hoàn") ? "bg-emerald-500" : "bg-red-500"}`}>
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toastSuccess ? "bg-emerald-500" : "bg-red-500"}`}>
           {toast}
         </div>
       )}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="font-bold text-black text-lg mb-2">Xác nhận hủy sân</h3>
-            <p className="text-gray-600 text-sm mb-1">Bạn có chắc muốn hủy lịch đặt sân này?</p>
-            <p className="text-emerald-600 text-xs mb-5">Tiền sẽ được hoàn về ví SportHub ngay lập tức.</p>
+            <h3 className="font-bold text-black text-lg mb-2">{t("confirmCancel")}</h3>
+            <p className="text-gray-600 text-sm mb-1">{t("cancelMsg")}</p>
+            <p className="text-emerald-600 text-xs mb-5">{t("refundMsg")}</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowConfirm(null)} className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">Không hủy</button>
+              <button onClick={() => setShowConfirm(null)} className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">{t("keepBooking")}</button>
               <button onClick={() => handleCancel(showConfirm)} disabled={cancellingId === showConfirm}
                 className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                {cancellingId === showConfirm ? "Đang hủy..." : "Xác nhận hủy"}
+                {cancellingId === showConfirm ? t("cancelling") : t("confirmCancelBtn")}
               </button>
             </div>
           </div>
         </div>
       )}
-      {/* Modal đánh giá sân */}
       {reviewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <div className="text-center mb-4">
               <div className="flex justify-center mb-2"><img src="/star.png" alt="" className="w-10 h-10" /></div>
-              <h3 className="font-bold text-black text-lg">Đánh giá cơ sở</h3>
+              <h3 className="font-bold text-black text-lg">{t("reviewTitle")}</h3>
               <p className="text-gray-500 text-sm mt-1">{reviewModal.facilityName}</p>
             </div>
-            {/* Chọn sao */}
             <div className="flex justify-center gap-2 mb-4">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button key={star} onClick={() => setReviewRating(star)}
                   className={`transition-transform hover:scale-110 ${star <= reviewRating ? "opacity-100" : "opacity-30"}`}>
-                  <img src="/star.png" className="w-8 h-8" alt={`${star} sao`} />
+                  <img src="/star.png" className="w-8 h-8" alt={`${star}`} />
                 </button>
               ))}
             </div>
             {reviewRating > 0 && (
-              <p className="text-center text-xs text-gray-500 mb-3">
-                {["", "Rất tệ", "Tệ", "Bình thường", "Tốt", "Tuyệt vời"][reviewRating]}
-              </p>
+              <p className="text-center text-xs text-gray-500 mb-3">{ratingLabels[reviewRating]}</p>
             )}
             <textarea
               value={reviewComment}
               onChange={(e) => setReviewComment(e.target.value)}
-              placeholder="Chia sẻ trải nghiệm của bạn... (không bắt buộc)"
+              placeholder={t("reviewPlaceholder")}
               rows={3}
               className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 resize-none mb-4"
             />
             <div className="flex gap-3">
               <button onClick={() => setReviewModal(null)}
                 className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                Hủy
+                {t("cancel")}
               </button>
               <button onClick={submitReview} disabled={reviewSubmitting || reviewRating === 0}
                 className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                {reviewSubmitting ? "Đang gửi..." : "Gửi đánh giá"}
+                {reviewSubmitting ? t("submittingReview") : t("submitReview")}
               </button>
             </div>
           </div>
@@ -521,6 +539,9 @@ function SectionBookings() {
 
 /* ─── VÍ SPORTHUB ─── */
 function SectionWallet() {
+  const t = useTranslations("profile");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -532,7 +553,8 @@ function SectionWallet() {
   const [savedBanks, setSavedBanks] = useState<any[]>([]);
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawMsg, setWithdrawMsg] = useState("");
-  const [txFilter, setTxFilter] = useState("Tất cả");
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+  const [txFilter, setTxFilter] = useState("all");
 
   useEffect(() => {
     fetch("/api/wallet/detail").then((r) => r.json()).then((data) => {
@@ -544,10 +566,10 @@ function SectionWallet() {
   }, []);
 
   const typeLabel: Record<string, { label: string; color: string; sign: string }> = {
-    DEPOSIT:  { label: "Nạp tiền",   color: "text-emerald-600", sign: "+" },
-    PAYMENT:  { label: "Thanh toán", color: "text-red-500",     sign: "-" },
-    REFUND:   { label: "Hoàn tiền",  color: "text-emerald-600", sign: "+" },
-    WITHDRAW: { label: "Rút tiền",   color: "text-red-500",     sign: "-" },
+    DEPOSIT:  { label: t("txDeposit"),  color: "text-emerald-600", sign: "+" },
+    PAYMENT:  { label: t("txPayment"),  color: "text-red-500",     sign: "-" },
+    REFUND:   { label: t("txRefund"),   color: "text-emerald-600", sign: "+" },
+    WITHDRAW: { label: t("txWithdraw"), color: "text-red-500",     sign: "-" },
   };
   async function handleTopup() {
     if (!topupAmount || Number(topupAmount) <= 0) return;
@@ -570,7 +592,7 @@ function SectionWallet() {
 
   async function handleWithdraw() {
     if (!withdrawForm.amount || !withdrawForm.bankName || !withdrawForm.accountNumber || !withdrawForm.accountName) {
-      setWithdrawMsg("Vui lòng điền đầy đủ thông tin!"); return;
+      setWithdrawMsg(t("fillAllFields")); setWithdrawSuccess(false); return;
     }
     setWithdrawing(true);
     const res = await fetch("/api/wallet/withdraw", {
@@ -582,13 +604,15 @@ function SectionWallet() {
     setWithdrawing(false);
     if (res.ok) {
       setWithdrawMsg(data.message);
+      setWithdrawSuccess(true);
       setWallet((w: any) => ({ ...w, balance: Number(w.balance) - Number(withdrawForm.amount) }));
       setWithdrawForm({ amount: "", bankName: "", accountNumber: "", accountName: "", saveBank: false });
       setShowWithdraw(false);
       fetch("/api/wallet/detail").then((r) => r.json()).then((d) => setTransactions(d.transactions || []));
       setTimeout(() => setWithdrawMsg(""), 4000);
     } else {
-      setWithdrawMsg(data.error || "Rút tiền thất bại!");
+      setWithdrawMsg(data.error || t("withdrawFailed"));
+      setWithdrawSuccess(false);
     }
   }
 
@@ -597,17 +621,17 @@ function SectionWallet() {
       {/* Card số dư */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <h2 className="text-lg font-semibold text-black mb-4 flex items-center gap-2">
-          <img src="/wallet.png" alt="Ví" className="w-5 h-5" />
-          Ví SportHub
+          <img src="/wallet.png" alt="wallet" className="w-5 h-5" />
+          {t("wallet")}
         </h2>
         {loading ? (
           <div className="h-16 bg-white/50 rounded-xl animate-pulse" />
         ) : (
           <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl p-5 text-white">
-            <p className="text-sm opacity-80 mb-1">Số dư hiện tại</p>
-            <p className="text-3xl font-bold">{Number(wallet?.balance || 0).toLocaleString("vi-VN")}đ</p>
+            <p className="text-sm opacity-80 mb-1">{t("currentBalance")}</p>
+            <p className="text-3xl font-bold">{Number(wallet?.balance || 0).toLocaleString(dateLocale)}đ</p>
             <span className={`inline-block mt-3 text-xs px-2 py-0.5 rounded-full ${wallet?.status === "ACTIVE" ? "bg-white/20" : "bg-red-300/40"}`}>
-              {wallet?.status === "ACTIVE" ? "Hoạt động" : "Bị khóa"}
+              {wallet?.status === "ACTIVE" ? t("walletActive") : t("walletLocked")}
             </span>
           </div>
         )}
@@ -616,16 +640,16 @@ function SectionWallet() {
         <div className="mt-4 grid grid-cols-2 gap-3">
           <button onClick={() => setShowTopup(true)}
             className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
-             Nạp tiền
+            {t("topupBtn")}
           </button>
           <button onClick={() => setShowWithdraw(true)}
             className="flex items-center justify-center gap-2 bg-white border border-red-300 text-red-500 hover:bg-red-50 font-semibold py-3 rounded-xl transition-colors text-sm">
-             Rút tiền
+            {t("withdrawBtn")}
           </button>
         </div>
 
         {withdrawMsg && (
-          <div className={`mt-3 text-xs px-3 py-2 rounded-lg ${withdrawMsg.includes("thành công") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+          <div className={`mt-3 text-xs px-3 py-2 rounded-lg ${withdrawSuccess ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
             {withdrawMsg}
           </div>
         )}
@@ -633,16 +657,22 @@ function SectionWallet() {
       {/* Lịch sử giao dịch */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-lg font-semibold text-black">Lịch sử giao dịch</h2>
+          <h2 className="text-lg font-semibold text-black">{t("transactionHistory")}</h2>
           <div className="flex gap-2 flex-wrap">
-            {["Tất cả", "Nạp tiền", "Thanh toán", "Hoàn tiền", "Rút tiền"].map((tab) => (
-              <button key={tab} onClick={() => setTxFilter(tab)}
+            {[
+              { key: "all", label: t("txAll") },
+              { key: "deposit", label: t("txDeposit") },
+              { key: "payment", label: t("txPayment") },
+              { key: "refund", label: t("txRefund") },
+              { key: "withdraw", label: t("txWithdraw") },
+            ].map((tab) => (
+              <button key={tab.key} onClick={() => setTxFilter(tab.key)}
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                  txFilter === tab
+                  txFilter === tab.key
                     ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium"
                     : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"
                 }`}>
-                {tab}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -652,30 +682,30 @@ function SectionWallet() {
         ) : transactions.length === 0 ? (
           <div className="text-center py-10 text-gray-500">
             <div className="flex justify-center mb-2"><img src="/wallet.png" className="w-10 h-10 opacity-40" alt="" /></div>
-            <p className="text-sm">Chưa có giao dịch nào</p>
+            <p className="text-sm">{t("noTransactions")}</p>
           </div>
         ) : (
           <div className="space-y-2">
             {transactions
-              .filter((t) => {
-                if (txFilter === "Tất cả") return true;
-                if (txFilter === "Nạp tiền") return t.type === "DEPOSIT";
-                if (txFilter === "Thanh toán") return t.type === "PAYMENT";
-                if (txFilter === "Hoàn tiền") return t.type === "REFUND";
-                if (txFilter === "Rút tiền") return t.type === "WITHDRAW";
+              .filter((tx) => {
+                if (txFilter === "all") return true;
+                if (txFilter === "deposit") return tx.type === "DEPOSIT";
+                if (txFilter === "payment") return tx.type === "PAYMENT";
+                if (txFilter === "refund") return tx.type === "REFUND";
+                if (txFilter === "withdraw") return tx.type === "WITHDRAW";
                 return true;
               })
-              .map((t) => (
-                <div key={t.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+              .map((tx) => (
+                <div key={tx.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-black">{typeLabel[t.type]?.label || t.type}</p>
-                    {t.description && <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>}
+                    <p className="text-sm font-medium text-black">{typeLabel[tx.type]?.label || tx.type}</p>
+                    {tx.description && <p className="text-xs text-gray-500 mt-0.5">{tx.description}</p>}
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(t.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(tx.createdAt).toLocaleString(dateLocale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
-                  <span className={`font-bold text-sm ${typeLabel[t.type]?.color}`}>
-                    {typeLabel[t.type]?.sign}{Number(t.amount).toLocaleString("vi-VN")}đ
+                  <span className={`font-bold text-sm ${typeLabel[tx.type]?.color}`}>
+                    {typeLabel[tx.type]?.sign}{Number(tx.amount).toLocaleString(dateLocale)}đ
                   </span>
                 </div>
               ))}
@@ -687,16 +717,16 @@ function SectionWallet() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="font-bold text-black text-lg mb-4 flex items-center gap-2">
-              <img src="/wallet.png" alt="Ví" className="w-5 h-5" />
-              Nạp tiền vào ví
+              <img src="/wallet.png" alt="wallet" className="w-5 h-5" />
+              {t("topupTitle")}
             </h3>
 
             {/* Hiển thị số tiền */}
             <div className="bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-center mb-3">
               <p className="text-2xl font-bold text-black">
-                {topupAmount ? (Number(topupAmount) * 1000).toLocaleString("vi-VN") : "0"}đ
+                {topupAmount ? (Number(topupAmount) * 1000).toLocaleString(dateLocale) : "0"}đ
               </p>
-              <p className="text-xs text-gray-400 mt-1">Số dư hiện tại: {Number(wallet?.balance || 0).toLocaleString("vi-VN")}đ</p>
+              <p className="text-xs text-gray-400 mt-1">{t("topupCurrentBalance", { amount: Number(wallet?.balance || 0).toLocaleString(dateLocale) + "đ" })}</p>
             </div>
 
             {/* Numpad */}
@@ -750,16 +780,16 @@ function SectionWallet() {
                     if (data.payUrl) {
                       window.location.href = data.payUrl;
                     } else {
-                      alert(data.error || "Lỗi kết nối VNPay!");
+                      alert(data.error || t("saveFailed"));
                     }
                   }}
                   className="w-full bg-blue-500 hover:bg-blue-400 disabled:bg-blue-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
                   <img src="/vnpay.png" className="w-5 h-5 object-contain" alt="VNPay" />
-                  Nạp tiền qua VNPay
+                  {t("topupVnpay")}
                 </button>
               <button onClick={() => { setShowTopup(false); setTopupAmount(""); }}
                 className="w-full border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                Hủy
+                {t("cancel")}
               </button>
             </div>
 
@@ -771,10 +801,10 @@ function SectionWallet() {
       {showWithdraw && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-black text-lg mb-4">🏦 Rút tiền về ngân hàng</h3>
+            <h3 className="font-bold text-black text-lg mb-4">🏦 {t("withdrawTitle")}</h3>
             {savedBanks.length > 0 && (
               <div className="mb-4">
-                <p className="text-xs text-gray-500 mb-2">Tài khoản đã lưu:</p>
+                <p className="text-xs text-gray-500 mb-2">{t("savedAccounts")}</p>
                 <div className="space-y-2">
                   {savedBanks.map((b) => (
                     <button key={b.id}
@@ -791,15 +821,15 @@ function SectionWallet() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-600 mb-1 block font-medium">Số tiền rút (đ)</label>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">{t("withdrawAmountLabel")}</label>
                 {/* Hiển thị số tiền */}
                 <div className="bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-center mb-3">
                   <p className="text-2xl font-bold text-black">
                     {withdrawForm.amount
-                      ? (Number(withdrawForm.amount) * 1000).toLocaleString("vi-VN")
+                      ? (Number(withdrawForm.amount) * 1000).toLocaleString(dateLocale)
                       : "0"}đ
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">Số dư: {Number(wallet?.balance || 0).toLocaleString("vi-VN")}đ</p>
+                  <p className="text-xs text-gray-400 mt-1">{t("balanceDisplay")} {Number(wallet?.balance || 0).toLocaleString(dateLocale)}đ</p>
                 </div>
 
                 {/* Numpad */}
@@ -840,25 +870,25 @@ function SectionWallet() {
                 </div>
               </div>
               <div>
-                  <label className="text-xs text-gray-600 mb-1 block font-medium">Ngân hàng</label>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">{t("bankNameLabel")}</label>
                   <select value={withdrawForm.bankName}
                     onChange={(e) => setWithdrawForm((f) => ({ ...f, bankName: e.target.value }))}
                     className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400">
-                    <option value="">Chọn ngân hàng...</option>
+                    <option value="">{t("selectBankPlaceholder")}</option>
                     {["Vietcombank", "Techcombank", "MB Bank", "BIDV", "Agribank", "VPBank", "ACB", "Sacombank", "TPBank", "VIB"].map((b) => (
                       <option key={b} value={b}>{b}</option>
                     ))}
                   </select>
               </div>
               <div>
-                  <label className="text-xs text-gray-600 mb-1 block font-medium">Số tài khoản</label>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">{t("accountNumberLabel")}</label>
                   <input type="text" value={withdrawForm.accountNumber}
                     onChange={(e) => setWithdrawForm((f) => ({ ...f, accountNumber: e.target.value }))}
-                    placeholder="Nhập số tài khoản..."
+                    placeholder={t("accountNumberPlaceholder")}
                     className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
               </div>
               <div>
-                  <label className="text-xs text-gray-600 mb-1 block font-medium">Tên chủ tài khoản</label>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">{t("accountNameLabel")}</label>
                   <input type="text" value={withdrawForm.accountName}
                     onChange={(e) => setWithdrawForm((f) => ({ ...f, accountName: e.target.value.toUpperCase() }))}
                     placeholder="NGUYEN VAN A..."
@@ -868,7 +898,7 @@ function SectionWallet() {
                   <input type="checkbox" checked={withdrawForm.saveBank}
                     onChange={(e) => setWithdrawForm((f) => ({ ...f, saveBank: e.target.checked }))}
                     className="accent-emerald-500" />
-                  Lưu tài khoản này để dùng lần sau
+                  {t("saveAccountLabel")}
               </label>
             </div>
             {withdrawMsg && (
@@ -878,11 +908,11 @@ function SectionWallet() {
             <div className="flex gap-3 mt-5">
               <button onClick={() => { setShowWithdraw(false); setWithdrawMsg(""); }}
                 className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                Hủy
+                {t("cancel")}
               </button>
               <button onClick={handleWithdraw} disabled={withdrawing}
                 className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                {withdrawing ? "Đang xử lý..." : "Xác nhận rút tiền"}
+                {withdrawing ? t("processing") : t("confirmWithdraw")}
               </button>
             </div>
           </div>
@@ -894,6 +924,9 @@ function SectionWallet() {
 
 /* ─── KHÓA HỌC ─── */
 function SectionCourses() {
+  const t = useTranslations("profile");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
   const [tab, setTab] = useState<"mine" | "public">("mine");
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -942,7 +975,7 @@ function SectionCourses() {
       setShowCreate(false);
       setForm({ title: "", description: "", sport: "", level: "BEGINNER", price: "", maxStudents: "10", schedule: "", startDate: "", endDate: "", isPublic: true });
       fetch(`/api/courses?type=public`).then((r) => r.json()).then((d) => setCourses(Array.isArray(d) ? d : []));
-      setMsg("Tạo khóa học thành công!");
+      setMsg(t("createCourseSuccess"));
       setTimeout(() => setMsg(""), 3000);
     } else {
       setMsg(data.error);
@@ -950,7 +983,7 @@ function SectionCourses() {
   }
 
   const levelLabel: Record<string, string> = {
-    BEGINNER: "Người mới", INTERMEDIATE: "Trung bình", PRO: "Chuyên nghiệp"
+    BEGINNER: t("beginner"), INTERMEDIATE: t("intermediate"), PRO: t("pro")
   };
 
   return (
@@ -963,19 +996,19 @@ function SectionCourses() {
 
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-black">Khóa học</h2>
+          <h2 className="text-lg font-semibold text-black">{t("coursesSectionTitle")}</h2>
           <button onClick={() => setShowCreate(true)}
             className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-4 py-2 rounded-xl transition-colors">
-            + Tạo khóa học
+            {t("createCourse")}
           </button>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-5">
-          {[{ key: "mine", label: "Khóa học của tôi" }, { key: "public", label: "Khóa học đang mở" }].map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key as any)}
-              className={`text-sm px-4 py-2 rounded-xl border transition-colors ${tab === t.key ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"}`}>
-              {t.label}
+          {[{ key: "mine", label: t("myCourses") }, { key: "public", label: t("openCourses") }].map((ct) => (
+            <button key={ct.key} onClick={() => setTab(ct.key as any)}
+              className={`text-sm px-4 py-2 rounded-xl border transition-colors ${tab === ct.key ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"}`}>
+              {ct.label}
             </button>
           ))}
         </div>
@@ -985,7 +1018,7 @@ function SectionCourses() {
         ) : courses.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <div className="flex justify-center mb-2"><img src="/education.png" className="w-10 h-10 opacity-40" alt="" /></div>
-            <p className="text-sm">{tab === "mine" ? "Bạn chưa đăng ký khóa học nào" : "Chưa có khóa học nào"}</p>
+            <p className="text-sm">{tab === "mine" ? t("notEnrolled") : t("noCourses")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1006,7 +1039,7 @@ function SectionCourses() {
                       : enrollment?.status === "COMPLETED" ? "bg-blue-100 text-blue-700"
                       : "bg-gray-100 text-gray-600"
                     }`}>
-                      {enrollment ? (enrollment.status === "ACTIVE" ? "Đang học" : enrollment.status === "COMPLETED" ? "Hoàn thành" : "Chờ xử lý") : `${course._count?.enrollments || 0}/${course.maxStudents} học viên`}
+                      {enrollment ? (enrollment.status === "ACTIVE" ? t("courseActive") : enrollment.status === "COMPLETED" ? t("completed") : t("pending")) : t("courseEnrollCount", { current: course._count?.enrollments || 0, max: course.maxStudents })}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-gray-500">
@@ -1037,20 +1070,20 @@ function SectionCourses() {
             </div>
 
             <div className="space-y-2 text-sm mb-4">
-              <div className="flex justify-between"><span className="text-gray-500">Môn</span><span className="font-medium">{selected.course.sport} · {levelLabel[selected.course.level]}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Lịch học</span><span className="font-medium">{selected.course.schedule}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Bắt đầu</span><span className="font-medium">{new Date(selected.course.startDate).toLocaleDateString("vi-VN")}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Kết thúc</span><span className="font-medium">{new Date(selected.course.endDate).toLocaleDateString("vi-VN")}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Học phí</span><span className="font-bold text-emerald-600">{Number(selected.course.price).toLocaleString("vi-VN")}đ</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Sĩ số</span><span className="font-medium">{selected.course._count?.enrollments || 0}/{selected.course.maxStudents}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t("courseSportLabel")}</span><span className="font-medium">{selected.course.sport} · {levelLabel[selected.course.level]}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t("courseScheduleLabel")}</span><span className="font-medium">{selected.course.schedule}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t("courseStartDateLabel")}</span><span className="font-medium">{new Date(selected.course.startDate).toLocaleDateString(dateLocale)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t("courseEndDateLabel")}</span><span className="font-medium">{new Date(selected.course.endDate).toLocaleDateString(dateLocale)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t("courseFeeLabel")}</span><span className="font-bold text-emerald-600">{Number(selected.course.price).toLocaleString(dateLocale)}đ</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{t("courseMaxStudentsLabel")}</span><span className="font-medium">{selected.course._count?.enrollments || 0}/{selected.course.maxStudents}</span></div>
               {selected.course.facility && (
-                <div className="flex justify-between"><span className="text-gray-500">Địa điểm</span><span className="font-medium text-right">{selected.course.facility.name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">{t("locationLabel")}</span><span className="font-medium text-right">{selected.course.facility.name}</span></div>
               )}
             </div>
 
             {/* Thông tin HLV */}
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
-              <p className="text-xs text-gray-500 mb-1">Huấn luyện viên</p>
+              <p className="text-xs text-gray-500 mb-1">{t("coachLabel")}</p>
               <p className="font-semibold text-black text-sm">{selected.course.coach?.fullName}</p>
               <p className="text-xs text-gray-500">{selected.course.coach?.phone} · {selected.course.coach?.email}</p>
             </div>
@@ -1064,14 +1097,14 @@ function SectionCourses() {
               <div className="flex gap-2">
                 <button onClick={() => setSelected(null)}
                   className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                  Đóng
+                  {t("close")}
                 </button>
                 <button onClick={() => handleEnroll(selected.course.id)} disabled={enrolling}
                   className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                  {enrolling ? "Đang đăng ký..." : (
+                  {enrolling ? t("enrolling") : (
                     <span className="flex items-center justify-center gap-1.5">
                       <img src="/wallet.png" alt="" className="w-4 h-4" />
-                      Đăng ký ngay
+                      {t("enrollNow")}
                     </span>
                   )}
                 </button>
@@ -1080,7 +1113,7 @@ function SectionCourses() {
             {selected.enrollment && (
               <button onClick={() => setSelected(null)}
                 className="w-full border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                Đóng
+                {t("close")}
               </button>
             )}
           </div>
@@ -1091,14 +1124,14 @@ function SectionCourses() {
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-black text-lg mb-4">+ Tạo khóa học mới</h3>
+            <h3 className="font-bold text-black text-lg mb-4">{t("newCourseTitle")}</h3>
             <div className="space-y-3">
               {[
-                { label: "Tên khóa học", key: "title", placeholder: "VD: Khóa cầu lông cơ bản" },
-                { label: "Môn thể thao", key: "sport", placeholder: "VD: Cầu lông" },
-                { label: "Lịch học", key: "schedule", placeholder: "VD: T2, T4, T6 - 07:00" },
-                { label: "Học phí (đ)", key: "price", placeholder: "VD: 500000" },
-                { label: "Số học viên tối đa", key: "maxStudents", placeholder: "10" },
+                { label: t("courseTitleLabel"), key: "title", placeholder: t("courseTitlePlaceholder") },
+                { label: t("courseSportLabel"), key: "sport", placeholder: t("courseSportPlaceholder") },
+                { label: t("courseScheduleLabel"), key: "schedule", placeholder: t("courseSchedulePlaceholder") },
+                { label: t("courseFeeLabel"), key: "price", placeholder: t("courseFeePlaceholder") },
+                { label: t("courseMaxStudentsLabel"), key: "maxStudents", placeholder: "10" },
               ].map((f) => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-600 mb-1 block font-medium">{f.label}</label>
@@ -1110,24 +1143,24 @@ function SectionCourses() {
               ))}
 
               <div>
-                <label className="text-xs text-gray-600 mb-1 block font-medium">Trình độ</label>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">{t("courseLevelLabel")}</label>
                 <select value={form.level} onChange={(e) => setForm((p) => ({ ...p, level: e.target.value }))}
                   className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400">
-                  <option value="BEGINNER">Người mới</option>
-                  <option value="INTERMEDIATE">Trung bình</option>
-                  <option value="PRO">Chuyên nghiệp</option>
+                  <option value="BEGINNER">{t("beginner")}</option>
+                  <option value="INTERMEDIATE">{t("intermediate")}</option>
+                  <option value="PRO">{t("pro")}</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-gray-600 mb-1 block font-medium">Ngày bắt đầu</label>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">{t("courseStartDateLabel")}</label>
                   <input type="date" value={form.startDate}
                     onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
                     className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600 mb-1 block font-medium">Ngày kết thúc</label>
+                  <label className="text-xs text-gray-600 mb-1 block font-medium">{t("courseEndDateLabel")}</label>
                   <input type="date" value={form.endDate}
                     onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
                     className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
@@ -1135,10 +1168,10 @@ function SectionCourses() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-600 mb-1 block font-medium">Mô tả</label>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">{t("courseDescLabel")}</label>
                 <textarea value={form.description}
                   onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Mô tả về khóa học..."
+                  placeholder={t("courseDescPlaceholder")}
                   rows={3}
                   className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none" />
               </div>
@@ -1147,18 +1180,18 @@ function SectionCourses() {
                 <input type="checkbox" checked={form.isPublic}
                   onChange={(e) => setForm((p) => ({ ...p, isPublic: e.target.checked }))}
                   className="accent-emerald-500" />
-                Công khai (hiển thị cho mọi người)
+                {t("isPublicLabel")}
               </label>
             </div>
 
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowCreate(false)}
                 className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                Hủy
+                {t("cancel")}
               </button>
               <button onClick={handleCreate}
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                Tạo khóa học
+                {t("createCourseBtn")}
               </button>
             </div>
           </div>
@@ -1169,6 +1202,9 @@ function SectionCourses() {
 }
 /* ─── GÓI HỘI VIÊN ─── */
 function SectionMembership() {
+  const t = useTranslations("profile");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
   const [membership, setMembership] = useState<any>({ tier: "FREE" });
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState("");
@@ -1223,7 +1259,7 @@ function SectionMembership() {
 
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-      <h2 className="text-lg font-semibold text-black mb-4">Gói hội viên</h2>
+      <h2 className="text-lg font-semibold text-black mb-4">{t("membershipTitle")}</h2>
 
       {msg && (
         <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
@@ -1235,23 +1271,23 @@ function SectionMembership() {
       <div className="bg-gradient-to-br from-emerald-50 to-blue-50 border border-emerald-200 rounded-xl p-5 mb-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Gói hiện tại</p>
+            <p className="text-xs text-gray-500 mb-1">{t("currentPlan")}</p>
             <p className={`text-2xl font-bold ${tierColors[getEffectiveTier(membership)]}`}>
               {getEffectiveTier(membership)}
             </p>
             {membership?.endDate && membership.tier !== "FREE" && (
               <p className="text-xs text-gray-500 mt-1">
-                Hết hạn: {new Date(membership.endDate).toLocaleDateString("vi-VN")}
+                {t("expiredDate")} {new Date(membership.endDate).toLocaleDateString(dateLocale)}
               </p>
             )}
             {getEffectiveTier(membership) !== "FREE" && (
               <div className="mt-2">
                 {membership?.status === "CANCELLED" ? (
-                  <span className="text-xs text-orange-500">Đã hủy gia hạn — còn hiệu lực đến {new Date(membership.endDate).toLocaleDateString("vi-VN")}</span>
+                  <span className="text-xs text-orange-500">{t("cancelledRenewal", { date: new Date(membership.endDate).toLocaleDateString(dateLocale) })}</span>
                 ) : (
                   <button onClick={handleCancel}
                     className="text-xs text-red-500 hover:text-red-700 underline transition-colors">
-                    Hủy gia hạn tự động
+                    {t("cancelRenewal")}
                   </button>
                 )}
               </div>
@@ -1279,7 +1315,7 @@ function SectionMembership() {
                     ? "bg-emerald-100 text-emerald-700 cursor-default"
                     : "bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white"
                 }`}>
-                {isCurrent ? "Đang dùng" : upgrading === pkg.name ? "Đang xử lý..." : "Nâng cấp"}
+                {isCurrent ? t("currentlyUsing") : upgrading === pkg.name ? t("processing") : t("upgrade")}
               </button>
             </div>
           );
@@ -1291,6 +1327,9 @@ function SectionMembership() {
 
 /* ─── ƯU ĐÃI ─── */
 function SectionVouchers() {
+  const t = useTranslations("profile");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [code, setCode] = useState("");
@@ -1310,7 +1349,7 @@ function SectionVouchers() {
 
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
-      <h2 className="text-lg font-semibold text-black mb-4">Ưu đãi của tôi</h2>
+      <h2 className="text-lg font-semibold text-black mb-4">{t("vouchersTitle")}</h2>
 
       {msg && (
         <div className={`mb-4 px-4 py-2 rounded-xl text-sm ${msg.includes("thành công") || msg.startsWith("Đã") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
@@ -1323,7 +1362,7 @@ function SectionVouchers() {
       ) : vouchers.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <div className="flex justify-center mb-2"><img src="/giftbox.png" alt="" className="w-10 h-10" /></div>
-          <p className="text-sm">Bạn chưa có voucher nào</p>
+          <p className="text-sm">{t("noVouchers")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1334,10 +1373,10 @@ function SectionVouchers() {
                 <div>
                   <p className="font-mono font-bold text-emerald-600 text-sm">{v.code}</p>
                   <p className="text-gray-700 text-xs mt-0.5">
-                    {v.discountType === "PERCENT" ? `Giảm ${v.discountValue}%` : `Giảm ${Number(v.discountValue).toLocaleString("vi-VN")}đ`}
-                    {v.minOrderValue > 0 && ` - Đơn tối thiểu ${Number(v.minOrderValue).toLocaleString("vi-VN")}đ`}
+                    {v.discountType === "PERCENT" ? t("discountPercent", { value: v.discountValue }) : t("discountAmount", { value: Number(v.discountValue).toLocaleString(dateLocale) })}
+                    {v.minOrderValue > 0 && t("minOrder", { amount: Number(v.minOrderValue).toLocaleString(dateLocale) })}
                   </p>
-                  <p className="text-gray-400 text-xs mt-0.5">HSD: {new Date(v.endDate).toLocaleDateString("vi-VN")}</p>
+                  <p className="text-gray-400 text-xs mt-0.5">{t("voucherExpiry", { date: new Date(v.endDate).toLocaleDateString(dateLocale) })}</p>
                 </div>
                 <button
                   disabled={isExpired}
@@ -1347,7 +1386,7 @@ function SectionVouchers() {
                     setTimeout(() => setMsg(""), 2000);
                   }}
                   className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${isExpired ? "bg-gray-200 text-gray-500 cursor-not-allowed" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
-                  {isExpired ? "Hết hạn" : "Copy mã"}
+                  {isExpired ? t("expiredLabel") : t("copyCode")}
                 </button>
               </div>
             );
@@ -1360,6 +1399,7 @@ function SectionVouchers() {
 
 /* ─── NHÓM ─── */
 function SectionGroups() {
+  const t = useTranslations("profile");
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -1380,7 +1420,7 @@ function SectionGroups() {
   useEffect(() => { loadGroups(); }, []);
 
   async function handleCreate() {
-    if (!groupName) { setMsg("Vui lòng nhập tên nhóm!"); return; }
+    if (!groupName) { setMsg(t("needGroupName")); return; }
     setCreating(true);
     const res = await fetch("/api/groups", {
       method: "POST",
@@ -1393,7 +1433,7 @@ function SectionGroups() {
       setShowCreate(false);
       setGroupName(""); setGroupDesc("");
       loadGroups();
-      setMsg("Tạo nhóm thành công!");
+      setMsg(t("createGroupSuccess"));
     } else {
       setMsg(data.error);
     }
@@ -1442,10 +1482,10 @@ function SectionGroups() {
   return (
     <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-black">Nhóm của tôi</h2>
+        <h2 className="text-lg font-semibold text-black">{t("groupTitle")}</h2>
         <button onClick={() => setShowCreate(true)}
           className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-4 py-2 rounded-xl transition-colors">
-          + Tạo nhóm
+          {t("createGroupBtn")}
         </button>
       </div>
 
@@ -1460,8 +1500,8 @@ function SectionGroups() {
       ) : groups.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <div className="flex justify-center mb-3"><img src="/group.png" className="w-12 h-12 opacity-40" alt="" /></div>
-          <p className="text-sm">Bạn chưa tham gia nhóm nào</p>
-          <p className="text-xs mt-2 text-gray-400">Tạo nhóm để rủ bạn bè cùng đặt sân</p>
+          <p className="text-sm">{t("noGroups")}</p>
+          <p className="text-xs mt-2 text-gray-400">{t("noGroupsSub")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1474,11 +1514,11 @@ function SectionGroups() {
                   {g.description && <p className="text-gray-500 text-xs mt-0.5">{g.description}</p>}
                 </div>
                 <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
-                  <img src="/group.png" className="w-3.5 h-3.5 inline mr-0.5" alt="" />{g._count.members} thành viên
+                  <img src="/group.png" className="w-3.5 h-3.5 inline mr-0.5" alt="" />{t("memberCount", { count: g._count.members })}
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                {g.ownerId === myId ? "Bạn là trưởng nhóm" : `Trưởng nhóm: ${g.owner.fullName}`}
+                {g.ownerId === myId ? t("youAreOwner") : t("groupOwner", { name: g.owner.fullName })}
               </p>
             </div>
           ))}
@@ -1489,18 +1529,18 @@ function SectionGroups() {
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="font-bold text-black text-lg mb-4">+ Tạo nhóm mới</h3>
+            <h3 className="font-bold text-black text-lg mb-4">{t("createGroupTitle")}</h3>
             <div className="space-y-3 mb-5">
               <div>
-                <label className="text-xs text-gray-600 mb-1 block font-medium">Tên nhóm</label>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">{t("groupNameLabel")}</label>
                 <input value={groupName} onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="VD: Nhóm cầu lông sáng thứ 2..."
+                  placeholder={t("groupNamePlaceholder")}
                   className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
               </div>
               <div>
-                <label className="text-xs text-gray-600 mb-1 block font-medium">Mô tả (tuỳ chọn)</label>
+                <label className="text-xs text-gray-600 mb-1 block font-medium">{t("groupDescLabel")}</label>
                 <textarea value={groupDesc} onChange={(e) => setGroupDesc(e.target.value)}
-                  placeholder="Mô tả nhóm..."
+                  placeholder={t("groupDescPlaceholder")}
                   rows={2}
                   className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none" />
               </div>
@@ -1508,11 +1548,11 @@ function SectionGroups() {
             <div className="flex gap-3">
               <button onClick={() => { setShowCreate(false); setGroupName(""); setGroupDesc(""); }}
                 className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                Hủy
+                {t("cancel")}
               </button>
               <button onClick={handleCreate} disabled={creating}
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                {creating ? "Đang tạo..." : "Tạo nhóm"}
+                {creating ? t("creating") : t("createGroupSubmit")}
               </button>
             </div>
           </div>
@@ -1533,7 +1573,7 @@ function SectionGroups() {
             )}
 
             {/* Danh sách thành viên */}
-            <p className="text-xs font-semibold text-gray-500 mb-2">THÀNH VIÊN ({showDetail.members.length})</p>
+            <p className="text-xs font-semibold text-gray-500 mb-2">{t("membersList", { count: showDetail.members.length })}</p>
             <div className="space-y-2 mb-4">
               {showDetail.members.map((m: any) => (
                 <div key={m.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">

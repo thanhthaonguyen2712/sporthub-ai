@@ -3,6 +3,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Navbar from "@/components/Navbar";
+import { useTranslations, useLocale } from "next-intl";
 
 interface BookingDetail {
   id: number;
@@ -19,6 +20,9 @@ export default function BookingSuccessPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = searchParams.get("id");
+  const t = useTranslations("booking");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "vi-VN";
 
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [step, setStep] = useState<"ask" | "form" | "done">("ask");
@@ -57,7 +61,7 @@ export default function BookingSuccessPage() {
     if (res.ok) setStep("done");
     else {
       const d = await res.json();
-      alert(d.error || "Không thể đăng bài!");
+      alert(d.error || t("postFailed"));
     }
   }
 
@@ -74,17 +78,17 @@ export default function BookingSuccessPage() {
             <div className="flex justify-center mb-4">
               <Image src="/group.png" alt="Đồng đội" width={72} height={72} />
             </div>
-            <h2 className="text-2xl font-bold text-black mb-4">Đã đăng tìm đồng đội!</h2>
-            <p className="text-gray-600 text-sm mb-6">Bài đăng của bạn đã được công khai. Mọi người có thể tham gia nhóm của bạn.</p>
+            <h2 className="text-2xl font-bold text-black mb-4">{t("teammatePosted")}</h2>
+            <p className="text-gray-600 text-sm mb-6">{t("teammatePostedMsg")}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => router.push("/profile?tab=bookings")}
                 className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
                 <Image src="/list.png" alt="" width={16} height={16} />
-                Xem lịch đặt sân
+                {t("viewBookings")}
               </button>
               <button onClick={() => router.push("/")}
                 className="bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 px-6 py-2.5 rounded-xl text-sm transition-colors">
-                Về trang chủ
+                {t("backHome")}
               </button>
             </div>
           </div>
@@ -101,7 +105,7 @@ export default function BookingSuccessPage() {
           <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
             <div className="flex items-center gap-3 mb-5">
               <Image src="/group.png" alt="group" width={32} height={32} />
-              <h2 className="text-xl font-bold text-black">Tìm đồng đội</h2>
+              <h2 className="text-xl font-bold text-black">{t("findTeammate")}</h2>
             </div>
 
             {/* Booking info */}
@@ -116,19 +120,19 @@ export default function BookingSuccessPage() {
               <div className="flex items-center gap-2 text-gray-700">
                 <Image src="/calendar.png" alt="" width={16} height={16} className="flex-shrink-0" />
                 <span>
-                  {new Date(booking.bookingDate).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}
+                  {new Date(booking.bookingDate).toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "2-digit" })}
                   {" · "}{booking.startTime} – {booking.endTime}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-gray-700 border-t border-gray-100 pt-2">
                 <Image src="/atm-card.png" alt="" width={16} height={16} className="flex-shrink-0" />
-                <span>Tổng đã trả: <span className="font-semibold text-emerald-600">{booking.totalPrice.toLocaleString("vi-VN")}đ</span></span>
+                <span>{t("totalPaid")} <span className="font-semibold text-emerald-600">{booking.totalPrice.toLocaleString(dateLocale)}đ</span></span>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-gray-600 font-medium mb-1 block">Cần bao nhiêu người? (bao gồm bạn)</label>
+                <label className="text-xs text-gray-600 font-medium mb-1 block">{t("playersNeeded")}</label>
                 <input type="number" min="2" max="30"
                   value={tmForm.requiredPlayers}
                   onChange={(e) => setTmForm((f) => ({ ...f, requiredPlayers: e.target.value }))}
@@ -139,29 +143,29 @@ export default function BookingSuccessPage() {
               {pricePerPerson > 0 && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
                   <p className="text-xs text-emerald-700 font-medium">
-                    Mỗi người trả: <span className="text-base font-bold">{pricePerPerson.toLocaleString("vi-VN")}đ</span>
+                    {t("perPerson")} <span className="text-base font-bold">{pricePerPerson.toLocaleString(dateLocale)}đ</span>
                   </p>
                   <p className="text-xs text-emerald-600 mt-0.5">
-                    = {booking.totalPrice.toLocaleString("vi-VN")}đ ÷ {tmForm.requiredPlayers} người · Thanh toán qua ví SportHub
+                    {t("perPersonCalc", { total: booking.totalPrice.toLocaleString(dateLocale) + "đ", count: tmForm.requiredPlayers })}
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="text-xs text-gray-600 font-medium mb-1 block">Trình độ</label>
+                <label className="text-xs text-gray-600 font-medium mb-1 block">{t("level")}</label>
                 <select value={tmForm.level} onChange={(e) => setTmForm((f) => ({ ...f, level: e.target.value }))}
                   className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400">
-                  <option value="BEGINNER">Người mới</option>
-                  <option value="INTERMEDIATE">Trung bình</option>
-                  <option value="PRO">Chuyên nghiệp</option>
+                  <option value="BEGINNER">{t("beginner")}</option>
+                  <option value="INTERMEDIATE">{t("intermediate")}</option>
+                  <option value="PRO">{t("pro")}</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-xs text-gray-600 font-medium mb-1 block">Mô tả (không bắt buộc)</label>
+                <label className="text-xs text-gray-600 font-medium mb-1 block">{t("descriptionOptional")}</label>
                 <textarea value={tmForm.description}
                   onChange={(e) => setTmForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="VD: Tìm 3 bạn cùng chơi cầu lông, vui vẻ là chính..."
+                  placeholder={t("descPlaceholder")}
                   rows={3}
                   className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 resize-none"
                 />
@@ -170,11 +174,11 @@ export default function BookingSuccessPage() {
               <div className="flex gap-3">
                 <button onClick={handleTeammatePost} disabled={tmSubmitting}
                   className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
-                  {tmSubmitting ? "Đang đăng..." : "Đăng tìm đồng đội"}
+                  {tmSubmitting ? t("posting") : t("postFindTeammate")}
                 </button>
                 <button onClick={() => router.push("/profile?tab=bookings")}
                   className="flex-1 bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 py-3 rounded-xl text-sm transition-colors">
-                  Bỏ qua
+                  {t("skip")}
                 </button>
               </div>
             </div>
@@ -193,29 +197,29 @@ export default function BookingSuccessPage() {
           <div className="flex justify-center mb-4">
             <Image src="/giftbox.png" alt="Thành công" width={72} height={72} />
           </div>
-          <h2 className="text-2xl font-bold text-black mb-4">Đặt sân thành công!</h2>
+          <h2 className="text-2xl font-bold text-black mb-4">{t("success")}</h2>
           <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 mb-4 text-left space-y-2">
             <div className="flex items-center gap-2 text-sm text-gray-700">
-              <Image src="/atm-card.png" alt="Thanh toán" width={20} height={20} />
-              <span>Thanh toán VNPay thành công</span>
+              <Image src="/atm-card.png" alt="" width={20} height={20} />
+              <span>{t("vnpaySuccess")}</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-700">
-              <Image src="/list.png" alt="Mã booking" width={20} height={20} />
-              <span>Mã booking: <span className="font-bold text-emerald-600">#{id}</span></span>
+              <Image src="/list.png" alt="" width={20} height={20} />
+              <span>{t("bookingRef")} <span className="font-bold text-emerald-600">#{id}</span></span>
             </div>
           </div>
 
-          {/* Tìm đồng đội CTA */}
+          {/* Find Teammate CTA */}
           <div className="bg-white border border-emerald-200 rounded-xl px-5 py-4 mb-6 text-left">
             <div className="flex items-center gap-2 mb-2">
               <Image src="/group.png" alt="group" width={20} height={20} />
-              <span className="font-semibold text-black text-sm">Bạn muốn tìm đồng đội?</span>
+              <span className="font-semibold text-black text-sm">{t("findTeammateQ")}</span>
             </div>
-            <p className="text-xs text-gray-500 mb-3">Đăng bài để mọi người cùng tham gia và chia sẻ chi phí sân.</p>
+            <p className="text-xs text-gray-500 mb-3">{t("findTeammateDesc")}</p>
             <button onClick={() => setStep("form")}
               className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
               <Image src="/group.png" alt="" width={16} height={16} />
-              Tìm đồng đội
+              {t("findTeammate")}
             </button>
           </div>
 
@@ -223,11 +227,11 @@ export default function BookingSuccessPage() {
             <button onClick={() => router.push("/profile?tab=bookings")}
               className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
               <Image src="/list.png" alt="" width={16} height={16} />
-              Xem lịch đặt sân
+              {t("viewBookings")}
             </button>
             <button onClick={() => router.push("/")}
               className="bg-white border border-gray-300 text-gray-600 hover:border-emerald-400 px-6 py-2.5 rounded-xl text-sm transition-colors">
-              Về trang chủ
+              {t("backHome")}
             </button>
           </div>
         </div>

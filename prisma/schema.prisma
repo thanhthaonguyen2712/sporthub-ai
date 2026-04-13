@@ -115,6 +115,17 @@ enum ShiftStatus {
   CLOSED
   VERIFIED
 }
+
+enum WorkShiftStatus {
+  OPEN   // Đang nhận đăng ký
+  CLOSED // Đã đóng
+}
+
+enum ShiftRegStatus {
+  PENDING   // Chờ duyệt
+  APPROVED  // Đã duyệt
+  REJECTED  // Từ chối
+}
 enum EnrollmentStatus {
   PENDING   // Chờ thanh toán
   ACTIVE    // Đang học
@@ -192,20 +203,28 @@ model User {
   staffReports   StaffReport[]       @relation("StaffReports")
   faceDescriptor String?  @map("face_descriptor") @db.Text
   directSales    DirectSale[]        @relation("StaffDirectSales")
+  shiftRegistrations ShiftRegistration[] @relation("StaffShiftRegistrations")
+  courtLocks     CourtLock[]         @relation("CourtLocker")
 
   @@map("users")
 }
 
 // 2. CHẤM CÔNG NHÂN VIÊN
 model StaffAttendance {
-  id           Int              @id @default(autoincrement())
-  date         DateTime         @db.Date
-  checkInTime  DateTime?        @map("check_in") @db.Time
-  checkOutTime DateTime?        @map("check_out") @db.Time
-  totalHours   Decimal?         @map("total_hours") @db.Decimal(4, 2)
-  status       AttendanceStatus @default(WORKING)
-  staffId      Int              @map("staff_id")
-  staff        User             @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  id              Int              @id @default(autoincrement())
+  date            DateTime         @db.Date
+  checkInTime     DateTime?        @map("check_in") @db.Time
+  checkOutTime    DateTime?        @map("check_out") @db.Time
+  totalHours      Decimal?         @map("total_hours") @db.Decimal(4, 2)
+  status          AttendanceStatus @default(WORKING)
+  staffId         Int              @map("staff_id")
+  staff           User             @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  isLate          Boolean          @default(false) @map("is_late")
+  forgotCheckIn   Boolean          @default(false) @map("forgot_check_in")
+  forgotCheckOut  Boolean          @default(false) @map("forgot_check_out")
+  overtimeMinutes Int              @default(0) @map("overtime_minutes")
+  shiftId         Int?             @map("shift_id")
+  shift           WorkShift?       @relation(fields: [shiftId], references: [id])
 
   @@map("staff_attendance")
 }
@@ -230,6 +249,7 @@ model Facility {
   name        String
   address     String
   description String?  @db.Text
+  imageUrl    String?  @map("image_url") @db.Text
   latitude    Decimal? @db.Decimal(10, 8)
   longitude   Decimal? @db.Decimal(11, 8)
   isActive    Boolean  @default(true) @map("is_active")
@@ -248,6 +268,7 @@ model Facility {
   salaryRecords   StaffSalaryRecord[]
   staffReports    StaffReport[]
   directSales     DirectSale[]
+  workShifts      WorkShift[]
 
   @@map("facilities")
 }
@@ -276,6 +297,7 @@ model Court {
   pricingRules CourtPricingRule[]
   bookings     Booking[]
   guestBookings GuestBooking[]
+  locks        CourtLock[]
 
   @@map("courts")
 }
@@ -288,6 +310,7 @@ model CourtPricingRule {
   pricePerHour Decimal  @map("price_per_hour") @db.Decimal(10, 2)
   dayType      DayType  @map("day_type")
   priority     Int      @default(0)
+  isPeak       Boolean  @default(false) @map("is_peak")
   courtId      Int      @map("court_id")
   court        Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
@@ -327,9 +350,10 @@ model Service {
   name          String
   type          ServiceType
   price         Decimal     @db.Decimal(10, 2)
-  stockQuantity Int         @default(0) @map("stock_quantity")
-  isActive      Boolean     @default(true) @map("is_active")
-  imageUrl      String?     @map("image_url")
+  stockQuantity    Int         @default(0) @map("stock_quantity")
+  monthlyThreshold Int         @default(0) @map("monthly_threshold")
+  isActive         Boolean     @default(true) @map("is_active")
+  imageUrl         String?     @map("image_url")
   facilityId    Int         @map("facility_id")
   facility      Facility    @relation(fields: [facilityId], references: [id], onDelete: Cascade)
 
@@ -685,20 +709,23 @@ model StaffWageConfig {
 
 // 30. BẢNG LƯƠNG THÁNG
 model StaffSalaryRecord {
-  id          Int       @id @default(autoincrement())
-  staffId     Int       @map("staff_id")
-  facilityId  Int       @map("facility_id")
-  month       Int
-  year        Int
-  totalHours  Decimal   @map("total_hours") @db.Decimal(6, 2)
-  wageRate    Decimal   @map("wage_rate") @db.Decimal(10, 2)
-  wageType    String    @map("wage_type")
-  baseSalary  Decimal   @map("base_salary") @db.Decimal(12, 2)
-  bonus       Decimal   @default(0) @db.Decimal(12, 2)
-  finalSalary Decimal   @map("final_salary") @db.Decimal(12, 2)
-  isPaid      Boolean   @default(false) @map("is_paid")
-  paidAt      DateTime? @map("paid_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id             Int       @id @default(autoincrement())
+  staffId        Int       @map("staff_id")
+  facilityId     Int       @map("facility_id")
+  month          Int
+  year           Int
+  totalHours     Decimal   @map("total_hours") @db.Decimal(6, 2)
+  wageRate       Decimal   @map("wage_rate") @db.Decimal(10, 2)
+  wageType       String    @map("wage_type")
+  baseSalary     Decimal   @map("base_salary") @db.Decimal(12, 2)
+  bonus          Decimal   @default(0) @db.Decimal(12, 2)
+  overtimeHours  Decimal   @default(0) @map("overtime_hours") @db.Decimal(6, 2)
+  overtimePay    Decimal   @default(0) @map("overtime_pay") @db.Decimal(12, 2)
+  penaltyAmount  Decimal   @default(0) @map("penalty_amount") @db.Decimal(12, 2)
+  finalSalary    Decimal   @map("final_salary") @db.Decimal(12, 2)
+  isPaid         Boolean   @default(false) @map("is_paid")
+  paidAt         DateTime? @map("paid_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   staff       User      @relation("StaffSalaryRecords", fields: [staffId], references: [id], onDelete: Cascade)
   facility    Facility  @relation(fields: [facilityId], references: [id], onDelete: Cascade)
@@ -754,4 +781,58 @@ model StaffReport {
   facility    Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
 
   @@map("staff_reports")
+}
+
+// 33. CA LÀM VIỆC (do chủ sân tạo)
+model WorkShift {
+  id          Int             @id @default(autoincrement())
+  facilityId  Int             @map("facility_id")
+  name        String          // "Ca sáng", "Ca chiều", "Ca tối"
+  shiftDate   DateTime        @map("shift_date") @db.Date
+  startTime   DateTime        @map("start_time") @db.Time
+  endTime     DateTime        @map("end_time") @db.Time
+  maxStaff    Int             @default(5) @map("max_staff")
+  status      WorkShiftStatus @default(OPEN)
+  note        String?         @db.Text
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  facility      Facility            @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  registrations ShiftRegistration[]
+  attendances   StaffAttendance[]
+
+  @@map("work_shifts")
+}
+
+// 34. ĐĂNG KÝ CA LÀM VIỆC (nhân viên đăng ký)
+model ShiftRegistration {
+  id        Int            @id @default(autoincrement())
+  shiftId   Int            @map("shift_id")
+  staffId   Int            @map("staff_id")
+  status    ShiftRegStatus @default(PENDING)
+  note      String?        @db.Text
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  shift     WorkShift      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  staff     User           @relation("StaffShiftRegistrations", fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, staffId])
+  @@map("shift_registrations")
+}
+
+// 35. KHÓA SÂN (sự cố / thuê tháng / thuê năm)
+model CourtLock {
+  id        Int      @id @default(autoincrement())
+  courtId   Int      @map("court_id")
+  reason    String   // "INCIDENT" | "MONTHLY_RENTAL" | "ANNUAL_RENTAL" | "MAINTENANCE"
+  note      String?  @db.Text
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  isActive  Boolean  @default(true) @map("is_active")
+  lockedBy  Int      @map("locked_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  court     Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  locker    User     @relation("CourtLocker", fields: [lockedBy], references: [id])
+
+  @@map("court_locks")
 }

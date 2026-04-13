@@ -36,12 +36,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bạn đã đánh giá cơ sở này rồi" }, { status: 409 });
     }
 
-    // Kiểm tra có lịch COMPLETED tại cơ sở này không
+    // Kiểm tra có lịch hoàn thành tại cơ sở này không
+    // (COMPLETED trong DB, hoặc CONFIRMED nhưng đã qua ngày)
+    const now = new Date();
     const hasCompleted = await prisma.booking.findFirst({
       where: {
         customerId,
-        status: "COMPLETED",
         court: { facilityId: Number(facilityId) },
+        OR: [
+          { status: "COMPLETED" },
+          { status: "CONFIRMED", bookingDate: { lt: now } },
+        ],
       },
     });
     if (!hasCompleted) {

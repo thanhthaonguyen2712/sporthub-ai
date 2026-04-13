@@ -1449,6 +1449,136 @@ const STATUS_STYLE: Record<string, string> = {
   RESOLVED: "bg-emerald-100 text-emerald-700 border-emerald-200",
 };
 
+// ─── Shifts Registration Tab ──────────────────────────────────────────────────
+function ShiftsTab() {
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  const fmt = (d: Date) => d.toISOString().substring(0,10);
+
+  const [startDate, setStartDate] = useState(fmt(weekStart));
+  const [endDate, setEndDate] = useState(fmt(weekEnd));
+  const [shifts, setShifts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [registering, setRegistering] = useState<number | null>(null);
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch(`/api/staff/shifts?startDate=${startDate}&endDate=${endDate}`);
+    const data = await res.json();
+    setShifts(Array.isArray(data) ? data : []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function register(shiftId: number) {
+    setRegistering(shiftId);
+    const res = await fetch("/api/staff/shifts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shiftId }),
+    });
+    setRegistering(null);
+    if (res.ok) { load(); }
+    else { const d = await res.json(); alert(d.error); }
+  }
+
+  async function unregister(shiftId: number) {
+    if (!confirm("Hủy đăng ký ca này?")) return;
+    setRegistering(shiftId);
+    await fetch(`/api/staff/shifts?shiftId=${shiftId}`, { method: "DELETE" });
+    setRegistering(null);
+    load();
+  }
+
+  const STATUS_STYLE: Record<string, string> = {
+    PENDING:  "bg-yellow-100 text-yellow-700",
+    APPROVED: "bg-emerald-100 text-emerald-700",
+    REJECTED: "bg-red-100 text-red-600",
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    PENDING: "Chờ duyệt", APPROVED: "Đã duyệt", REJECTED: "Bị từ chối",
+  };
+
+  return (
+    <div>
+      <div className={CARD} style={BG}>
+        <h3 className="font-semibold text-black mb-3">Đăng ký ca làm theo tuần</h3>
+        <div className="flex flex-wrap gap-3 items-end mb-3">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Từ ngày</p>
+            <input type="date" className={INPUT + " w-40"} value={startDate} onChange={e => setStartDate(e.target.value)} />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Đến ngày</p>
+            <input type="date" className={INPUT + " w-40"} value={endDate} onChange={e => setEndDate(e.target.value)} />
+          </div>
+          <button onClick={load} className={BTN_G}>Xem ca</button>
+        </div>
+        <p className="text-xs text-gray-400">Bạn phải đăng ký ca theo tuần. Sau khi đăng ký, chủ sân sẽ duyệt và xác nhận.</p>
+      </div>
+
+      {loading && <div className="text-center py-8 text-gray-400 text-sm">Đang tải...</div>}
+
+      {!loading && shifts.length === 0 && (
+        <div className={CARD + " text-center text-gray-400"} style={BG}>Không có ca làm nào trong tuần này</div>
+      )}
+
+      {shifts.map((shift: any) => {
+        const myReg = shift.myRegistration;
+        const isFull = shift.approvedCount >= shift.maxStaff;
+        return (
+          <div key={shift.id} className={CARD} style={BG}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-black">{shift.name}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${shift.status === "OPEN" ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                    {shift.status === "OPEN" ? "Đang mở" : "Đã đóng"}
+                  </span>
+                  {myReg && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLE[myReg.status] || ""}`}>
+                      {STATUS_LABEL[myReg.status] || myReg.status}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  {new Date(shift.shiftDate).toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "2-digit", day: "2-digit" })}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {new Date(shift.startTime).toISOString().substring(11,16)} – {new Date(shift.endTime).toISOString().substring(11,16)}
+                  <span className="ml-2 text-gray-400">· {shift.approvedCount}/{shift.maxStaff} NV đã duyệt</span>
+                </p>
+                {shift.note && <p className="text-xs text-gray-400 mt-1">{shift.note}</p>}
+              </div>
+              <div className="ml-4 shrink-0">
+                {!myReg && shift.status === "OPEN" && !isFull && (
+                  <button onClick={() => register(shift.id)} disabled={registering === shift.id}
+                    className={BTN_G + " text-xs py-1.5"}>
+                    {registering === shift.id ? "..." : "Đăng ký"}
+                  </button>
+                )}
+                {!myReg && isFull && (
+                  <span className="text-xs text-gray-400 italic">Đã đủ NV</span>
+                )}
+                {myReg && myReg.status === "PENDING" && (
+                  <button onClick={() => unregister(shift.id)} disabled={registering === shift.id}
+                    className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-xs transition-colors">
+                    Hủy đăng ký
+                  </button>
+                )}
+                {myReg && myReg.status === "APPROVED" && (
+                  <span className="text-xs text-emerald-600 font-semibold">✓ Được duyệt</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ReportTab() {
   const [form, setForm] = useState({ type: "", title: "", description: "" });
   const [loading, setLoading] = useState(false);
@@ -1659,6 +1789,7 @@ export default function StaffDashboard() {
 
   const TABS = [
     { id: "attendance", label: "Chấm công",    icon: "" },
+    { id: "shifts",     label: "Ca làm",       icon: "" },
     ...(hasCheckedIn ? [
       { id: "pos",      label: "Bán hàng",     icon: "" },
       { id: "bookings", label: "Lịch hôm nay", icon: "" },
@@ -1758,6 +1889,7 @@ export default function StaffDashboard() {
         {/* Content */}
         <div>
           {activeTab === "attendance" && <AttendanceTab info={info} onRefresh={loadInfo} />}
+          {activeTab === "shifts"     && <ShiftsTab />}
           {activeTab === "pos"        && facility && <POSTab />}
           {activeTab === "bookings"   && facility && <TodayBookingsTab facilityId={facility.id} />}
           {activeTab === "invoice"    && facility && <CreateInvoiceTab facilityId={facility.id} />}
