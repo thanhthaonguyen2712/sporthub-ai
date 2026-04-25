@@ -44,6 +44,7 @@ interface Facility {
   name: string;
   address: string;
   description: string;
+  defaultQrUrl?: string | null;
   owner: { fullName: string; phone: string };
   sports: { id: number; name: string; slug: string; iconUrl: string }[];
   courts: Court[];
@@ -60,8 +61,9 @@ function toMinutes(time: string): number {
 const GAP_RULE_SPORTS = ["Cầu lông", "Pickleball", "Tennis"];
 const ONE_HOUR_SPORTS_CUSTOMER = ["Bóng đá", "Bóng rổ"];
 
-function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; selectedDate: string; facilityId: number }) {
-  const router = useRouter();
+type BookParams = { courtId: number; date: string; start: string; end: string; price: number };
+
+function CourtSchedule({ court, selectedDate, facilityId, onBook }: { court: Court; selectedDate: string; facilityId: number; onBook: (p: BookParams) => void }) {
   const t = useTranslations("facility");
   const locale = useLocale();
   const dateLocale = locale === "en" ? "en-US" : "vi-VN";
@@ -214,11 +216,7 @@ function CourtSchedule({ court, selectedDate, facilityId }: { court: Court; sele
           <button onClick={() => {
               const sorted = [...selectedSlots].sort((a, b) => toMinutes(a) - toMinutes(b));
               const endSlot = ALL_SLOTS.find((s) => s.time === sorted[sorted.length - 1])!;
-              const params = new URLSearchParams({
-                courtId: String(court.id), facilityId: String(facilityId),
-                date: selectedDate, start: sorted[0], end: endSlot.end, price: String(totalPrice),
-              });
-              router.push(`/bookings?${params}`);
+              onBook({ courtId: court.id, date: selectedDate, start: sorted[0], end: endSlot.end, price: totalPrice });
             }}
             className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-6 py-2.5 rounded-lg transition-colors font-medium">
             {t("bookCourt")}
@@ -297,6 +295,12 @@ export default function FacilityDetailPage() {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createFilteredCourts, setCreateFilteredCourts] = useState<Court[]>([]);
   const [showCreatePayConfirm, setShowCreatePayConfirm] = useState(false);
+  // Guest booking
+  const [guestBookingParams, setGuestBookingParams] = useState<BookParams | null>(null);
+  const [guestForm, setGuestForm] = useState({ guestName: "", guestPhone: "", guestEmail: "" });
+  const [guestSubmitting, setGuestSubmitting] = useState(false);
+  const [guestError, setGuestError] = useState("");
+  const [guestSuccess, setGuestSuccess] = useState<{ bookingId: number; qrUrl: string | null; vietqrUrl: string | null } | null>(null);
 
   useEffect(() => {
     fetch(`/api/facilities/${id}`)
@@ -469,6 +473,49 @@ export default function FacilityDetailPage() {
     setTimeout(() => setJoinToast(""), 5000);
   }
 
+  function handleBook(params: BookParams) {
+    if (session) {
+      const urlParams = new URLSearchParams({
+        courtId: String(params.courtId), facilityId: String(id),
+        date: params.date, start: params.start, end: params.end, price: String(params.price),
+      });
+      router.push(`/bookings?${urlParams}`);
+    } else {
+      setGuestBookingParams(params);
+      setGuestForm({ guestName: "", guestPhone: "", guestEmail: "" });
+      setGuestError("");
+    }
+  }
+
+  async function handleGuestSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!guestBookingParams) return;
+    setGuestSubmitting(true);
+    setGuestError("");
+    const res = await fetch("/api/guest-bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        guestName: guestForm.guestName,
+        guestPhone: guestForm.guestPhone,
+        guestEmail: guestForm.guestEmail || undefined,
+        courtId: guestBookingParams.courtId,
+        bookingDate: guestBookingParams.date,
+        startTime: guestBookingParams.start,
+        endTime: guestBookingParams.end,
+        totalPrice: guestBookingParams.price,
+      }),
+    });
+    const data = await res.json();
+    setGuestSubmitting(false);
+    if (res.ok) {
+      setGuestSuccess({ bookingId: data.bookingId, qrUrl: facility?.defaultQrUrl || null, vietqrUrl: data.vietqrUrl || null });
+      setGuestBookingParams(null);
+    } else {
+      setGuestError(data.error || "Đặt sân thất bại. Vui lòng thử lại.");
+    }
+  }
+
   async function submitFacilityReview() {
     if (!reviewRating) return;
     setReviewSubmitting(true);
@@ -636,7 +683,7 @@ export default function FacilityDetailPage() {
                     <div className="flex-1 h-0.5 bg-emerald-400 rounded ml-1" />
                   </div>
                   {group.courts.map((court) => (
-                    <CourtSchedule key={court.id} court={court} selectedDate={selectedDate} facilityId={facility.id} />
+                    <CourtSchedule key={court.id} court={court} selectedDate={selectedDate} facilityId={facility.id} onBook={handleBook} />
                   ))}
                 </div>
               ))
@@ -1274,6 +1321,167 @@ export default function FacilityDetailPage() {
           {t("back")}
         </button>
       </div>
+
+      {/* Modal đặt sân cho khách vãng lai */}
+      {guestBookingParams && !session && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <img src="/list.png" className="w-5 h-5" alt="" />
+              </div>
+              <div>
+                <h3 className="font-bold text-black text-base">Đặt sân không cần đăng nhập</h3>
+                <p className="text-xs text-gray-500">Thanh toán qua mã QR của chủ sân</p>
+              </div>
+            </div>
+
+            {/* Thông tin khung giờ */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-4 text-sm">
+              <div className="flex justify-between text-gray-700 mb-1">
+                <span>Ngày:</span>
+                <span className="font-medium">{new Date(guestBookingParams.date).toLocaleDateString("vi-VN")}</span>
+              </div>
+              <div className="flex justify-between text-gray-700 mb-1">
+                <span>Giờ:</span>
+                <span className="font-medium">{guestBookingParams.start} – {guestBookingParams.end}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-700">Tổng tiền:</span>
+                <span className="font-bold text-emerald-600 text-base">{guestBookingParams.price.toLocaleString("vi-VN")}đ</span>
+              </div>
+            </div>
+
+            {guestError && (
+              <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg mb-3">
+                {guestError}
+              </div>
+            )}
+
+            <form onSubmit={handleGuestSubmit} className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-700 block mb-1">Họ tên <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={guestForm.guestName}
+                  onChange={(e) => setGuestForm(f => ({ ...f, guestName: e.target.value }))}
+                  placeholder="Nguyễn Văn A"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700 block mb-1">Số điện thoại <span className="text-red-500">*</span></label>
+                <input
+                  type="tel"
+                  required
+                  value={guestForm.guestPhone}
+                  onChange={(e) => setGuestForm(f => ({ ...f, guestPhone: e.target.value }))}
+                  placeholder="0901234567"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700 block mb-1">Email (tùy chọn)</label>
+                <input
+                  type="email"
+                  value={guestForm.guestEmail}
+                  onChange={(e) => setGuestForm(f => ({ ...f, guestEmail: e.target.value }))}
+                  placeholder="example@gmail.com"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700">
+                Sau khi đặt, bạn cần thanh toán qua mã QR của chủ sân. Lưu lại số điện thoại để tra cứu lịch đặt.
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setGuestBookingParams(null)}
+                  className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={guestSubmitting}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+                >
+                  {guestSubmitting ? "Đang xử lý..." : "Xác nhận đặt sân"}
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-3 text-center">
+              <button
+                type="button"
+                onClick={() => { setGuestBookingParams(null); router.push("/login"); }}
+                className="text-xs text-emerald-600 hover:underline"
+              >
+                Đã có tài khoản? Đăng nhập để đặt sân
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal thành công - Hiện QR thanh toán */}
+      {guestSuccess && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center">
+            <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="font-bold text-black text-lg mb-1">Đặt sân thành công!</h3>
+            <p className="text-gray-500 text-sm mb-4">Mã đặt sân: <span className="font-semibold text-black">#{guestSuccess.bookingId}</span></p>
+
+            {guestSuccess.vietqrUrl ? (
+              <div>
+                <p className="text-sm text-gray-700 mb-1 font-medium">Quét mã VietQR để thanh toán</p>
+                <p className="text-xs text-emerald-600 mb-3">Tự động điền đúng số tiền & mã đặt sân — dùng mọi app ngân hàng</p>
+                <div className="flex justify-center mb-3">
+                  <img
+                    src={guestSuccess.vietqrUrl}
+                    alt="VietQR thanh toán"
+                    className="w-52 h-52 object-contain border border-emerald-200 rounded-xl"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mb-4">Mở app ngân hàng → Quét QR → Kiểm tra thông tin → Xác nhận chuyển khoản</p>
+              </div>
+            ) : guestSuccess.qrUrl ? (
+              <div>
+                <p className="text-sm text-gray-700 mb-3 font-medium">Quét mã QR để thanh toán cho chủ sân</p>
+                <div className="flex justify-center mb-3">
+                  <img
+                    src={guestSuccess.qrUrl}
+                    alt="QR thanh toán"
+                    className="w-48 h-48 object-contain border border-gray-200 rounded-xl"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mb-4">Vui lòng chuyển khoản theo thông tin trong QR và ghi rõ mã đặt sân</p>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-sm text-amber-700">
+                Chủ sân chưa thiết lập mã QR. Vui lòng liên hệ <strong>{facility?.owner?.phone}</strong> để thanh toán.
+              </div>
+            )}
+
+            <div className="bg-gray-50 rounded-xl px-4 py-3 text-xs text-gray-600 mb-4 text-left space-y-1">
+              <p>Tra cứu lịch đặt tại trang chủ bằng số điện thoại đã đăng ký.</p>
+              <p>Lịch sẽ hiển thị đến khi kết thúc giờ chơi.</p>
+            </div>
+
+            <button
+              onClick={() => setGuestSuccess(null)}
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-3 rounded-xl text-sm font-medium transition-colors"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,8 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import LocaleSwitcher from "./LocaleSwitcher";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import TeammateModal from "./TeammateModal";
 
 export default function Navbar() {
@@ -14,11 +13,37 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [teammateOpen, setTeammateOpen] = useState(false);
-  const locale = useLocale();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("nav");
+
+  // Guest booking lookup state
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const [guestPhone, setGuestPhone] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResults, setLookupResults] = useState<any[] | null>(null);
+  const [lookupError, setLookupError] = useState("");
+  const lookupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (lookupRef.current && !lookupRef.current.contains(e.target as Node)) setLookupOpen(false);
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  async function doLookup(e: React.FormEvent) {
+    e.preventDefault();
+    if (!guestPhone.trim()) return;
+    setLookupLoading(true); setLookupError(""); setLookupResults(null);
+    const res = await fetch(`/api/guest-bookings/lookup?phone=${encodeURIComponent(guestPhone.trim())}`);
+    const data = await res.json();
+    setLookupLoading(false);
+    if (res.ok) { setLookupResults(data); if (data.length === 0) setLookupError("Không tìm thấy lịch đặt nào đang hoạt động."); }
+    else setLookupError(data.error || "Không thể tra cứu.");
+  }
 
   useEffect(() => {
     if (!session) return;
@@ -90,15 +115,12 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-3">
-          {/* Chuyển ngôn ngữ */}
-          <LocaleSwitcher currentLocale={locale} />
-
           {status === "loading" ? (
             <div className="w-8 h-8 rounded-full bg-slate-700 animate-pulse" />
           ) : session ? (
             <>
-              {/* Tìm đồng đội */}
-              {(session.user as any)?.role !== "STAFF" && (session.user as any)?.role !== "WAREHOUSE_MANAGER" && (
+              {/* Tìm đồng đội — chỉ cho khách hàng */}
+              {(session.user as any)?.role === "CUSTOMER" && (
                 <button
                   onClick={() => setTeammateOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-colors"
@@ -155,7 +177,7 @@ export default function Navbar() {
                                 </p>
                                 <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{n.content}</p>
                                 <p className="text-xs text-slate-500 mt-1">
-                                  {new Date(n.createdAt).toLocaleString(locale === "en" ? "en-US" : "vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                  {new Date(n.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                 </p>
                               </div>
                               {!n.isRead && <div className="w-2 h-2 bg-emerald-400 rounded-full mt-1.5 flex-shrink-0" />}
@@ -195,8 +217,8 @@ export default function Navbar() {
                         {(session.user as any)?.role || "CUSTOMER"}
                       </span>
                     </div>
-                    {/* Ẩn profile/bookings với nhân viên */}
-                    {(session.user as any)?.role !== "STAFF" && (session.user as any)?.role !== "WAREHOUSE_MANAGER" && (
+                    {/* Profile/bookings chỉ cho khách hàng */}
+                    {(session.user as any)?.role === "CUSTOMER" && (
                       <>
                         <Link href="/profile" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
                           {t("profile")}
@@ -207,9 +229,14 @@ export default function Navbar() {
                       </>
                     )}
                     {(session.user as any)?.role === "OWNER" && (
-                      <Link href="/owner/dashboard" className="block px-4 py-2.5 text-emerald-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
-                        {t("manageCourt")}
-                      </Link>
+                      <>
+                        <Link href="/owner/dashboard" className="block px-4 py-2.5 text-emerald-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
+                          {t("manageCourt")}
+                        </Link>
+                        <Link href="/profile" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
+                          Thông tin của tôi
+                        </Link>
+                      </>
                     )}
                     {((session.user as any)?.role === "STAFF" || (session.user as any)?.role === "WAREHOUSE_MANAGER") && (
                       <Link href="/staff/dashboard" className="block px-4 py-2.5 text-blue-400 hover:bg-slate-700 text-sm transition-colors font-medium" onClick={() => setMenuOpen(false)}>
@@ -227,6 +254,61 @@ export default function Navbar() {
             </>
           ) : (
             <>
+              <Link
+                href="/match-posts"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-colors"
+              >
+                <img src="/group.png" alt="group" className="w-4 h-4 flex-shrink-0" />
+                Ghép sân
+              </Link>
+
+              {/* Tra cứu lịch đặt sân cho khách vãng lai */}
+              <div className="relative" ref={lookupRef}>
+                <button
+                  onClick={() => setLookupOpen(!lookupOpen)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-colors"
+                >
+                  <span>🔍</span> Tra cứu đặt sân
+                </button>
+                {lookupOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-50 p-4">
+                    <p className="text-white text-sm font-semibold mb-1">Tra cứu lịch đặt sân</p>
+                    <p className="text-slate-400 text-xs mb-3">Nhập số điện thoại đã dùng khi đặt sân.</p>
+                    <form onSubmit={doLookup} className="flex gap-2 mb-3">
+                      <input
+                        type="tel"
+                        value={guestPhone}
+                        onChange={e => setGuestPhone(e.target.value)}
+                        placeholder="Số điện thoại..."
+                        className="flex-1 bg-slate-700 border border-slate-600 text-white placeholder-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
+                      />
+                      <button type="submit" disabled={lookupLoading}
+                        className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
+                        {lookupLoading ? "..." : "Tìm"}
+                      </button>
+                    </form>
+                    {lookupError && <p className="text-red-400 text-xs mb-2">{lookupError}</p>}
+                    {lookupResults && lookupResults.length > 0 && (
+                      <div className="space-y-2 max-h-56 overflow-y-auto">
+                        {lookupResults.map((b: any) => (
+                          <div key={b.id} className="bg-slate-700 rounded-lg px-3 py-2">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-xs font-semibold text-white">#{b.id} – {b.court.facility}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${b.status === "CONFIRMED" ? "bg-emerald-500/20 text-emerald-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                                {b.status === "CONFIRMED" ? "Xác nhận" : "Chờ"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300">{b.court.name} · {b.court.sport}</p>
+                            <p className="text-xs text-slate-400">{new Date(b.bookingDate).toLocaleDateString("vi-VN")} · {new Date(b.startTime).toISOString().substring(11,16)}–{new Date(b.endTime).toISOString().substring(11,16)}</p>
+                            <p className="text-xs font-bold text-emerald-400 mt-0.5">{Number(b.totalPrice).toLocaleString("vi-VN")}đ</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <Link href="/login" className="text-slate-400 hover:text-white text-sm transition-colors">{t("login")}</Link>
               <Link href="/register" className="bg-emerald-500 hover:bg-emerald-400 text-white text-sm px-4 py-2 rounded-lg transition-colors">{t("register")}</Link>
             </>
