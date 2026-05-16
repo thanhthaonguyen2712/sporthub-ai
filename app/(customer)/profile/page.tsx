@@ -10,18 +10,23 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const t = useTranslations("profile");
-  const [active, setActive] = useState(searchParams.get("tab") || "info");
-  const menuItems = [
-  { id: "info", icon: <img src="/infor.png" className="w-5 h-5 flex-shrink-0" alt="info" />, label: t("info") },
-  { id: "bookings", icon: <img src="/calendar.png" className="w-5 h-5 flex-shrink-0" alt="bookings" />, label: t("bookings") },
-  { id: "wallet", icon: <img src="/wallet.png" className="w-5 h-5 flex-shrink-0" alt="wallet" />, label: t("wallet") },
-  { id: "courses", icon: <img src="/education.png" className="w-5 h-5 flex-shrink-0" alt="courses" />, label: t("courses") },
-  { id: "membership", icon: <img src="/diamon.png" className="w-5 h-5 flex-shrink-0" alt="membership" />, label: t("membership") },
-  { id: "vouchers", icon: <img src="/giftbox.png" className="w-5 h-5 flex-shrink-0" alt="vouchers" />, label: t("vouchers") },
-  { id: "groups", icon: <img src="/teamwork.png" className="w-5 h-5 flex-shrink-0" alt="groups" />, label: t("groups") },
-  { id: "password", icon: <img src="/password-manager.png" className="w-5 h-5 flex-shrink-0" alt="password" />, label: t("password") },
-  { id: "settings", icon: <img src="/settings.png" className="w-5 h-5 flex-shrink-0" alt="settings" />, label: t("settings") },
-];
+  const role = (session?.user as any)?.role;
+  const isOwner = role === "OWNER";
+  const requestedTab = searchParams.get("tab") || "info";
+  const [active, setActive] = useState(requestedTab);
+
+  const allMenuItems = [
+    { id: "info",       icon: <img src="/infor.png"            className="w-5 h-5 flex-shrink-0" alt="info" />,       label: t("info"),       ownerVisible: true  },
+    { id: "bookings",   icon: <img src="/calendar.png"         className="w-5 h-5 flex-shrink-0" alt="bookings" />,   label: t("bookings"),   ownerVisible: false },
+    { id: "wallet",     icon: <img src="/wallet.png"           className="w-5 h-5 flex-shrink-0" alt="wallet" />,     label: t("wallet"),     ownerVisible: true  },
+    { id: "courses",    icon: <img src="/education.png"        className="w-5 h-5 flex-shrink-0" alt="courses" />,    label: t("courses"),    ownerVisible: false },
+    { id: "membership", icon: <img src="/diamon.png"           className="w-5 h-5 flex-shrink-0" alt="membership" />, label: t("membership"), ownerVisible: false },
+    { id: "vouchers",   icon: <img src="/giftbox.png"          className="w-5 h-5 flex-shrink-0" alt="vouchers" />,   label: t("vouchers"),   ownerVisible: false },
+    { id: "groups",      icon: <img src="/teamwork.png"         className="w-5 h-5 flex-shrink-0" alt="groups" />,      label: t("groups"),      ownerVisible: false },
+    { id: "password",   icon: <img src="/password-manager.png" className="w-5 h-5 flex-shrink-0" alt="password" />,  label: t("password"),    ownerVisible: true  },
+    { id: "settings",   icon: <img src="/settings.png"         className="w-5 h-5 flex-shrink-0" alt="settings" />,   label: t("settings"),   ownerVisible: true  },
+  ];
+  const menuItems = allMenuItems.filter(item => !isOwner || item.ownerVisible);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -45,26 +50,6 @@ export default function ProfilePage() {
     else alert(data.error || t("uploadFailed"));
   }
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deleteError, setDeleteError] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  async function handleDeleteAccount() {
-    if (!deletePassword) { setDeleteError(t("enterPassword")); return; }
-    setDeleting(true);
-    const res = await fetch("/api/user/delete", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: deletePassword }),
-    });
-    const data = await res.json();
-    setDeleting(false);
-    if (res.ok) {
-      signOut({ callbackUrl: "/" });
-    } else {
-      setDeleteError(data.error || t("deleteError"));
-    }
-  }
   return (
     <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)", color: "#000" }}>
       <Navbar />
@@ -92,31 +77,33 @@ export default function ProfilePage() {
               </div>
               <p className="font-semibold text-black text-sm">{session?.user?.name}</p>
               <p className="text-gray-600 text-xs mt-0.5">{session?.user?.email}</p>
-              <span className="inline-block mt-2 bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full">
-                {(session?.user as any)?.role || "CUSTOMER"}
+              <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${isOwner ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
+                {isOwner ? "Chủ sân" : "Khách hàng"}
               </span>
             </div>
             <nav className="border border-gray-300 rounded-2xl overflow-hidden" style={{ background: "#E0EEE0" }}>
+              {isOwner && (
+                <a href="/owner/dashboard"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-emerald-700 font-medium hover:bg-emerald-50 transition-colors text-left border-b border-gray-300">
+                  <img src="/list.png" className="w-5 h-5 flex-shrink-0" alt="dashboard" />
+                  Quản lý sân
+                </a>
+              )}
               {menuItems.map((item, index) => (
                 <button
                   key={item.id}
                   onClick={() => setActive(item.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left
-                    ${index !== 0 ? "border-t border-gray-300" : ""}
+                    ${index !== 0 || isOwner ? "border-t border-gray-300" : ""}
                     ${active === item.id ? "bg-emerald-100 text-emerald-700 font-medium" : "text-black hover:bg-blue-100"}`}>
                   <span>{item.icon}</span>
                   {item.label}
                 </button>
               ))}
               <button onClick={() => signOut({ callbackUrl: "/" })}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-gray-300 text-left" >
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-gray-300 text-left">
                 <img src="/check-out.png" className="w-5 h-5 flex-shrink-0" alt="logout" />
-                 {t("logout")}
-              </button>
-              <button onClick={() => setShowDeleteConfirm(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-700 hover:bg-red-50 transition-colors border-t border-gray-300 text-left">
-                <img src="/delete.png" className="w-5 h-5 flex-shrink-0" alt="delete" />
-                {t("deleteAccount")}
+                {t("logout")}
               </button>
             </nav>
           </aside>
@@ -134,42 +121,6 @@ export default function ProfilePage() {
           </main>
         </div>
       </div>
-    {/* Popup xóa tài khoản */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
-            <div className="text-center mb-4">
-              <div className="flex justify-center mb-2"><img src="/delete.png" alt="" className="w-10 h-10" /></div>
-              <h3 className="font-bold text-black text-lg">{t("deleteAccountTitle")}</h3>
-              <p className="text-gray-500 text-sm mt-1">{t("deleteAccountMsg")}</p>
-            </div>
-            <div className="mb-4">
-              <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("enterPasswordConfirm")}</label>
-              <input
-                type="password"
-                value={deletePassword}
-                onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(""); }}
-                placeholder={t("passwordPlaceholder")}
-                className="w-full bg-gray-50 border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-red-400"
-              />
-              {deleteError && <p className="text-red-500 text-xs mt-1">{deleteError}</p>}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowDeleteConfirm(false); setDeletePassword(""); setDeleteError(""); }}
-                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                {t("cancel")}
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleting}
-                className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                {deleting ? t("deleting") : t("confirmDelete")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -178,7 +129,7 @@ export default function ProfilePage() {
 function SectionInfo({ session }: { session: any }) {
   const [editing, setEditing] = useState(false);
   const t = useTranslations("profile");
-  const [form, setForm] = useState({ fullName: "", phone: "" });
+  const [form, setForm] = useState({ fullName: "", phone: "", email: "" });
   const [dob, setDob] = useState({ day: "", month: "", year: "" });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -187,7 +138,7 @@ function SectionInfo({ session }: { session: any }) {
     fetch("/api/user/profile")
       .then((r) => r.json())
       .then((data) => {
-        setForm({ fullName: data.fullName || "", phone: data.phone || "" });
+        setForm({ fullName: data.fullName || "", phone: data.phone || "", email: data.email || "" });
       });
   }, []);
 
@@ -208,7 +159,7 @@ function SectionInfo({ session }: { session: any }) {
     const res = await fetch("/api/user/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullName: form.fullName, phone: form.phone }),
+      body: JSON.stringify({ fullName: form.fullName, phone: form.phone, email: form.email }),
     });
     const data = await res.json();
     setSaving(false);
@@ -242,8 +193,9 @@ function SectionInfo({ session }: { session: any }) {
         </div>
         <div>
           <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("email")}</label>
-          <input value={session?.user?.email || ""} disabled
-            className="w-full bg-white border border-gray-300 text-black rounded-xl px-4 py-2.5 text-sm opacity-60" />
+          <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            disabled={!editing} placeholder={t("emailPlaceholder")}
+            className="w-full bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:border-emerald-400 transition-all" />
         </div>
         <div>
           <label className="text-xs text-gray-600 mb-1.5 block font-medium">{t("phone")}</label>
@@ -539,31 +491,84 @@ function SectionBookings() {
 
 /* ─── VÍ SPORTHUB ─── */
 function SectionWallet() {
+  const { data: session } = useSession();
+  const isOwner = (session?.user as any)?.role === "OWNER";
   const t = useTranslations("profile");
   const locale = useLocale();
   const dateLocale = locale === "en" ? "en-US" : "vi-VN";
+
+  // Loại ví đang xem — owner chỉ thấy ví kinh doanh
+  const [walletType, setWalletType] = useState<"personal" | "business">("personal");
+  useEffect(() => { if (isOwner) setWalletType("business"); }, [isOwner]);
+
+  // Ví cá nhân
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Ví kinh doanh
+  const [bizWallet, setBizWallet] = useState<any>(null);
+  const [bizTransactions, setBizTransactions] = useState<any[]>([]);
+  const [bizLoading, setBizLoading] = useState(false);
+
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showTopup, setShowTopup] = useState(false);
   const [topupAmount, setTopupAmount] = useState("");
-  const [topuping, setTopuping] = useState(false);
+
   const [withdrawForm, setWithdrawForm] = useState({ amount: "", bankName: "", accountNumber: "", accountName: "", saveBank: false });
   const [savedBanks, setSavedBanks] = useState<any[]>([]);
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawMsg, setWithdrawMsg] = useState("");
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   const [txFilter, setTxFilter] = useState("all");
+  const [bizTxFilter, setBizTxFilter] = useState("all");
 
-  useEffect(() => {
+  function loadPersonal() {
     fetch("/api/wallet/detail").then((r) => r.json()).then((data) => {
       setWallet(data.wallet);
       setTransactions(data.transactions || []);
       setLoading(false);
     });
+  }
+  function loadBusiness() {
+    setBizLoading(true);
+    fetch("/api/owner/business-wallet").then(r => r.json()).then(d => {
+      setBizWallet(d.wallet ?? null);
+      setBizTransactions(d.transactions ?? []);
+      setBizLoading(false);
+    });
+  }
+
+  useEffect(() => {
+    if (!isOwner) loadPersonal();
     fetch("/api/wallet/banks").then((r) => r.json()).then((data) => setSavedBanks(Array.isArray(data) ? data : []));
-  }, []);
+    if (isOwner) loadBusiness();
+  }, [isOwner]);
+
+  // Rút ví kinh doanh
+  async function handleBizWithdraw() {
+    if (!withdrawForm.amount || Number(withdrawForm.amount) <= 0) {
+      setWithdrawMsg("Vui lòng nhập số tiền"); setWithdrawSuccess(false); return;
+    }
+    setWithdrawing(true);
+    const amount = Number(withdrawForm.amount) * 1000;
+    const res = await fetch("/api/owner/business-wallet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, type: "WITHDRAW", description: withdrawForm.bankName ? `Rút về ${withdrawForm.bankName} - ${withdrawForm.accountNumber}` : "Rút tiền ví kinh doanh" }),
+    });
+    const data = await res.json();
+    setWithdrawing(false);
+    if (res.ok) {
+      setWithdrawMsg("Rút tiền thành công"); setWithdrawSuccess(true);
+      setWithdrawForm({ amount: "", bankName: "", accountNumber: "", accountName: "", saveBank: false });
+      setShowWithdraw(false);
+      loadBusiness();
+      setTimeout(() => setWithdrawMsg(""), 3000);
+    } else {
+      setWithdrawMsg(data.error || "Rút tiền thất bại"); setWithdrawSuccess(false);
+    }
+  }
 
   const typeLabel: Record<string, { label: string; color: string; sign: string }> = {
     DEPOSIT:  { label: t("txDeposit"),  color: "text-emerald-600", sign: "+" },
@@ -616,6 +621,17 @@ function SectionWallet() {
     }
   }
 
+  // Hiển thị số dư và giao dịch theo loại ví đang chọn
+  const currentBalance = walletType === "business" ? Number(bizWallet?.balance || 0) : Number(wallet?.balance || 0);
+  const currentTxs = walletType === "business" ? bizTransactions : transactions;
+  const currentLoading = walletType === "business" ? bizLoading : loading;
+  const bizTxLabel: Record<string, { label: string; color: string; sign: string }> = {
+    DEPOSIT:  { label: "Nhận tiền",   color: "text-emerald-600", sign: "+" },
+    WITHDRAW: { label: "Rút/Chi",     color: "text-red-500",     sign: "-" },
+    PAYMENT:  { label: "Thanh toán",  color: "text-red-500",     sign: "-" },
+    REFUND:   { label: "Hoàn tiền",   color: "text-emerald-600", sign: "+" },
+  };
+
   return (
     <div className="space-y-4">
       {/* Card số dư */}
@@ -624,19 +640,29 @@ function SectionWallet() {
           <img src="/wallet.png" alt="wallet" className="w-5 h-5" />
           {t("wallet")}
         </h2>
-        {loading ? (
-          <div className="h-16 bg-white/50 rounded-xl animate-pulse" />
-        ) : (
-          <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl p-5 text-white">
-            <p className="text-sm opacity-80 mb-1">{t("currentBalance")}</p>
-            <p className="text-3xl font-bold">{Number(wallet?.balance || 0).toLocaleString(dateLocale)}đ</p>
-            <span className={`inline-block mt-3 text-xs px-2 py-0.5 rounded-full ${wallet?.status === "ACTIVE" ? "bg-white/20" : "bg-red-300/40"}`}>
-              {wallet?.status === "ACTIVE" ? t("walletActive") : t("walletLocked")}
-            </span>
+
+        {/* Label ví kinh doanh cho owner */}
+        {isOwner && (
+          <div className="flex items-center gap-2 mb-4 text-sm text-blue-700 font-medium">
+            <span>🏢</span> Ví Kinh Doanh
           </div>
         )}
 
-        {/* 2 button lớn */}
+        {currentLoading ? (
+          <div className="h-16 bg-white/50 rounded-xl animate-pulse" />
+        ) : (
+          <div className={`rounded-2xl p-5 text-white ${walletType === "business" ? "bg-gradient-to-br from-blue-500 to-blue-700" : "bg-gradient-to-br from-emerald-400 to-emerald-600"}`}>
+            <p className="text-sm opacity-80 mb-1">{walletType === "business" ? "Số dư ví kinh doanh" : t("currentBalance")}</p>
+            <p className="text-3xl font-bold">{currentBalance.toLocaleString(dateLocale)}đ</p>
+            {walletType === "personal" && (
+              <span className={`inline-block mt-3 text-xs px-2 py-0.5 rounded-full ${wallet?.status === "ACTIVE" ? "bg-white/20" : "bg-red-300/40"}`}>
+                {wallet?.status === "ACTIVE" ? t("walletActive") : t("walletLocked")}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Buttons */}
         <div className="mt-4 grid grid-cols-2 gap-3">
           <button onClick={() => setShowTopup(true)}
             className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
@@ -657,58 +683,131 @@ function SectionWallet() {
       {/* Lịch sử giao dịch */}
       <div className="border border-gray-300 rounded-2xl p-6" style={{ background: "#E0EEE0" }}>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-lg font-semibold text-black">{t("transactionHistory")}</h2>
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { key: "all", label: t("txAll") },
-              { key: "deposit", label: t("txDeposit") },
-              { key: "payment", label: t("txPayment") },
-              { key: "refund", label: t("txRefund") },
-              { key: "withdraw", label: t("txWithdraw") },
-            ].map((tab) => (
-              <button key={tab.key} onClick={() => setTxFilter(tab.key)}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                  txFilter === tab.key
-                    ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium"
-                    : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"
-                }`}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <h2 className="text-lg font-semibold text-black">
+            {t("transactionHistory")}
+            {walletType === "business" && <span className="text-sm font-normal text-blue-600 ml-1">(Ví Kinh Doanh)</span>}
+          </h2>
+          {walletType === "personal" && (
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { key: "all",     label: t("txAll") },
+                { key: "deposit", label: t("txDeposit") },
+                { key: "payment", label: t("txPayment") },
+                { key: "refund",  label: t("txRefund") },
+                { key: "withdraw",label: t("txWithdraw") },
+              ].map((tab) => (
+                <button key={tab.key} onClick={() => setTxFilter(tab.key)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                    txFilter === tab.key
+                      ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium"
+                      : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"
+                  }`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {walletType === "business" && (
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { key: "all",      label: "Tất cả" },
+                { key: "business", label: "Kinh doanh" },
+                { key: "topup",    label: "Nạp tiền" },
+                { key: "refund",   label: "Hoàn tiền" },
+                { key: "withdraw", label: "Rút tiền" },
+              ].map((tab) => (
+                <button key={tab.key} onClick={() => setBizTxFilter(tab.key)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                    bizTxFilter === tab.key
+                      ? "bg-blue-100 text-blue-700 border-blue-300 font-medium"
+                      : "bg-white text-gray-600 border-gray-300 hover:bg-blue-50"
+                  }`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        {loading ? (
+        {currentLoading ? (
           <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-14 bg-white/50 rounded-xl animate-pulse" />)}</div>
-        ) : transactions.length === 0 ? (
+        ) : currentTxs.length === 0 ? (
           <div className="text-center py-10 text-gray-500">
             <div className="flex justify-center mb-2"><img src="/wallet.png" className="w-10 h-10 opacity-40" alt="" /></div>
             <p className="text-sm">{t("noTransactions")}</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {transactions
+            {currentTxs
               .filter((tx) => {
-                if (txFilter === "all") return true;
-                if (txFilter === "deposit") return tx.type === "DEPOSIT";
-                if (txFilter === "payment") return tx.type === "PAYMENT";
-                if (txFilter === "refund") return tx.type === "REFUND";
-                if (txFilter === "withdraw") return tx.type === "WITHDRAW";
+                if (walletType === "personal") {
+                  if (txFilter === "all") return true;
+                  if (txFilter === "deposit") return tx.type === "DEPOSIT";
+                  if (txFilter === "payment") return tx.type === "PAYMENT";
+                  if (txFilter === "refund") return tx.type === "REFUND";
+                  if (txFilter === "withdraw") return tx.type === "WITHDRAW";
+                  return true;
+                }
+                // Lọc giao dịch ví kinh doanh
+                const desc: string = (tx.description ?? "").toLowerCase();
+                const isTopup = tx.type === "DEPOSIT" && (desc.includes("nạp") || desc.includes("topup") || desc.includes("vnpay"));
+                const isBusiness = tx.type === "DEPOSIT" && !isTopup;
+                if (bizTxFilter === "all") return true;
+                if (bizTxFilter === "business") return isBusiness;
+                if (bizTxFilter === "topup") return isTopup;
+                if (bizTxFilter === "refund") return tx.type === "REFUND";
+                if (bizTxFilter === "withdraw") return tx.type === "WITHDRAW";
                 return true;
               })
-              .map((tx) => (
-                <div key={tx.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-black">{typeLabel[tx.type]?.label || tx.type}</p>
-                    {tx.description && <p className="text-xs text-gray-500 mt-0.5">{tx.description}</p>}
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(tx.createdAt).toLocaleString(dateLocale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </p>
+              .map((tx) => {
+                if (walletType === "business") {
+                  const desc: string = (tx.description ?? "").toLowerCase();
+                  const isTopup = tx.type === "DEPOSIT" && (desc.includes("nạp") || desc.includes("topup") || desc.includes("vnpay"));
+                  const label =
+                    tx.type === "REFUND"   ? { label: "Hoàn tiền",  color: "text-emerald-600", sign: "+" } :
+                    tx.type === "WITHDRAW" ? { label: "Rút tiền",   color: "text-red-500",     sign: "-" } :
+                    tx.type === "PAYMENT"  ? { label: "Thanh toán", color: "text-red-500",     sign: "-" } :
+                    isTopup                ? { label: "Nạp tiền",   color: "text-blue-600",    sign: "+" } :
+                                             { label: "Kinh doanh", color: "text-emerald-600", sign: "+" };
+                  return (
+                    <div key={tx.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-black">{label.label}</p>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            label.label === "Kinh doanh" ? "bg-emerald-100 text-emerald-700" :
+                            label.label === "Nạp tiền"   ? "bg-blue-100 text-blue-700" :
+                            label.label === "Hoàn tiền"  ? "bg-yellow-100 text-yellow-700" :
+                            label.label === "Rút tiền"   ? "bg-red-100 text-red-600" :
+                            "bg-gray-100 text-gray-600"
+                          }`}>{label.label}</span>
+                        </div>
+                        {tx.description && <p className="text-xs text-gray-500 mt-0.5">{tx.description}</p>}
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {new Date(tx.createdAt).toLocaleString(dateLocale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <span className={`font-bold text-sm ${label.color}`}>
+                        {label.sign}{Number(tx.amount).toLocaleString(dateLocale)}đ
+                      </span>
+                    </div>
+                  );
+                }
+                const lbl = typeLabel[tx.type];
+                return (
+                  <div key={tx.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-black">{lbl?.label || tx.type}</p>
+                      {tx.description && <p className="text-xs text-gray-500 mt-0.5">{tx.description}</p>}
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {new Date(tx.createdAt).toLocaleString(dateLocale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <span className={`font-bold text-sm ${lbl?.color}`}>
+                      {lbl?.sign}{Number(tx.amount).toLocaleString(dateLocale)}đ
+                    </span>
                   </div>
-                  <span className={`font-bold text-sm ${typeLabel[tx.type]?.color}`}>
-                    {typeLabel[tx.type]?.sign}{Number(tx.amount).toLocaleString(dateLocale)}đ
-                  </span>
-                </div>
-              ))}
+                );
+              })}
           </div>
         )}
       </div>
@@ -718,7 +817,7 @@ function SectionWallet() {
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="font-bold text-black text-lg mb-4 flex items-center gap-2">
               <img src="/wallet.png" alt="wallet" className="w-5 h-5" />
-              {t("topupTitle")}
+              {t("topupTitle")} {walletType === "business" && <span className="text-sm font-normal text-blue-600">(Ví Kinh Doanh)</span>}
             </h3>
 
             {/* Hiển thị số tiền */}
@@ -726,7 +825,7 @@ function SectionWallet() {
               <p className="text-2xl font-bold text-black">
                 {topupAmount ? (Number(topupAmount) * 1000).toLocaleString(dateLocale) : "0"}đ
               </p>
-              <p className="text-xs text-gray-400 mt-1">{t("topupCurrentBalance", { amount: Number(wallet?.balance || 0).toLocaleString(dateLocale) + "đ" })}</p>
+              <p className="text-xs text-gray-400 mt-1">Số dư hiện tại: {currentBalance.toLocaleString(dateLocale)}đ</p>
             </div>
 
             {/* Numpad */}
@@ -762,6 +861,7 @@ function SectionWallet() {
               ))}
             </div>
             <div className="flex flex-col gap-2">
+              {walletType === "personal" ? (
                 <button
                   disabled={!topupAmount}
                   onClick={async () => {
@@ -770,23 +870,36 @@ function SectionWallet() {
                     const res = await fetch("/api/payment/vnpay", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        amount,
-                        orderInfo: `Nap tien vi SportHub`,
-                        bookingData: { isTopup: true },
-                      }),
+                      body: JSON.stringify({ amount, orderInfo: `Nap tien vi SportHub`, bookingData: { isTopup: true } }),
                     });
                     const data = await res.json();
-                    if (data.payUrl) {
-                      window.location.href = data.payUrl;
-                    } else {
-                      alert(data.error || t("saveFailed"));
-                    }
+                    if (data.payUrl) window.location.href = data.payUrl;
+                    else alert(data.error || t("saveFailed"));
                   }}
                   className="w-full bg-blue-500 hover:bg-blue-400 disabled:bg-blue-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
                   <img src="/vnpay.png" className="w-5 h-5 object-contain" alt="VNPay" />
                   {t("topupVnpay")}
                 </button>
+              ) : (
+                <button
+                  disabled={!topupAmount}
+                  onClick={async () => {
+                    if (!topupAmount) return;
+                    const amount = Number(topupAmount) * 1000;
+                    const res = await fetch("/api/payment/vnpay", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ amount, orderInfo: "Nap tien vi kinh doanh SportHub", bookingData: { isTopup: true, isBusinessTopup: true } }),
+                    });
+                    const data = await res.json();
+                    if (data.payUrl) window.location.href = data.payUrl;
+                    else alert(data.error || t("saveFailed"));
+                  }}
+                  className="w-full bg-blue-500 hover:bg-blue-400 disabled:bg-blue-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                  <img src="/vnpay.png" className="w-5 h-5 object-contain" alt="VNPay" />
+                  Nạp qua VNPay
+                </button>
+              )}
               <button onClick={() => { setShowTopup(false); setTopupAmount(""); }}
                 className="w-full border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
                 {t("cancel")}
@@ -829,7 +942,7 @@ function SectionWallet() {
                       ? (Number(withdrawForm.amount) * 1000).toLocaleString(dateLocale)
                       : "0"}đ
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">{t("balanceDisplay")} {Number(wallet?.balance || 0).toLocaleString(dateLocale)}đ</p>
+                  <p className="text-xs text-gray-400 mt-1">{t("balanceDisplay")} {currentBalance.toLocaleString(dateLocale)}đ</p>
                 </div>
 
                 {/* Numpad */}
@@ -910,7 +1023,7 @@ function SectionWallet() {
                 className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
                 {t("cancel")}
               </button>
-              <button onClick={handleWithdraw} disabled={withdrawing}
+              <button onClick={walletType === "business" ? handleBizWithdraw : handleWithdraw} disabled={withdrawing}
                 className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
                 {withdrawing ? t("processing") : t("confirmWithdraw")}
               </button>
@@ -927,13 +1040,16 @@ function SectionCourses() {
   const t = useTranslations("profile");
   const locale = useLocale();
   const dateLocale = locale === "en" ? "en-US" : "vi-VN";
-  const [tab, setTab] = useState<"mine" | "public">("mine");
+  const [tab, setTab] = useState<"mine" | "public" | "coaching">("mine");
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [msg, setMsg] = useState("");
+  const [lockingId, setLockingId] = useState<number | null>(null);
+  const [enrollMsg, setEnrollMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [lockConfirm, setLockConfirm] = useState<{ id: number; isActive: boolean } | null>(null);
   const [form, setForm] = useState({
     title: "", description: "", sport: "", level: "BEGINNER",
     price: "", maxStudents: "10", schedule: "",
@@ -947,8 +1063,34 @@ function SectionCourses() {
       .then((data) => { setCourses(Array.isArray(data) ? data : []); setLoading(false); });
   }, [tab]);
 
+  async function handleToggleLock(courseId: number, currentIsActive: boolean) {
+    if (currentIsActive) {
+      // Khoá lớp: cần xác nhận trước
+      setLockConfirm({ id: courseId, isActive: currentIsActive });
+      return;
+    }
+    // Mở lớp: thực hiện ngay
+    await doToggleLock(courseId, currentIsActive);
+  }
+
+  async function doToggleLock(courseId: number, currentIsActive: boolean) {
+    setLockingId(courseId);
+    const res = await fetch("/api/courses", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ courseId, isActive: !currentIsActive }),
+    });
+    setLockingId(null);
+    if (res.ok) {
+      setMsg(!currentIsActive ? t("unlockSuccess") : t("lockSuccess"));
+      setTimeout(() => setMsg(""), 3000);
+      setCourses(prev => prev.map(c => c.id === courseId ? { ...c, isActive: !currentIsActive } : c));
+    }
+  }
+
   async function handleEnroll(courseId: number) {
     setEnrolling(true);
+    setEnrollMsg(null);
     const res = await fetch("/api/courses/enroll", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -956,11 +1098,15 @@ function SectionCourses() {
     });
     const data = await res.json();
     setEnrolling(false);
-    setMsg(res.ok ? data.message : data.error);
-    setTimeout(() => setMsg(""), 3000);
     if (res.ok) {
-      setSelected(null);
-      fetch(`/api/courses?type=${tab}`).then((r) => r.json()).then((d) => setCourses(Array.isArray(d) ? d : []));
+      setEnrollMsg({ type: "success", text: data.message || t("enrollSuccess") });
+      setTimeout(() => {
+        setSelected(null);
+        setEnrollMsg(null);
+        fetch(`/api/courses?type=${tab}`).then((r) => r.json()).then((d) => setCourses(Array.isArray(d) ? d : []));
+      }, 1500);
+    } else {
+      setEnrollMsg({ type: "error", text: data.error || t("enrollFailed") });
     }
   }
 
@@ -1004,8 +1150,12 @@ function SectionCourses() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-5">
-          {[{ key: "mine", label: t("myCourses") }, { key: "public", label: t("openCourses") }].map((ct) => (
+        <div className="flex gap-2 mb-5 flex-wrap">
+          {[
+            { key: "mine", label: t("myCourses") },
+            { key: "public", label: t("openCourses") },
+            { key: "coaching", label: t("teachingCourses") },
+          ].map((ct) => (
             <button key={ct.key} onClick={() => setTab(ct.key as any)}
               className={`text-sm px-4 py-2 rounded-xl border transition-colors ${tab === ct.key ? "bg-emerald-100 text-emerald-700 border-emerald-300 font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-emerald-50"}`}>
               {ct.label}
@@ -1018,7 +1168,7 @@ function SectionCourses() {
         ) : courses.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <div className="flex justify-center mb-2"><img src="/education.png" className="w-10 h-10 opacity-40" alt="" /></div>
-            <p className="text-sm">{tab === "mine" ? t("notEnrolled") : t("noCourses")}</p>
+            <p className="text-sm">{tab === "mine" ? t("notEnrolled") : tab === "coaching" ? t("noTeachingCourses") : t("noCourses")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1027,24 +1177,54 @@ function SectionCourses() {
               const enrollment = tab === "mine" ? item : null;
               if (!course) return null;
               return (
-                <div key={item.id} onClick={() => setSelected({ course, enrollment })}
-                  className="bg-white border border-gray-200 hover:border-emerald-400 rounded-xl p-4 cursor-pointer transition-colors">
+                <div key={item.id}
+                  onClick={() => tab !== "coaching" && setSelected({ course, enrollment })}
+                  className={`bg-white border rounded-xl p-4 transition-colors ${tab !== "coaching" ? "cursor-pointer hover:border-emerald-400 border-gray-200" : "border-gray-200"} ${!course.isActive && tab === "coaching" ? "opacity-60" : ""}`}>
                   <div className="flex items-start justify-between mb-2">
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="font-semibold text-black text-sm">{course.title}</p>
                       <p className="text-gray-500 text-xs mt-0.5">{course.sport} · {levelLabel[course.level]}</p>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      enrollment?.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700"
-                      : enrollment?.status === "COMPLETED" ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-600"
-                    }`}>
-                      {enrollment ? (enrollment.status === "ACTIVE" ? t("courseActive") : enrollment.status === "COMPLETED" ? t("completed") : t("pending")) : t("courseEnrollCount", { current: course._count?.enrollments || 0, max: course.maxStudents })}
-                    </span>
+                    <div className="flex items-center gap-2 ml-2">
+                      {tab === "coaching" ? (
+                        <>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${course.isActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                            {course.isActive ? t("courseOpen") : t("courseLocked")}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleToggleLock(course.id, course.isActive); }}
+                            disabled={lockingId === course.id}
+                            className={`text-xs px-3 py-1 rounded-lg border font-medium transition-colors disabled:opacity-50 ${
+                              course.isActive
+                                ? "border-red-300 text-red-600 hover:bg-red-50"
+                                : "border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                            }`}>
+                            {lockingId === course.id ? "..." : course.isActive ? t("lockCourse") : t("unlockCourse")}
+                          </button>
+                        </>
+                      ) : (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          enrollment?.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700"
+                          : enrollment?.status === "COMPLETED" ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {enrollment ? (enrollment.status === "ACTIVE" ? t("courseActive") : enrollment.status === "COMPLETED" ? t("completed") : t("pending")) : t("courseEnrollCount", { current: course._count?.enrollments || 0, max: course.maxStudents })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{course.coach?.fullName}</span>
-                    <span className="text-emerald-600 font-bold">{Number(course.price).toLocaleString("vi-VN")}đ</span>
+                    {tab === "coaching" ? (
+                      <>
+                        <span>{t("courseEnrollCount", { current: course._count?.enrollments || 0, max: course.maxStudents })}</span>
+                        <span className="text-emerald-600 font-bold">{Number(course.price).toLocaleString("vi-VN")}đ</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{course.coach?.fullName}</span>
+                        <span className="text-emerald-600 font-bold">{Number(course.price).toLocaleString("vi-VN")}đ</span>
+                      </>
+                    )}
                   </div>
                   {enrollment && enrollment.progress > 0 && (
                     <div className="mt-2">
@@ -1092,14 +1272,26 @@ function SectionCourses() {
               <p className="text-sm text-gray-600 mb-4">{selected.course.description}</p>
             )}
 
+            {/* Kết quả đăng ký (inline trong popup) */}
+            {enrollMsg && (
+              <div className={`rounded-xl px-4 py-3 text-sm mb-3 flex items-center gap-2 ${
+                enrollMsg.type === "success"
+                  ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
+                  : "bg-red-50 border border-red-200 text-red-600"
+              }`}>
+                <span>{enrollMsg.type === "success" ? "✓" : "✕"}</span>
+                <span>{enrollMsg.text}</span>
+              </div>
+            )}
+
             {/* Nút đăng ký nếu chưa đăng ký */}
             {!selected.enrollment && (
               <div className="flex gap-2">
-                <button onClick={() => setSelected(null)}
+                <button onClick={() => { setSelected(null); setEnrollMsg(null); }}
                   className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
                   {t("close")}
                 </button>
-                <button onClick={() => handleEnroll(selected.course.id)} disabled={enrolling}
+                <button onClick={() => handleEnroll(selected.course.id)} disabled={enrolling || enrollMsg?.type === "success"}
                   className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-300 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
                   {enrolling ? t("enrolling") : (
                     <span className="flex items-center justify-center gap-1.5">
@@ -1116,6 +1308,38 @@ function SectionCourses() {
                 {t("close")}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Dialog xác nhận khoá lớp */}
+      {lockConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-red-600 text-lg">🔒</span>
+              </div>
+              <h3 className="font-bold text-black text-base">{t("lockConfirmTitle")}</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-5">{t("lockConfirmMsg")}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setLockConfirm(null)}
+                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                {t("cancel")}
+              </button>
+              <button
+                disabled={lockingId === lockConfirm.id}
+                onClick={async () => {
+                  const { id, isActive } = lockConfirm;
+                  setLockConfirm(null);
+                  await doToggleLock(id, isActive);
+                }}
+                className="flex-1 bg-red-500 hover:bg-red-400 disabled:bg-red-300 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                {lockingId === lockConfirm.id ? "..." : t("confirmLockBtn")}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1228,7 +1452,8 @@ function SectionMembership() {
     setUpgrading("");
     setMsg(res.ok ? data.message : data.error);
     if (res.ok) {
-      setMembership((m: any) => ({ ...m, tier, status: "ACTIVE" }));
+      // Re-fetch để lấy startDate/endDate mới nhất từ server
+      fetch("/api/membership").then(r => r.json()).then(d => setMembership(d));
     }
     setTimeout(() => setMsg(""), 4000);
   }
@@ -1300,7 +1525,7 @@ function SectionMembership() {
       {/* Các gói */}
       <div className="grid grid-cols-3 gap-3">
         {tiers.map((pkg) => {
-          const isCurrent = membership?.tier === pkg.name;
+          const isCurrent = getEffectiveTier(membership) === pkg.name;
           return (
             <div key={pkg.name} className={`bg-gradient-to-br ${pkg.color} border rounded-xl p-4 text-center ${isCurrent ? "border-emerald-400" : "border-gray-200"}`}>
               <div className={`w-8 h-8 rounded-full ${pkg.iconBg} mx-auto mb-2 flex items-center justify-center text-white text-xs font-bold`}>{pkg.label[0]}</div>
@@ -1628,6 +1853,29 @@ function SectionGroups() {
   );
 }
 
+const PASSWORD_RULES = [
+  { id: "length",  label: "Ít nhất 8 ký tự",                   test: (p: string) => p.length >= 8 },
+  { id: "upper",   label: "Có ít nhất 1 chữ hoa (A-Z)",         test: (p: string) => /[A-Z]/.test(p) },
+  { id: "lower",   label: "Có ít nhất 1 chữ thường (a-z)",      test: (p: string) => /[a-z]/.test(p) },
+  { id: "special", label: "Có ít nhất 1 ký tự đặc biệt (!@#…)", test: (p: string) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(p) },
+];
+
+function PasswordRulesHint({ password }: { password: string }) {
+  if (!password) return null;
+  return (
+    <ul className="mt-2 space-y-1">
+      {PASSWORD_RULES.map((r) => {
+        const ok = r.test(password);
+        return (
+          <li key={r.id} className={`flex items-center gap-1.5 text-xs ${ok ? "text-emerald-600" : "text-red-500"}`}>
+            <span>{ok ? "✓" : "✗"}</span> {r.label}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /* ─── ĐỔI MẬT KHẨU ─── */
 function SectionPassword() {
   const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -1636,6 +1884,9 @@ function SectionPassword() {
   const [msg, setMsg] = useState("");
 
   async function handleSubmit() {
+    const failedRules = PASSWORD_RULES.filter((r) => !r.test(form.newPassword));
+    if (failedRules.length > 0) { setMsg("Mật khẩu mới chưa đáp ứng yêu cầu bảo mật bên dưới."); return; }
+    if (form.newPassword !== form.confirmPassword) { setMsg("Mật khẩu xác nhận không khớp!"); return; }
     setLoading(true);
     setMsg("");
     const res = await fetch("/api/user/change-password", {
@@ -1684,6 +1935,7 @@ function SectionPassword() {
                 {show[field.showKey as keyof typeof show] ? "Ẩn" : "Hiện"}
               </button>
             </div>
+            {field.key === "newPassword" && <PasswordRulesHint password={form.newPassword} />}
           </div>
         ))}
 

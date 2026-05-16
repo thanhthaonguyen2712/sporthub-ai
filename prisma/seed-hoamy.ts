@@ -1,13 +1,12 @@
 /**
- * Seed doanh thu "Cầu lông Hòa Mỹ" (id=9)
- * Chủ sân: Thanh Thảo – nguyenthanhthao271204@gmail.com (userId=7)
+ * prisma/seed-hoamy.ts
+ * Seed doanh thu + chấm công đầy đủ cho "Cầu lông Hòa Mỹ" (facility ID 9)
+ * Chủ sân: Thanh Thảo – nguyenthanhthao271204@gmail.com
  *
- * Phạm vi: 01/01/2026 → 12/04/2026 (ngày hiện tại)
- *   - Tháng 1, 2, 3, 4 (đến 12/4): booking thuê sân + invoice
- *   - Tháng 1, 2, 3, 4: bán hàng trực tiếp
- *   - Tháng 3 + 4: chấm công + bảng lương
+ * Phạm vi bookings  : 01/01/2024 → 15/04/2026
+ * Phạm vi chấm công : 01/01/2025 → 15/04/2026 (100% – không vắng)
  *
- * Chạy: npx ts-node --project tsconfig.seed.json prisma/seed-hoamy.ts
+ * Chạy: npm run seed:hoamy
  */
 
 import { PrismaClient } from "../src/generated/prisma";
@@ -16,8 +15,8 @@ const prisma = new PrismaClient();
 
 // ── IDs cố định ───────────────────────────────────────────────────────────────
 const FACILITY_ID = 9;
-const STAFF_1_ID  = 8;   // Ngô Duy Tân – ca sáng
-const STAFF_2_ID  = 9;   // Đỗ Tiên    – ca chiều
+const STAFF_1_ID  = 8;   // Ngô Duy Tân  – ca sáng
+const STAFF_2_ID  = 9;   // Đỗ Tiên      – ca chiều
 const COURT_IDS   = [86, 87, 88, 89, 90];
 
 const SVC = {
@@ -35,17 +34,14 @@ const SVC = {
 type SvcItem = { id: number; price: number };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const t  = (hh: number, mm = 0) =>
-  new Date(`1970-01-01T${pad(hh)}:${pad(mm)}:00`);
-const pad = (n: number) => String(n).padStart(2, "0");
-const date = (y: number, m: number, day: number) =>
-  new Date(`${y}-${pad(m)}-${pad(day)}`);
-const dt = (y: number, m: number, day: number, hh: number, mm = 0) =>
-  new Date(`${y}-${pad(m)}-${pad(day)}T${pad(hh)}:${pad(mm)}:00`);
+const pad  = (n: number) => String(n).padStart(2, "0");
+const t    = (hh: number, mm = 0) => new Date(`1970-01-01T${pad(hh)}:${pad(mm)}:00`);
+const date = (y: number, m: number, d: number) => new Date(`${y}-${pad(m)}-${pad(d)}`);
+const dt   = (y: number, m: number, d: number, hh: number, mm = 0) =>
+  new Date(`${y}-${pad(m)}-${pad(d)}T${pad(hh)}:${pad(mm)}:00`);
 
-// 0=CN, 1=T2 ... 6=T7
-const dow = (y: number, m: number, day: number) => new Date(y, m - 1, day).getDay();
-const isWeekend = (y: number, m: number, day: number) => [0, 6].includes(dow(y, m, day));
+const dow      = (y: number, m: number, d: number) => new Date(y, m - 1, d).getDay();
+const isWeekend= (y: number, m: number, d: number) => [0, 6].includes(dow(y, m, d));
 
 function courtPrice(startH: number, endH: number, weekend: boolean) {
   if (weekend) return (endH - startH) * 150_000;
@@ -54,7 +50,7 @@ function courtPrice(startH: number, endH: number, weekend: boolean) {
   return p;
 }
 
-// Dãy tên khách hàng walk-in
+// Danh sách tên khách walk-in
 const NAMES = [
   "Nguyễn Văn An","Trần Thị Bình","Phạm Công Cường","Lê Thị Dung","Hoàng Minh Đức",
   "Vũ Thị Lan","Đặng Văn Hùng","Bùi Thị Mai","Ngô Văn Phúc","Dương Thị Quỳnh",
@@ -66,167 +62,180 @@ const NAMES = [
   "Đinh Cao Cường","Bùi Minh Dũng","Chu Thị Em","Đào Văn Phát","Giang Thị Gấm",
 ];
 let nameIdx = 0;
-const nextName = () => NAMES[nameIdx++ % NAMES.length];
-let phoneNum = 901_000_100;
+const nextName  = () => NAMES[nameIdx++ % NAMES.length];
+let phoneNum    = 901_000_100;
 const nextPhone = () => `09${phoneNum++}`;
 
-// Sinh lịch bookings cho 1 ngày: trả về mảng [courtIdx, startH, endH]
-function daySlots(y: number, m: number, day: number): Array<[number, number, number]> {
-  const wkend = isWeekend(y, m, day);
+// Sinh lịch slot thuê sân cho 1 ngày
+// density levels (ước tính bookings/tháng 30 ngày):
+//   0.6 → ~78  |  0.7 → ~93  |  0.8 → ~123  |  0.9 → ~127
+//   1.0 → ~157  |  1.1 → ~165  |  1.2 → ~180  |  1.3 → ~188
+//   1.4 → ~218  |  1.5 → ~226  |  1.6 → ~241  |  1.7+ → ~251
+function daySlots(y: number, m: number, d: number, density = 1.0): Array<[number, number, number]> {
+  const wkend = isWeekend(y, m, d);
   const slots: Array<[number, number, number]> = [];
-
-  // Ca sáng (6-11h): 1-2 sân
-  slots.push([day % 5, 7, 9]);
-  if (day % 3 === 0) slots.push([(day + 1) % 5, 9, 11]);
-
-  // Ca vàng (17-22h): 1-3 sân tuỳ ngày
-  slots.push([(day + 2) % 5, 17, 19]);
-  if (day % 2 === 0) slots.push([(day + 3) % 5, 18, 20]);
+  // Lv1 (0.5+): 2 slot cơ bản mỗi ngày → +60/tháng
+  if (density >= 0.5) { slots.push([d % 5, 7, 9]); slots.push([(d + 2) % 5, 17, 19]); }
+  // Lv2 (0.6+): cứ 3 ngày thêm 1 → +10/tháng
+  if (density >= 0.6 && d % 3 === 0) slots.push([(d + 1) % 5, 9, 11]);
+  // Lv3 (0.7+): cứ 2 ngày thêm 1 → +15/tháng
+  if (density >= 0.7 && d % 2 === 0) slots.push([(d + 3) % 5, 18, 20]);
+  // Lv4 (0.8+): mỗi ngày thêm buổi sáng sớm → +30/tháng (bước nhảy lớn)
+  if (density >= 0.8) slots.push([(d + 4) % 5, 6, 8]);
+  // Lv5 (1.0+): mỗi ngày thêm buổi chiều → +30/tháng (bước nhảy lớn)
+  if (density >= 1.0) slots.push([(d + 1) % 5, 15, 17]);
+  // Lv6 (1.2+): cứ 2 ngày thêm trưa → +15/tháng
+  if (density >= 1.2 && d % 2 === 0) slots.push([(d + 2) % 5, 11, 13]);
+  // Lv7 (1.4+): mỗi ngày thêm buổi tối → +30/tháng (bước nhảy lớn)
+  if (density >= 1.4) slots.push([(d + 3) % 5, 19, 21]);
+  // Lv8 (1.6+): cứ 2 ngày thêm → +15/tháng
+  if (density >= 1.6 && d % 2 === 0) slots.push([d % 5, 13, 15]);
+  // Lv9 (1.8+): cứ 3 ngày thêm → +10/tháng
+  if (density >= 1.8 && d % 3 === 0) slots.push([(d + 4) % 5, 8, 10]);
+  // Cuối tuần bonus
   if (wkend) {
-    // Cuối tuần thêm ca chiều
-    slots.push([(day + 4) % 5, 14, 16]);
-    if (day % 2 === 0) slots.push([day % 5, 16, 18]);
+    if (density >= 0.6) slots.push([(d + 4) % 5, 14, 16]);
+    if (density >= 0.9 && d % 2 === 0) slots.push([d % 5, 16, 18]);
+    if (density >= 1.1) slots.push([(d + 1) % 5, 9, 12]);
+    if (density >= 1.3) slots.push([(d + 3) % 5, 13, 15]);
+    if (density >= 1.5) slots.push([(d + 2) % 5, 8, 10]);
   }
-
   return slots;
 }
 
-// Dịch vụ kèm theo ngẫu nhiên (1/3 booking có kèm dịch vụ)
 const SVC_LIST = [SVC.cola, SVC.sting, SVC.aqua, SVC.revive, SVC.cauV, SVC.cau3, SVC.khan, SVC.xitN];
-function randSvc(day: number): Array<{ svc: SvcItem; qty: number }> | undefined {
-  if (day % 3 !== 0) return undefined;
-  const s1 = SVC_LIST[day % SVC_LIST.length];
-  const s2 = SVC_LIST[(day + 3) % SVC_LIST.length];
-  return [{ svc: s1, qty: 2 }, { svc: s2, qty: 1 }];
+function randSvc(d: number): Array<{ svc: SvcItem; qty: number }> | undefined {
+  if (d % 3 !== 0) return undefined;
+  return [
+    { svc: SVC_LIST[d % SVC_LIST.length],           qty: 2 },
+    { svc: SVC_LIST[(d + 3) % SVC_LIST.length],     qty: 1 },
+  ];
 }
 
-// Mảng dịch vụ cho direct sale theo ngày
 const SALE_PATTERNS: Array<Array<{ svc: SvcItem; qty: number }>> = [
-  [{ svc: SVC.aqua, qty: 5 }, { svc: SVC.sting, qty: 3 }],
-  [{ svc: SVC.cauV, qty: 2 }, { svc: SVC.aqua,  qty: 4 }],
-  [{ svc: SVC.khan, qty: 3 }, { svc: SVC.pocari,qty: 2 }],
-  [{ svc: SVC.revive,qty:6  }],
-  [{ svc: SVC.xitN, qty: 1 }, { svc: SVC.aqua,  qty: 3 }],
-  [{ svc: SVC.aqua, qty: 8 }, { svc: SVC.sting, qty: 5 }, { svc: SVC.cau3, qty: 1 }],
-  [{ svc: SVC.cauV, qty: 3 }, { svc: SVC.khan,  qty: 2 }],
-  [{ svc: SVC.aqua, qty: 4 }, { svc: SVC.sting, qty: 2 }],
-  [{ svc: SVC.xitL, qty: 1 }, { svc: SVC.aqua,  qty: 5 }],
-  [{ svc: SVC.cau3, qty: 2 }, { svc: SVC.pocari,qty: 3 }],
-  [{ svc: SVC.khan, qty: 4 }, { svc: SVC.revive,qty: 4 }],
-  [{ svc: SVC.cauV, qty: 4 }, { svc: SVC.sting, qty: 3 }],
+  [{ svc: SVC.aqua,   qty: 5 }, { svc: SVC.sting,  qty: 3 }],
+  [{ svc: SVC.cauV,   qty: 2 }, { svc: SVC.aqua,   qty: 4 }],
+  [{ svc: SVC.khan,   qty: 3 }, { svc: SVC.pocari, qty: 2 }],
+  [{ svc: SVC.revive, qty: 6 }],
+  [{ svc: SVC.xitN,   qty: 1 }, { svc: SVC.aqua,   qty: 3 }],
+  [{ svc: SVC.aqua,   qty: 8 }, { svc: SVC.sting,  qty: 5 }, { svc: SVC.cau3, qty: 1 }],
+  [{ svc: SVC.cauV,   qty: 3 }, { svc: SVC.khan,   qty: 2 }],
+  [{ svc: SVC.aqua,   qty: 4 }, { svc: SVC.sting,  qty: 2 }],
+  [{ svc: SVC.xitL,   qty: 1 }, { svc: SVC.aqua,   qty: 5 }],
+  [{ svc: SVC.cau3,   qty: 2 }, { svc: SVC.pocari, qty: 3 }],
+  [{ svc: SVC.khan,   qty: 4 }, { svc: SVC.revive, qty: 4 }],
+  [{ svc: SVC.cauV,   qty: 4 }, { svc: SVC.sting,  qty: 3 }],
 ];
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("🧹 Dọn dữ liệu cũ của cơ sở (booking/invoice/sale/attendance)...");
+  console.log("🌱 Seed Cầu lông Hòa Mỹ (facility 9)...\n");
 
-  // -- Xóa staff/court/service giả còn sót --
-  await prisma.staffSalaryRecord.deleteMany({ where: { staffId: { in: [13,14] } } });
-  await prisma.staffWageConfig.deleteMany({   where: { staffId: { in: [13,14] } } });
-  await prisma.staffAttendance.deleteMany({   where: { staffId: { in: [13,14] } } });
-  const fakeSales = await prisma.directSale.findMany({ where: { staffId: { in: [13,14] } }, select: { id: true } });
-  if (fakeSales.length) {
-    await prisma.directSaleItem.deleteMany({ where: { saleId: { in: fakeSales.map(s=>s.id) } } });
-    await prisma.directSale.deleteMany({    where: { id:     { in: fakeSales.map(s=>s.id) } } });
-  }
-  const fakeBk = await prisma.booking.findMany({ where: { courtId: { in: [93,94,95,96] } }, select: { id: true } });
-  if (fakeBk.length) {
-    const ids = fakeBk.map(b=>b.id);
-    const fakeInv = await prisma.invoice.findMany({ where: { bookingId: { in: ids } }, select: { id: true } });
-    if (fakeInv.length) {
-      await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: fakeInv.map(i=>i.id) } } });
-      await prisma.invoice.deleteMany({    where: { id:         { in: fakeInv.map(i=>i.id) } } });
-    }
-    await prisma.booking.deleteMany({ where: { id: { in: ids } } });
-  }
-  await prisma.courtPricingRule.deleteMany({ where: { courtId: { in: [93,94,95,96] } } });
-  await prisma.court.deleteMany({           where: { id:       { in: [93,94,95,96] } } });
-  await prisma.service.deleteMany({         where: { id:       { in: [19,20,21,22,23] } } });
-  await prisma.facilityStaff.deleteMany({   where: { userId:   { in: [13,14] } } });
-  await prisma.user.deleteMany({            where: { id:       { in: [13,14] } } });
+  // ── Dọn dữ liệu cũ ──────────────────────────────────────────────────────────
+  console.log("🧹 Dọn dữ liệu cũ...");
 
-  // -- Xóa doanh thu + chấm công cũ của cơ sở 9 (real staff) --
   await prisma.staffSalaryRecord.deleteMany({ where: { facilityId: FACILITY_ID, staffId: { in: [STAFF_1_ID, STAFF_2_ID] } } });
   await prisma.staffAttendance.deleteMany({   where: { staffId: { in: [STAFF_1_ID, STAFF_2_ID] } } });
 
-  // Direct sales của cơ sở 9
   const oldSales = await prisma.directSale.findMany({ where: { facilityId: FACILITY_ID }, select: { id: true } });
   if (oldSales.length) {
-    await prisma.directSaleItem.deleteMany({ where: { saleId: { in: oldSales.map(s=>s.id) } } });
-    await prisma.directSale.deleteMany({    where: { id:     { in: oldSales.map(s=>s.id) } } });
+    await prisma.directSaleItem.deleteMany({ where: { saleId: { in: oldSales.map(s => s.id) } } });
+    await prisma.directSale.deleteMany({    where: { id:     { in: oldSales.map(s => s.id) } } });
   }
 
-  // Bookings + invoices trên sân 86-90
   const oldBk = await prisma.booking.findMany({ where: { courtId: { in: COURT_IDS } }, select: { id: true } });
   if (oldBk.length) {
-    const ids = oldBk.map(b=>b.id);
+    const ids    = oldBk.map(b => b.id);
     const oldInv = await prisma.invoice.findMany({ where: { bookingId: { in: ids } }, select: { id: true } });
     if (oldInv.length) {
-      await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: oldInv.map(i=>i.id) } } });
-      await prisma.invoice.deleteMany({    where: { id:         { in: oldInv.map(i=>i.id) } } });
+      await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: oldInv.map(i => i.id) } } });
+      await prisma.invoice.deleteMany({    where: { id:         { in: oldInv.map(i => i.id) } } });
     }
     await prisma.booking.deleteMany({ where: { id: { in: ids } } });
   }
+  console.log("✅ Dọn sạch\n");
 
-  console.log("✅ Dọn sạch");
-
-  // ── Bảng giá ─────────────────────────────────────────────────────────────
+  // ── Bảng giá ─────────────────────────────────────────────────────────────────
   await prisma.courtPricingRule.deleteMany({ where: { courtId: { in: COURT_IDS } } });
   for (const courtId of COURT_IDS) {
     await prisma.courtPricingRule.createMany({
       data: [
         { courtId, startTime: t(6),  endTime: t(17), pricePerHour: 80_000,  dayType: "WEEKDAY", priority: 1 },
-        { courtId, startTime: t(17), endTime: t(22), pricePerHour: 120_000, dayType: "WEEKDAY", priority: 2 },
+        { courtId, startTime: t(17), endTime: t(22), pricePerHour: 120_000, dayType: "WEEKDAY", priority: 2, isPeak: true },
         { courtId, startTime: t(6),  endTime: t(22), pricePerHour: 150_000, dayType: "WEEKEND", priority: 1 },
       ],
     });
   }
 
   // Wage config
-  await prisma.staffWageConfig.upsert({
-    where:  { staffId_facilityId: { staffId: STAFF_1_ID, facilityId: FACILITY_ID } },
-    update: {},
-    create: { staffId: STAFF_1_ID, facilityId: FACILITY_ID, wageType: "HOURLY", wageRate: 25_000 },
-  });
-  await prisma.staffWageConfig.upsert({
-    where:  { staffId_facilityId: { staffId: STAFF_2_ID, facilityId: FACILITY_ID } },
-    update: {},
-    create: { staffId: STAFF_2_ID, facilityId: FACILITY_ID, wageType: "HOURLY", wageRate: 25_000 },
-  });
+  for (const staffId of [STAFF_1_ID, STAFF_2_ID]) {
+    await prisma.staffWageConfig.upsert({
+      where:  { staffId_facilityId: { staffId, facilityId: FACILITY_ID } },
+      update: {},
+      create: { staffId, facilityId: FACILITY_ID, wageType: "HOURLY", wageRate: 25_000 },
+    });
+  }
 
-  // ── Sinh dữ liệu theo tháng ───────────────────────────────────────────────
-  // Phạm vi: T1 (1/1 → 31/1), T2 (1/2 → 28/2), T3 (1/3 → 31/3), T4 (1/4 → 12/4)
-  const MONTHS: Array<{ year: number; month: number; lastDay: number }> = [
-    { year: 2026, month: 1, lastDay: 31 },
-    { year: 2026, month: 2, lastDay: 28 },
-    { year: 2026, month: 3, lastDay: 31 },
-    { year: 2026, month: 4, lastDay: 12 }, // đến ngày hiện tại
+  // ── Sinh bookings + direct sales theo tháng ───────────────────────────────────
+  // Phạm vi: 2024 (full) + 2025 (full) + 2026 (T1-T4)
+  // Chênh lệch cùng kỳ 2024→2025: 45–99 bookings/tháng
+  // Chênh lệch cùng kỳ 2025→2026: 20–50 bookings/tháng
+  const MONTHS = [
+    // 2024 — năm nền thấp (~78–165 bookings/tháng)
+    { y: 2024, m: 1,  lastDay: 31, density: 0.6 },  // ~78
+    { y: 2024, m: 2,  lastDay: 29, density: 0.6 },  // ~73 (2024 nhuận)
+    { y: 2024, m: 3,  lastDay: 31, density: 0.7 },  // ~93
+    { y: 2024, m: 4,  lastDay: 30, density: 0.7 },  // ~93
+    { y: 2024, m: 5,  lastDay: 31, density: 0.8 },  // ~123
+    { y: 2024, m: 6,  lastDay: 30, density: 1.0 },  // ~157
+    { y: 2024, m: 7,  lastDay: 31, density: 1.1 },  // ~165
+    { y: 2024, m: 8,  lastDay: 31, density: 1.0 },  // ~157
+    { y: 2024, m: 9,  lastDay: 30, density: 0.8 },  // ~123
+    { y: 2024, m: 10, lastDay: 31, density: 0.7 },  // ~93
+    { y: 2024, m: 11, lastDay: 30, density: 0.6 },  // ~78
+    { y: 2024, m: 12, lastDay: 31, density: 0.6 },  // ~78
+    // 2025 — năm tăng trưởng (~127–251 bookings/tháng)
+    { y: 2025, m: 1,  lastDay: 31, density: 1.0 },  // ~157 (diff vs 2024: +79)
+    { y: 2025, m: 2,  lastDay: 28, density: 0.9 },  // ~119 (diff: +46)
+    { y: 2025, m: 3,  lastDay: 31, density: 1.1 },  // ~165 (diff: +72)
+    { y: 2025, m: 4,  lastDay: 30, density: 1.2 },  // ~180 (diff: +87)
+    { y: 2025, m: 5,  lastDay: 31, density: 1.4 },  // ~218 (diff: +95)
+    { y: 2025, m: 6,  lastDay: 30, density: 1.6 },  // ~241 (diff: +84)
+    { y: 2025, m: 7,  lastDay: 31, density: 1.7 },  // ~251 (diff: +86)
+    { y: 2025, m: 8,  lastDay: 31, density: 1.5 },  // ~226 (diff: +69)
+    { y: 2025, m: 9,  lastDay: 30, density: 1.2 },  // ~180 (diff: +57)
+    { y: 2025, m: 10, lastDay: 31, density: 1.0 },  // ~157 (diff: +64)
+    { y: 2025, m: 11, lastDay: 30, density: 0.9 },  // ~127 (diff: +49)
+    { y: 2025, m: 12, lastDay: 31, density: 0.8 },  // ~123 (diff: +45)
+    // 2026 — năm hiện tại (T1-T4), chênh lệch lớn giữa các tháng để so sánh rõ
+    { y: 2026, m: 1,  lastDay: 31, density: 0.8 },  // ~123  — thấp (sau Tết)
+    { y: 2026, m: 2,  lastDay: 28, density: 1.5 },  // ~211  — đỉnh (+88)
+    { y: 2026, m: 3,  lastDay: 31, density: 1.1 },  // ~165  — hạ (-46)
+    { y: 2026, m: 4,  lastDay: 15, density: 1.7 },  // ~127  — tăng trở lại (nửa tháng)
   ];
 
-  let totalBookings = 0;
-  let totalSales    = 0;
+  let totalBk    = 0;
+  let totalSales = 0;
 
-  for (const { year: y, month: m, lastDay } of MONTHS) {
-    console.log(`\n📅 Tháng ${m}/${y} (1-${lastDay})...`);
-
-    // ── Bookings + Invoices ──
+  for (const { y, m, lastDay, density } of MONTHS) {
+    console.log(`📅 Tháng ${m}/${y} (1-${lastDay}, density=${density})...`);
     let monthBk = 0;
-    for (let day = 1; day <= lastDay; day++) {
-      const slots = daySlots(y, m, day);
+
+    for (let d = 1; d <= lastDay; d++) {
+      const slots = daySlots(y, m, d, density);
       for (const [courtIdx, startH, endH] of slots) {
-        const wkend  = isWeekend(y, m, day);
-        const cPrice = courtPrice(startH, endH, wkend);
-        const svcItems = randSvc(day + m * 3); // offset ≠ tháng 3
-        const svcTotal = (svcItems ?? []).reduce((s,i) => s + i.svc.price * i.qty, 0);
-        const final    = cPrice + svcTotal;
-        const staffId  = day % 2 === 0 ? STAFF_1_ID : STAFF_2_ID;
+        const wkend     = isWeekend(y, m, d);
+        const cPrice    = courtPrice(startH, endH, wkend);
+        const svcItems  = randSvc(d + m * 3);
+        const svcTotal  = (svcItems ?? []).reduce((s, i) => s + i.svc.price * i.qty, 0);
+        const final     = cPrice + svcTotal;
+        const staffId   = d % 2 === 0 ? STAFF_1_ID : STAFF_2_ID;
+        const createdAt = dt(y, m, d, startH - 1 > 0 ? startH - 1 : 8, 0);
 
         await prisma.$transaction(async (tx) => {
-          const bookingCreatedAt = dt(y, m, day, startH - 1 > 0 ? startH - 1 : 8, 0);
-
           const booking = await tx.booking.create({
             data: {
-              bookingDate:    date(y, m, day),
+              bookingDate:    date(y, m, d),
               startTime:      t(startH),
               endTime:        t(endH),
               totalPrice:     cPrice,
@@ -238,42 +247,37 @@ async function main() {
               createdByStaff: true,
               courtId:        COURT_IDS[courtIdx],
               staffId,
-              createdAt:      bookingCreatedAt,
+              createdAt,
             },
           });
-
           await tx.invoice.create({
             data: {
               subTotal:       final,
               discountAmount: 0,
               finalTotal:     final,
-              paymentMethod:  ["CASH","TRANSFER","QR"][day % 3] as "CASH"|"TRANSFER"|"QR",
+              paymentMethod:  (["CASH","TRANSFER","QR"] as const)[d % 3],
               bookingId:      booking.id,
               staffId,
-              createdAt:      bookingCreatedAt,
+              createdAt,
               items: svcItems
                 ? { create: svcItems.map(i => ({ quantity: i.qty, price: i.svc.price, serviceId: i.svc.id })) }
                 : undefined,
             },
           });
         });
-
         monthBk++;
       }
     }
-
     console.log(`  ✅ ${monthBk} booking + invoice`);
-    totalBookings += monthBk;
+    totalBk += monthBk;
 
-    // ── Direct Sales ──
+    // Direct sales (mỗi ngày 1 phiếu, bỏ ngày 1 của tháng không phải T4)
     let monthSales = 0;
-    for (let day = 1; day <= lastDay; day++) {
-      // Bỏ qua vài ngày đầu tháng (giả lập ngày nghỉ)
-      if (day === 1 && m !== 4) continue;
-
-      const pattern = SALE_PATTERNS[(day + m) % SALE_PATTERNS.length];
+    for (let d = 1; d <= lastDay; d++) {
+      if (d === 1 && m !== 4) continue;
+      const pattern  = SALE_PATTERNS[(d + m) % SALE_PATTERNS.length];
       const subTotal = pattern.reduce((s, i) => s + i.svc.price * i.qty, 0);
-      const staffId  = day % 2 === 0 ? STAFF_1_ID : STAFF_2_ID;
+      const staffId  = d % 2 === 0 ? STAFF_1_ID : STAFF_2_ID;
 
       await prisma.directSale.create({
         data: {
@@ -281,103 +285,109 @@ async function main() {
           staffId,
           subTotal,
           finalTotal:    subTotal,
-          paymentMethod: ["CASH","TRANSFER","QR"][day % 3] as "CASH"|"TRANSFER"|"QR",
-          createdAt:     dt(y, m, day, 11, 30),
+          paymentMethod: (["CASH","TRANSFER","QR"] as const)[d % 3],
+          createdAt:     dt(y, m, d, 11, 30),
           items: { create: pattern.map(i => ({ serviceId: i.svc.id, quantity: i.qty, price: i.svc.price })) },
         },
       });
       monthSales++;
     }
-
     console.log(`  ✅ ${monthSales} phiếu bán hàng`);
     totalSales += monthSales;
   }
 
-  // ── Chấm công tháng 3 + tháng 4 (đến 12/4) ──────────────────────────────
-  console.log("\n⏱️  Chấm công tháng 3 và tháng 4 (đến 12/4)...");
+  // ── Chấm công 100% (01/01 → 15/04/2026) ──────────────────────────────────────
+  console.log("\n⏱️  Chấm công 100% (01/01/2025 → 15/04/2026)...");
 
-  // Ngày nghỉ của từng nhân viên
-  const absentS1: Set<string> = new Set(["2026-3-12","2026-3-25","2026-4-7"]);
-  const absentS2: Set<string> = new Set(["2026-3-5","2026-3-19","2026-4-3"]);
+  // Lấy toàn bộ nhân viên thực tế của cơ sở (bao gồm cả NV được thêm sau)
+  const facilityStaff = await prisma.facilityStaff.findMany({
+    where: { facilityId: FACILITY_ID },
+    select: { userId: true, user: { select: { fullName: true } } },
+  });
+  const SHIFTS: Record<number, { inH: number; inM: number; outH: number; outM: number }> = {
+    [STAFF_1_ID]: { inH: 6,  inM: 5,  outH: 14, outM: 2  },  // ca sáng
+    [STAFF_2_ID]: { inH: 14, inM: 5,  outH: 22, outM: 2  },  // ca chiều
+  };
 
-  const ATT_MONTHS = [
-    { y: 2026, m: 3, lastDay: 31 },
-    { y: 2026, m: 4, lastDay: 12 },
-  ];
+  // Xóa toàn bộ chấm công của nhân viên cơ sở này
+  const allStaffIds = facilityStaff.map(fs => fs.userId);
+  await prisma.staffAttendance.deleteMany({ where: { staffId: { in: allStaffIds } } });
 
-  const attRows: Array<{
-    staffId: number; date: Date;
-    checkInTime: Date | null; checkOutTime: Date | null;
-    totalHours: number | null; status: "COMPLETED"|"ABSENT";
-  }> = [];
+  const attRows: any[] = [];
+  const START = date(2025, 1, 1);
+  const END   = date(2026, 4, 15);
 
-  for (const { y, m, lastDay } of ATT_MONTHS) {
-    for (let day = 1; day <= lastDay; day++) {
-      const key = `${y}-${m}-${day}`;
-      const dayOfWeek = dow(y, m, day);
+  const cur = new Date(START);
+  while (cur <= END) {
+    const y = cur.getFullYear();
+    const m = cur.getMonth() + 1;
+    const d = cur.getDate();
 
-      // Staff 1: T2-T7 (không làm CN=0)
-      if (dayOfWeek !== 0) {
-        const absent = absentS1.has(key);
-        attRows.push({
-          staffId: STAFF_1_ID,
-          date:          date(y, m, day),
-          checkInTime:   absent ? null : dt(y, m, day, 6, 5),
-          checkOutTime:  absent ? null : dt(y, m, day, 14, 2),
-          totalHours:    absent ? null : 7.95,
-          status:        absent ? "ABSENT" : "COMPLETED",
-        });
-      }
+    for (const { userId } of facilityStaff) {
+      const shift     = SHIFTS[userId] ?? { inH: 8, inM: 0, outH: 17, outM: 0 };
+      const { inH, inM, outH, outM } = shift;
+      const totalHours = parseFloat(((outH * 60 + outM - inH * 60 - inM) / 60).toFixed(2));
 
-      // Staff 2: T2-CN (tất cả ngày)
-      {
-        const absent = absentS2.has(key);
-        attRows.push({
-          staffId: STAFF_2_ID,
-          date:          date(y, m, day),
-          checkInTime:   absent ? null : dt(y, m, day, 14, 5),
-          checkOutTime:  absent ? null : dt(y, m, day, 22, 2),
-          totalHours:    absent ? null : 7.95,
-          status:        absent ? "ABSENT" : "COMPLETED",
-        });
-      }
+      attRows.push({
+        staffId:      userId,
+        date:         new Date(cur),
+        checkInTime:  dt(y, m, d, inH, inM),
+        checkOutTime: dt(y, m, d, outH, outM),
+        totalHours,
+        status:       "COMPLETED",
+      });
     }
+    cur.setDate(cur.getDate() + 1);
   }
 
-  await prisma.staffAttendance.createMany({ data: attRows });
-  console.log(`✅ ${attRows.length} bản ghi chấm công`);
+  const BATCH = 500;
+  let inserted = 0;
+  for (let i = 0; i < attRows.length; i += BATCH) {
+    await prisma.staffAttendance.createMany({ data: attRows.slice(i, i + BATCH) });
+    inserted += Math.min(BATCH, attRows.length - i);
+    process.stdout.write(`\r  ...${inserted}/${attRows.length}`);
+  }
+  console.log(`\n✅ ${attRows.length} bản ghi chấm công (tỉ lệ 100%)`);
 
-  // ── Bảng lương tháng 3 + 4 ────────────────────────────────────────────────
-  for (const { y, m } of ATT_MONTHS) {
-    for (const staffId of [STAFF_1_ID, STAFF_2_ID]) {
-      const hours = attRows
-        .filter(r => r.staffId === staffId && r.status === "COMPLETED"
-                  && r.date.getFullYear() === y && r.date.getMonth() + 1 === m)
-        .reduce((s, r) => s + (r.totalHours ?? 0), 0);
+  // ── Bảng lương T1–T4 ─────────────────────────────────────────────────────────
+  console.log("💰 Tính bảng lương T1–T4/2026...");
+  const salaryMonths = [
+    { month: 1, year: 2026 },
+    { month: 2, year: 2026 },
+    { month: 3, year: 2026 },
+    { month: 4, year: 2026 },
+  ];
 
-      const wageRate   = 25_000;
-      const baseSalary = Math.round(hours * wageRate);
-      const bonus      = 300_000;
+  for (const { userId: staffId } of facilityStaff) {
+    const wc       = await prisma.staffWageConfig.findFirst({ where: { staffId, facilityId: FACILITY_ID } });
+    const wageRate = Number(wc?.wageRate ?? 25_000);
+
+    for (const { month, year } of salaryMonths) {
+      const mStart = date(year, month, 1);
+      const mEnd   = month < 12 ? date(year, month + 1, 1) : date(year + 1, 1, 1);
+      const recs   = await prisma.staffAttendance.findMany({
+        where: { staffId, status: "COMPLETED", date: { gte: mStart, lt: mEnd } },
+        select: { totalHours: true },
+      });
+      const totalHours  = recs.reduce((s, r) => s + Number(r.totalHours ?? 0), 0);
+      const baseSalary  = Math.round(totalHours * wageRate);
+      const bonus       = 300_000;
 
       await prisma.staffSalaryRecord.upsert({
-        where:  { staffId_facilityId_month_year: { staffId, facilityId: FACILITY_ID, month: m, year: y } },
-        update: { totalHours: parseFloat(hours.toFixed(2)), baseSalary, finalSalary: baseSalary + bonus },
+        where:  { staffId_facilityId_month_year: { staffId, facilityId: FACILITY_ID, month, year } },
+        update: { totalHours: parseFloat(totalHours.toFixed(2)), baseSalary, finalSalary: baseSalary + bonus },
         create: {
-          staffId, facilityId: FACILITY_ID, month: m, year: y,
-          totalHours: parseFloat(hours.toFixed(2)),
+          staffId, facilityId: FACILITY_ID, month, year,
+          totalHours: parseFloat(totalHours.toFixed(2)),
           wageRate, wageType: "HOURLY",
-          baseSalary, bonus,
-          finalSalary: baseSalary + bonus,
+          baseSalary, bonus, finalSalary: baseSalary + bonus,
           isPaid: false,
         },
       });
     }
   }
 
-  console.log("✅ Bảng lương tháng 3 & 4");
-
-  // ── Tổng kết ──────────────────────────────────────────────────────────────
-  // Tính doanh thu ước tính
+  // ── Tổng kết ─────────────────────────────────────────────────────────────────
   const revenue = await prisma.invoice.findMany({
     where: { booking: { courtId: { in: COURT_IDS } } },
     select: { finalTotal: true, createdAt: true },
@@ -396,11 +406,11 @@ async function main() {
     byMonth[key] = (byMonth[key] ?? 0) + Number(s.finalTotal);
   }
 
-  console.log("\n🎉 Seed hoàn thành!");
+  console.log("\n🎉 Seed Hòa Mỹ hoàn thành!");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`Tổng booking   : ${totalBookings}`);
+  console.log(`Tổng booking   : ${totalBk}`);
   console.log(`Tổng bán hàng  : ${totalSales} phiếu`);
-  console.log(`Chấm công      : ${attRows.length} bản ghi`);
+  console.log(`Chấm công      : ${attRows.length} bản ghi (100%)`);
   console.log("\nDoanh thu ước tính (thuê sân + bán hàng):");
   let yearTotal = 0;
   for (const [key, val] of Object.entries(byMonth).sort()) {
@@ -408,7 +418,7 @@ async function main() {
     console.log(`  Tháng ${mo}/${yr}: ${val.toLocaleString("vi-VN")}đ`);
     yearTotal += val;
   }
-  console.log(`  Cả năm 2026  : ${yearTotal.toLocaleString("vi-VN")}đ`);
+  console.log(`  Tổng 2026 : ${yearTotal.toLocaleString("vi-VN")}đ`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 

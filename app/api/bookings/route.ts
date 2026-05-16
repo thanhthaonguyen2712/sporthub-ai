@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     // 1. Kiểm tra sân tồn tại
     const court = await prisma.court.findUnique({
       where: { id: Number(courtId) },
+      include: { facility: { select: { ownerId: true, name: true } } },
     });
     if (!court) {
       return NextResponse.json({ error: "Sân không tồn tại" }, { status: 404 });
@@ -198,6 +199,19 @@ export async function POST(req: NextRequest) {
         link: "/profile?tab=wallet",
       },
     }).catch(() => {});
+
+    // Thông báo cho chủ sân
+    if (court.facility) {
+      prisma.notification.create({
+        data: {
+          userId: court.facility.ownerId,
+          title: `Đơn đặt sân mới — ${court.facility.name}`,
+          content: `${user?.fullName ?? "Khách hàng"} đặt sân ${courtInfo?.name ?? ""} ngày ${new Date(bookingDate).toLocaleDateString("vi-VN")} · ${startTime}–${endTime} · ${finalTotal.toLocaleString("vi-VN")}đ`,
+          type: "BOOKING",
+          link: "/owner/dashboard",
+        },
+      }).catch(() => {});
+    }
 
     sendUserEmail(
       userId,

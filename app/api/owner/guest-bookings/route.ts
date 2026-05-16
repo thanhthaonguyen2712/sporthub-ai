@@ -20,7 +20,7 @@ export async function GET() {
   const bookings = await prisma.guestBooking.findMany({
     where: {
       court: { facilityId: { in: facilityIds } },
-      status: "PENDING",
+      status: { in: ["PENDING", "CONFIRMED"] },
       expiredAt: { gt: new Date() },
     },
     include: {
@@ -39,10 +39,14 @@ export async function GET() {
       id: b.id,
       guestName: b.guestName,
       guestPhone: b.guestPhone,
+      guestEmail: b.guestEmail,
+      guestBankName: b.guestBankName,
+      guestBankAccount: b.guestBankAccount,
       bookingDate: b.bookingDate,
       startTime: b.startTime,
       endTime: b.endTime,
       totalPrice: b.totalPrice,
+      status: b.status,
       createdAt: b.createdAt,
       court: {
         name: b.court.name,
@@ -132,12 +136,47 @@ export async function PATCH(req: NextRequest) {
       ).catch(() => {});
     }
   } else {
-    await prisma.guestBooking.update({
-      where: { id: Number(bookingId) },
-      data: { status: "CANCELLED" },
-    });
+    // Nếu booking đã CONFIRMED → ví đã nhận DEPOSIT → phải trừ lại REFUND
+    if (booking.status === "CONFIRMED") {
+      let wallet = await prisma.businessWallet.findUnique({ where: { userId: ownerId } });
+      if (!wallet) {
+        wallet = await prisma.businessWallet.create({
+          data: { userId: ownerId, balance: 0, status: "ACTIVE" },
+        });
+      }
+      const amount = Number(booking.totalPrice);
+      await prisma.$transaction([
+        prisma.guestBooking.update({
+          where: { id: Number(bookingId) },
+          data: { status: "CANCELLED" },
+        }),
+        prisma.businessWallet.update({
+          where: { id: wallet.id },
+          data: { balance: { decrement: amount } },
+        }),
+        prisma.businessWalletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            amount,
+            type: "REFUND",
+            description: `Hoàn tiền đơn khách vãng lai #${bookingId} – ${booking.guestName} (${booking.guestPhone})`,
+          },
+        }),
+      ]);
+    } else {
+      // PENDING: ví chưa nhận tiền, chỉ huỷ đơn
+      await prisma.guestBooking.update({
+        where: { id: Number(bookingId) },
+        data: { status: "CANCELLED" },
+      });
+    }
 
-    // Email thông báo từ chối + hoàn tiền cho khách vãng lai
+    // Ưu tiên dùng STK khách tự cung cấp khi đặt, nếu không thì dùng info owner nhập
+    const guestBankInfo = booking.guestBankName && booking.guestBankAccount
+      ? `${booking.guestBankName} – ${booking.guestBankAccount}`
+      : (bankAccountInfo || undefined);
+
+    // Email thông báo từ chối + hướng dẫn hoàn tiền cho khách vãng lai
     if (booking.guestEmail) {
       const dateStr = new Date(booking.bookingDate).toLocaleDateString("vi-VN");
       sendEmail(
@@ -149,11 +188,17 @@ export async function PATCH(req: NextRequest) {
           booking.court.name,
           dateStr,
           Number(booking.totalPrice),
-          bankAccountInfo || undefined
+          guestBankInfo
         )
       ).catch(() => {});
     }
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    wasConfirmed: booking.status === "CONFIRMED",
+    guestBankInfo: booking.guestBankName
+      ? `${booking.guestBankName} – ${booking.guestBankAccount ?? ""}`.trim()
+      : null,
+  });
 }

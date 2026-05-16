@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const pricePerPerson = post.pricePerPerson ? Number(post.pricePerPerson) : 0;
 
-    // Wallet payment if pricePerPerson > 0
+    // Thanh toán qua ví nếu có phí tham gia
     if (pricePerPerson > 0) {
       const joinerWallet = await prisma.wallet.findUnique({ where: { userId: joinerId } });
       if (!joinerWallet || Number(joinerWallet.balance) < pricePerPerson) {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
 
       await prisma.$transaction(async (tx) => {
-        // Deduct from joiner
+        // Trừ tiền từ ví người tham gia
         await tx.wallet.update({
           where: { userId: joinerId },
           data: { balance: { decrement: pricePerPerson } },
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           },
         });
 
-        // Credit creator
+        // Cộng tiền vào ví người tạo bài
         await tx.wallet.update({
           where: { userId: post.creatorId },
           data: { balance: { increment: pricePerPerson } },
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           },
         });
 
-        // Update post
+        // Cập nhật số người tham gia và trạng thái bài đăng
         const newJoined = post.joinedPlayers + 1;
         const newStatus = newJoined >= post.requiredPlayers ? "CLOSED" : "OPEN";
         await tx.matchPost.update({
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         },
       }).catch(() => {});
     } else {
-      // Free join (no price)
+      // Tham gia miễn phí (không có phí)
       const newJoined = post.joinedPlayers + 1;
       const newStatus = newJoined >= post.requiredPlayers ? "CLOSED" : "OPEN";
       await prisma.matchPost.update({

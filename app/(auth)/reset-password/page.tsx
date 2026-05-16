@@ -3,6 +3,29 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
+const PASSWORD_RULES = [
+  { id: "length",  label: "Ít nhất 8 ký tự",                   test: (p: string) => p.length >= 8 },
+  { id: "upper",   label: "Có ít nhất 1 chữ hoa (A-Z)",         test: (p: string) => /[A-Z]/.test(p) },
+  { id: "lower",   label: "Có ít nhất 1 chữ thường (a-z)",      test: (p: string) => /[a-z]/.test(p) },
+  { id: "special", label: "Có ít nhất 1 ký tự đặc biệt (!@#…)", test: (p: string) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(p) },
+];
+
+function PasswordRules({ password }: { password: string }) {
+  if (!password) return null;
+  return (
+    <ul className="mt-2 space-y-1">
+      {PASSWORD_RULES.map((r) => {
+        const ok = r.test(password);
+        return (
+          <li key={r.id} className={`flex items-center gap-1.5 text-xs ${ok ? "text-emerald-600" : "text-red-500"}`}>
+            <span>{ok ? "✓" : "✗"}</span> {r.label}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -21,8 +44,9 @@ export default function ResetPasswordPage() {
 
   async function handleReset() {
     if (!password || !confirm) { setError("Vui lòng điền đầy đủ!"); return; }
+    const failedRules = PASSWORD_RULES.filter((r) => !r.test(password));
+    if (failedRules.length > 0) { setError("Mật khẩu chưa đáp ứng yêu cầu bảo mật bên dưới."); return; }
     if (password !== confirm) { setError("Mật khẩu xác nhận không khớp!"); return; }
-    if (password.length < 6) { setError("Mật khẩu phải ít nhất 6 ký tự!"); return; }
 
     setLoading(true);
     setError("");
@@ -68,6 +92,7 @@ export default function ResetPasswordPage() {
                   <button onClick={() => setShow(!show)}
                     className="absolute right-3 top-3 text-gray-400 text-sm">{show ? "🙈" : "👁️"}</button>
                 </div>
+                <PasswordRules password={password} />
               </div>
               <div>
                 <label className="text-xs text-gray-600 mb-1.5 block font-medium">Xác nhận mật khẩu</label>

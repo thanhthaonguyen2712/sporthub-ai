@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type"); // "public" | "mine"
+    const type = searchParams.get("type"); // "public" | "mine" | "coaching"
     const session = await getServerSession(authOptions);
 
     if (type === "mine") {
@@ -28,7 +28,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(enrollments);
     }
 
-    // Public courses
+    if (type === "coaching") {
+      if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+      const courses = await prisma.course.findMany({
+        where: { coachId: Number((session.user as any).id) },
+        include: {
+          facility: { select: { name: true, address: true } },
+          _count: { select: { enrollments: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return NextResponse.json(courses);
+    }
+
+    // Khoá học công khai (không cần đăng nhập)
     const courses = await prisma.course.findMany({
       where: { isPublic: true, isActive: true },
       include: {
@@ -39,6 +52,27 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json(courses);
+  } catch (error) {
+    return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
+  }
+}
+
+// PATCH - Khoá / mở khoá khóa học (chỉ HLV sở hữu)
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+    const userId = Number((session.user as any).id);
+    const { courseId, isActive } = await req.json();
+    if (!courseId || typeof isActive !== "boolean") {
+      return NextResponse.json({ error: "Dữ liệu không hợp lệ" }, { status: 400 });
+    }
+    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    if (!course || course.coachId !== userId) {
+      return NextResponse.json({ error: "Không có quyền thực hiện" }, { status: 403 });
+    }
+    await prisma.course.update({ where: { id: courseId }, data: { isActive } });
+    return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
   }

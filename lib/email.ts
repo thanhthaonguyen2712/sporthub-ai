@@ -36,7 +36,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
       html: wrapTemplate(html),
     });
   } catch (err) {
-    // Email failure must never break the main flow
+    // Lỗi gửi email không được làm gián đoạn luồng chính
     console.error("[email] Failed to send to", to, err);
   }
 }
@@ -224,6 +224,75 @@ export function emailMembershipReminder(
       ? `<p style="color:#ef4444;"><b>⚠️ Số dư ví không đủ để gia hạn tự động!</b> Nạp thêm trước ngày ${endDate} để không bị hạ cấp về FREE.</p>`
       : `<p style="color:#10b981;">✅ Gói của bạn sẽ được tự động gia hạn vào ngày ${endDate}.</p>`
     }
+  `;
+}
+
+export function emailGuestBookingPending(
+  guestName: string,
+  bookingId: number,
+  courtName: string,
+  facilityName: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+  amount: number
+): string {
+  return `
+    <p>Xin chào <b>${guestName}</b>,</p>
+    <p>Đơn đặt sân của bạn đã được ghi nhận và đang chờ chủ sân xác nhận.</p>
+    <table style="width:100%; border-collapse:collapse; margin: 16px 0;">
+      <tr><td style="padding:6px 0; color:#6b7280;">Mã đặt sân</td><td><b>#${bookingId}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Cơ sở</td><td><b>${facilityName}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Sân</td><td><b>${courtName}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Ngày</td><td><b>${date}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Giờ</td><td><b>${startTime} – ${endTime}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Tổng tiền</td><td><b>${amount.toLocaleString("vi-VN")}đ</b></td></tr>
+    </table>
+    <p style="color:#f59e0b; font-size:13px;">⏳ Vui lòng đợi chủ sân xác nhận. Chúng tôi sẽ thông báo kết quả qua email này.</p>
+  `;
+}
+
+export function emailGuestBookingConfirmed(
+  guestName: string,
+  bookingId: number,
+  courtName: string,
+  facilityName: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+  amount: number
+): string {
+  return `
+    <p>Xin chào <b>${guestName}</b>,</p>
+    <p>🎉 Đơn đặt sân của bạn đã được chủ sân <b>xác nhận</b>!</p>
+    <table style="width:100%; border-collapse:collapse; margin: 16px 0;">
+      <tr><td style="padding:6px 0; color:#6b7280;">Mã đặt sân</td><td><b>#${bookingId}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Cơ sở</td><td><b>${facilityName}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Sân</td><td><b>${courtName}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Ngày</td><td><b>${date}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Giờ</td><td><b>${startTime} – ${endTime}</b></td></tr>
+      <tr><td style="padding:6px 0; color:#6b7280;">Đã thanh toán</td><td style="color:#10b981;"><b>${amount.toLocaleString("vi-VN")}đ</b></td></tr>
+    </table>
+    <p style="color:#10b981;">✅ Chúc bạn có buổi tập luyện vui vẻ!</p>
+  `;
+}
+
+export function emailGuestBookingCancelled(
+  guestName: string,
+  bookingId: number,
+  courtName: string,
+  date: string,
+  amount: number,
+  bankInfo?: string
+): string {
+  return `
+    <p>Xin chào <b>${guestName}</b>,</p>
+    <p>Rất tiếc, đơn đặt sân <b>#${bookingId}</b> (sân <b>${courtName}</b> ngày <b>${date}</b>) của bạn đã bị <span style="color:#ef4444;"><b>từ chối</b></span> bởi chủ sân.</p>
+    ${bankInfo
+      ? `<p>Số tiền <b>${amount.toLocaleString("vi-VN")}đ</b> sẽ được hoàn về tài khoản <b>${bankInfo}</b> trong vòng 1–3 ngày làm việc.</p>`
+      : `<p>Vui lòng liên hệ chủ sân để được hỗ trợ hoàn tiền <b>${amount.toLocaleString("vi-VN")}đ</b>.</p>`
+    }
+    <p style="color:#6b7280; font-size:13px;">Nếu bạn có thắc mắc, vui lòng liên hệ hỗ trợ SportHub AI.</p>
   `;
 }
 

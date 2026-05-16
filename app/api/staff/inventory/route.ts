@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Chỉ quản lý kho mới được nhập/xuất hàng" }, { status: 403 });
   }
 
-  const { serviceId, type, quantity, note } = await req.json();
+  const { serviceId, type, quantity, note, importPrice } = await req.json();
   if (!serviceId || !type || !quantity) {
     return NextResponse.json({ error: "Thiếu thông tin" }, { status: 400 });
   }
@@ -57,12 +57,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tồn kho không đủ" }, { status: 400 });
   }
 
+  // Khi nhập kho mới, cập nhật giá nhập mới nhất vào Service
+  const serviceUpdate: any = { stockQuantity: { increment: delta } };
+  if (type === "IMPORT" && importPrice !== undefined && importPrice !== null) {
+    serviceUpdate.importPrice = Number(importPrice);
+  }
+
   const [log] = await prisma.$transaction([
-    prisma.stockLog.create({ data: { serviceId, type, quantity: Number(quantity), note } }),
-    prisma.service.update({
-      where: { id: serviceId },
-      data: { stockQuantity: { increment: delta } },
+    prisma.stockLog.create({
+      data: {
+        serviceId,
+        type,
+        quantity: Number(quantity),
+        note,
+        ...(type === "IMPORT" && importPrice != null ? { importPrice: Number(importPrice) } : {}),
+      },
     }),
+    prisma.service.update({ where: { id: serviceId }, data: serviceUpdate }),
   ]);
 
   return NextResponse.json(log, { status: 201 });

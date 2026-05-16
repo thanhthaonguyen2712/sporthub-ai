@@ -297,7 +297,7 @@ export default function FacilityDetailPage() {
   const [showCreatePayConfirm, setShowCreatePayConfirm] = useState(false);
   // Guest booking
   const [guestBookingParams, setGuestBookingParams] = useState<BookParams | null>(null);
-  const [guestForm, setGuestForm] = useState({ guestName: "", guestPhone: "", guestEmail: "" });
+  const [guestForm, setGuestForm] = useState({ guestName: "", guestPhone: "", guestEmail: "", guestBankName: "", guestBankAccount: "" });
   const [guestSubmitting, setGuestSubmitting] = useState(false);
   const [guestError, setGuestError] = useState("");
   const [guestSuccess, setGuestSuccess] = useState<{ bookingId: number; qrUrl: string | null; vietqrUrl: string | null } | null>(null);
@@ -482,7 +482,7 @@ export default function FacilityDetailPage() {
       router.push(`/bookings?${urlParams}`);
     } else {
       setGuestBookingParams(params);
-      setGuestForm({ guestName: "", guestPhone: "", guestEmail: "" });
+      setGuestForm({ guestName: "", guestPhone: "", guestEmail: "", guestBankName: "", guestBankAccount: "" });
       setGuestError("");
     }
   }
@@ -499,6 +499,8 @@ export default function FacilityDetailPage() {
         guestName: guestForm.guestName,
         guestPhone: guestForm.guestPhone,
         guestEmail: guestForm.guestEmail || undefined,
+        guestBankName: guestForm.guestBankName || undefined,
+        guestBankAccount: guestForm.guestBankAccount || undefined,
         courtId: guestBookingParams.courtId,
         bookingDate: guestBookingParams.date,
         startTime: guestBookingParams.start,
@@ -1390,6 +1392,26 @@ export default function FacilityDetailPage() {
                   placeholder="example@gmail.com"
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-emerald-400"
                 />
+              </div>
+              <div className="border border-blue-100 rounded-xl p-3 bg-blue-50 space-y-2">
+                <p className="text-xs font-medium text-blue-700">Tài khoản nhận hoàn tiền (nếu đơn bị từ chối)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={guestForm.guestBankName}
+                    onChange={(e) => setGuestForm(f => ({ ...f, guestBankName: e.target.value }))}
+                    placeholder="Ngân hàng (VD: MBBank)"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-400"
+                  />
+                  <input
+                    type="text"
+                    value={guestForm.guestBankAccount}
+                    onChange={(e) => setGuestForm(f => ({ ...f, guestBankAccount: e.target.value }))}
+                    placeholder="Số tài khoản"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+                <p className="text-xs text-blue-500">Không bắt buộc. Dùng để chủ sân hoàn tiền nếu từ chối đơn.</p>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700">
                 Sau khi đặt, bạn cần thanh toán qua mã QR của chủ sân. Lưu lại số điện thoại để tra cứu lịch đặt.

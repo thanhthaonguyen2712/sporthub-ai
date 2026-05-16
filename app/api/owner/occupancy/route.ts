@@ -10,23 +10,30 @@ export async function GET(req: NextRequest) {
   }
   const ownerId = Number((session.user as any).id);
   const { searchParams } = req.nextUrl;
-  const facilityId = Number(searchParams.get("facilityId"));
+  const facilityIdParam = searchParams.get("facilityId");
   const period = searchParams.get("period") || "month";
   const month = Number(searchParams.get("month") || new Date().getMonth() + 1);
   const year = Number(searchParams.get("year") || new Date().getFullYear());
 
-  const facility = await prisma.facility.findFirst({
-    where: { id: facilityId, ownerId },
-    include: {
-      courts: {
-        where: { isActive: true },
-        select: { id: true, name: true, category: { select: { name: true } } },
-      },
-    },
-  });
-  if (!facility) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+  let courtIds: number[];
+  let courtDetails: { id: number; name: string; category: { name: string } }[] = [];
 
-  const courtIds = facility.courts.map((c) => c.id);
+  if (facilityIdParam) {
+    const facility = await prisma.facility.findFirst({
+      where: { id: Number(facilityIdParam), ownerId },
+      include: { courts: { where: { isActive: true }, select: { id: true, name: true, category: { select: { name: true } } } } },
+    });
+    if (!facility) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+    courtIds = facility.courts.map(c => c.id);
+    courtDetails = facility.courts;
+  } else {
+    const owned = await prisma.facility.findMany({
+      where: { ownerId },
+      include: { courts: { where: { isActive: true }, select: { id: true, name: true, category: { select: { name: true } } } } },
+    });
+    courtDetails = owned.flatMap(f => f.courts);
+    courtIds = courtDetails.map(c => c.id);
+  }
 
   // ── Yearly view ─────────────────────────────────────────────────────────────
   if (period === "year") {
@@ -64,7 +71,7 @@ export async function GET(req: NextRequest) {
     select: { bookingDate: true, startTime: true, courtId: true },
   });
 
-  // Daily stats
+  // Thống kê theo ngày
   const daysInMonth = endDate.getDate();
   const dailyStats = Array.from({ length: daysInMonth }, (_, i) => {
     const count = bookings.filter((b) => new Date(b.bookingDate).getDate() === i + 1).length;
@@ -76,7 +83,7 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // Hourly stats
+  // Thống kê theo giờ
   const hourlyMap: Record<string, number> = {};
   bookings.forEach((b) => {
     const hour = new Date(b.startTime).getUTCHours();
@@ -87,16 +94,16 @@ export async function GET(req: NextRequest) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([hour, count]) => ({ hour, count }));
 
-  // Court stats
-  const courtStats = facility.courts.map((c) => ({
+  // Thống kê theo sân
+  const courtStats = courtDetails.map((c) => ({
     courtId: c.id,
     courtName: c.name,
     count: bookings.filter((b) => b.courtId === c.id).length,
   }));
 
-  // Sport stats
+  // Thống kê theo môn thể thao
   const sportMap: Record<string, number> = {};
-  facility.courts.forEach((c) => {
+  courtDetails.forEach((c) => {
     const sport = c.category?.name || "Khác";
     const count = bookings.filter((b) => b.courtId === c.id).length;
     sportMap[sport] = (sportMap[sport] || 0) + count;

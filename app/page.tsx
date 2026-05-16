@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import VietnamAddressInput from "@/components/VietnamAddressInput";
 import { useTranslations } from "next-intl";
 
 interface Province { code: number; name: string; }
@@ -39,6 +42,8 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 }
 
 export default function HomePage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [sports, setSports] = useState<Sport[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [selectedSport, setSelectedSport] = useState<string>("");
@@ -47,6 +52,7 @@ export default function HomePage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [sortByDistance, setSortByDistance] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [customerAddressKey, setCustomerAddressKey] = useState(0);
   const [aiSuggestion, setAiSuggestion] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [allProvinces, setAllProvinces] = useState<Province[]>([]);
@@ -55,6 +61,35 @@ export default function HomePage() {
   const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
   const t = useTranslations("home");
   const tSports = useTranslations("sports");
+  const [guestPhone, setGuestPhone] = useState("");
+
+  // Redirect owner và staff về trang riêng
+  useEffect(() => {
+    if (status === "loading") return;
+    const role = (session?.user as any)?.role;
+    if (role === "OWNER") router.replace("/owner/dashboard");
+    else if (role === "STAFF" || role === "WAREHOUSE_MANAGER") router.replace("/staff/dashboard");
+  }, [session, status]);
+  const [guestLookupLoading, setGuestLookupLoading] = useState(false);
+  const [guestBookings, setGuestBookings] = useState<GuestBookingItem[] | null>(null);
+  const [guestLookupError, setGuestLookupError] = useState("");
+
+  async function lookupGuestBookings(e: React.FormEvent) {
+    e.preventDefault();
+    if (!guestPhone.trim()) return;
+    setGuestLookupLoading(true);
+    setGuestLookupError("");
+    setGuestBookings(null);
+    const res = await fetch(`/api/guest-bookings/lookup?phone=${encodeURIComponent(guestPhone.trim())}`);
+    const data = await res.json();
+    setGuestLookupLoading(false);
+    if (res.ok) {
+      setGuestBookings(data);
+      if (data.length === 0) setGuestLookupError("Không tìm thấy lịch đặt nào đang hoạt động.");
+    } else {
+      setGuestLookupError(data.error || "Không thể tra cứu. Vui lòng thử lại.");
+    }
+  }
 
   useEffect(() => {
     fetch("/api/sports").then((r) => r.json()).then(setSports);
@@ -81,6 +116,7 @@ export default function HomePage() {
       .then((r) => r.json())
       .then((data) => { setFacilities(data); setLoading(false); });
   }, [selectedSport, search]);
+
 
   function getNearMe() {
     if (!navigator.geolocation) { alert("Trình duyệt không hỗ trợ định vị!"); return; }
@@ -119,12 +155,21 @@ export default function HomePage() {
       params.set("lat", String(location.lat));
       params.set("lng", String(location.lng));
     }
+    if (selectedSport) params.set("sport", selectedSport);
 
     const res = await fetch(`/api/facilities/available?${params}`);
     const data = await res.json();
 
+    const sportName = selectedSport
+      ? sports.find((s) => s.slug === selectedSport)?.name
+      : null;
+
     if (!Array.isArray(data) || data.length === 0) {
-      setAiSuggestion("Hiện tại không có sân trống nào phù hợp. Vui lòng thử lại sau!");
+      setAiSuggestion(
+        sportName
+          ? `Hiện tại không có sân ${sportName} trống nào${location ? " gần bạn" : ""}. Vui lòng thử lại sau!`
+          : "Hiện tại không có sân trống nào phù hợp. Vui lòng thử lại sau!"
+      );
       setAiLoading(false);
       return;
     }
@@ -135,7 +180,7 @@ export default function HomePage() {
     const timeStr = `${String(hour).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;
 
     const topFacilities = data.slice(0, 5);
-    setAiSuggestion(JSON.stringify({ time: timeStr, facilities: topFacilities, hasLocation: !!userLocation }));
+    setAiSuggestion(JSON.stringify({ time: timeStr, facilities: topFacilities, hasLocation: !!location, sportName }));
     setAiLoading(false);
   }
 
@@ -161,6 +206,7 @@ export default function HomePage() {
     }
     return true;
   });
+
   return (
     <div className="min-h-screen text-black" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
       <Navbar />
@@ -246,20 +292,58 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* Tìm sân theo địa chỉ */}
+        <div className="mb-4 p-4 bg-white border border-gray-200 rounded-2xl">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-black">Tìm sân gần địa chỉ của bạn</p>
+            <button
+              onClick={() => sortByDistance ? (setSortByDistance(false), setUserLocation(null), setCustomerAddressKey(k => k + 1)) : getNearMe()}
+              disabled={locationLoading}
+              title="Dùng GPS thay vì nhập địa chỉ"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                sortByDistance
+                  ? "bg-emerald-500 text-white border-emerald-500"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
+              }`}
+            >
+              {locationLoading ? "Đang lấy vị trí..." : sortByDistance ? "Đang dùng vị trí ✕" : "Dùng GPS"}
+            </button>
+          </div>
+          <VietnamAddressInput
+            key={customerAddressKey}
+            onChange={() => {}}
+            streetPlaceholder="Nhập địa chỉ của bạn"
+            onGeocoded={(lat, lng) => {
+              setUserLocation({ lat: Number(lat), lng: Number(lng) });
+              setSortByDistance(true);
+            }}
+          />
+          {sortByDistance && userLocation && (
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-xs text-emerald-600">
+                Đang sắp xếp theo khoảng cách
+                {selectedSport && sports.find(s => s.slug === selectedSport) && (
+                  <span className="ml-1 font-semibold">
+                    · chỉ hiển thị sân {sports.find(s => s.slug === selectedSport)!.name}
+                  </span>
+                )}
+              </p>
+              <button
+                onClick={() => { setSortByDistance(false); setUserLocation(null); setCustomerAddressKey(k => k + 1); }}
+                className="text-xs text-gray-400 hover:text-gray-600 ml-3 shrink-0"
+              >
+                ✕ Xoá vị trí
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Header + buttons */}
         <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-lg font-semibold text-black">
             {loading ? "..." : `${displayedFacilities.length} ${t("courts")}`}
           </h2>
           <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => sortByDistance ? (setSortByDistance(false), setUserLocation(null)) : getNearMe()}
-              disabled={locationLoading}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
-                sortByDistance ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
-              }`}>
-              {t("nearMe")}
-            </button>
             <button
               onClick={getAiSuggestion}
               disabled={aiLoading || loading}
@@ -277,7 +361,7 @@ export default function HomePage() {
       <div className="mb-5 bg-purple-50 border border-purple-200 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold text-purple-700">
-            Lúc {parsed.time} hôm nay, các sân còn trống{parsed.hasLocation ? " gần bạn" : ""}:
+            Lúc {parsed.time} hôm nay, các sân {parsed.sportName ? <span className="text-emerald-600">{parsed.sportName}</span> : ""}còn trống{parsed.hasLocation ? " gần bạn" : ""}:
           </p>
           <button onClick={() => setAiSuggestion("")}
             className="text-xs font-medium text-purple-500 border border-purple-300 bg-white rounded-lg px-2.5 py-1 hover:bg-purple-100 transition-colors">

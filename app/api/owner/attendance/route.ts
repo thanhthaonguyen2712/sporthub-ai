@@ -10,27 +10,39 @@ export async function GET(req: NextRequest) {
   }
   const ownerId = Number((session.user as any).id);
   const { searchParams } = req.nextUrl;
-  const facilityId = searchParams.get("facilityId");
-  const viewMode = searchParams.get("viewMode") || "month"; // "month" | "day"
+  const facilityIdParam = searchParams.get("facilityId");
+  const viewMode = searchParams.get("viewMode") || "month";
   const month = Number(searchParams.get("month") || new Date().getMonth() + 1);
   const year = Number(searchParams.get("year") || new Date().getFullYear());
-  const dateStr = searchParams.get("date"); // for day view: "YYYY-MM-DD"
+  const dateStr = searchParams.get("date");
 
-  if (!facilityId) return NextResponse.json({ error: "Thiếu facilityId" }, { status: 400 });
-
-  const facility = await prisma.facility.findFirst({ where: { id: Number(facilityId), ownerId } });
-  if (!facility) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+  // Xác định danh sách facility ID (theo cơ sở cụ thể hoặc tất cả của chủ)
+  let facilityIds: number[];
+  if (facilityIdParam) {
+    const facility = await prisma.facility.findFirst({ where: { id: Number(facilityIdParam), ownerId } });
+    if (!facility) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+    facilityIds = [Number(facilityIdParam)];
+  } else {
+    const ownedFacilities = await prisma.facility.findMany({ where: { ownerId }, select: { id: true } });
+    facilityIds = ownedFacilities.map((f) => f.id);
+  }
 
   const staffList = await prisma.facilityStaff.findMany({
-    where: { facilityId: Number(facilityId) },
+    where: { facilityId: { in: facilityIds } },
     select: {
       userId: true,
+      facilityId: true,
       role: true,
+      facility: { select: { name: true } },
       user: { select: { id: true, fullName: true, role: true } },
     },
   });
 
-  const staffIds = staffList.map((s) => s.userId);
+  // Loại trùng nhân viên (cùng người có thể làm ở nhiều cơ sở)
+  const staffMap = new Map<number, (typeof staffList)[0]>();
+  staffList.forEach(s => { if (!staffMap.has(s.userId)) staffMap.set(s.userId, s); });
+  const uniqueStaff = Array.from(staffMap.values());
+  const staffIds = uniqueStaff.map((s) => s.userId);
 
   let startDate: Date, endDate: Date;
   if (viewMode === "day" && dateStr) {
@@ -52,21 +64,16 @@ export async function GET(req: NextRequest) {
       },
       include: {
         staff: { select: { fullName: true } },
-        shift: {
-          select: {
-            id: true, name: true,
-            startTime: true, endTime: true,
-          },
-        },
+        shift: { select: { id: true, name: true, startTime: true, endTime: true } },
       },
       orderBy: [{ staffId: "asc" }, { date: "asc" }],
     }),
     prisma.staffWageConfig.findMany({
-      where: { facilityId: Number(facilityId), staffId: { in: staffIds } },
+      where: { facilityId: { in: facilityIds }, staffId: { in: staffIds } },
     }),
   ]);
 
-  const byStaff = staffList.map((s) => {
+  const byStaff = uniqueStaff.map((s) => {
     const wageConfig = wageConfigs.find(w => w.staffId === s.userId);
     const staffRecords = records.filter((r) => r.staffId === s.userId);
     const totalHours = staffRecords.reduce((sum, r) => sum + Number(r.totalHours || 0), 0);
@@ -82,24 +89,20 @@ export async function GET(req: NextRequest) {
       fullName: s.user.fullName,
       role: s.user.role,
       facilityRole: s.role,
+      facilityName: s.facility.name,
       wageType: wageConfig?.wageType || null,
       records: staffRecords.map((r) => ({
         id: r.id,
         date: r.date,
         checkIn: r.checkInTime,
         checkOut: r.checkOutTime,
-        totalHours: isDaily ? null : r.totalHours, // Không hiện giờ với full-time (DAILY)
+        totalHours: isDaily ? null : r.totalHours,
         status: r.status,
         isLate: r.isLate,
         forgotCheckIn: r.forgotCheckIn,
         forgotCheckOut: r.forgotCheckOut,
         overtimeMinutes: r.overtimeMinutes,
-        shift: r.shift ? {
-          id: r.shift.id,
-          name: r.shift.name,
-          startTime: r.shift.startTime,
-          endTime: r.shift.endTime,
-        } : null,
+        shift: r.shift ? { id: r.shift.id, name: r.shift.name, startTime: r.shift.startTime, endTime: r.shift.endTime } : null,
       })),
       totalHours: isDaily ? null : Math.round(totalHours * 10) / 10,
       presentDays,

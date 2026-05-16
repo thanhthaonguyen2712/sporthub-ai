@@ -7,12 +7,14 @@ interface Ward    { code: number; name: string; }
 
 interface Props {
   onChange: (address: string) => void;
+  onGeocoded?: (lat: string, lng: string) => void;
+  streetPlaceholder?: string;
   value?: string;
 }
 
 const INPUT = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white text-black placeholder-gray-400";
 
-export default function VietnamAddressInput({ onChange }: Props) {
+export default function VietnamAddressInput({ onChange, onGeocoded, streetPlaceholder = "Số nhà, tên đường *" }: Props) {
   // ── Province autocomplete ──────────────────────────────────────────────────
   const [allProvinces, setAllProvinces]   = useState<Province[]>([]);
   const [provinceQuery, setProvinceQuery] = useState("");
@@ -30,9 +32,13 @@ export default function VietnamAddressInput({ onChange }: Props) {
   // ── Street ────────────────────────────────────────────────────────────────
   const [street, setStreet] = useState("");
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  // ── Geocoding state ───────────────────────────────────────────────────────
+  const [geocodeStatus, setGeocodeStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
 
-  // Load all provinces once
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Tải danh sách tỉnh/thành một lần khi mount
   useEffect(() => {
     fetch("https://provinces.open-api.vn/api/p/")
       .then(r => r.json())
@@ -40,7 +46,7 @@ export default function VietnamAddressInput({ onChange }: Props) {
       .catch(() => {});
   }, []);
 
-  // Close suggestions on outside click
+  // Đóng gợi ý khi click ra ngoài
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -51,7 +57,7 @@ export default function VietnamAddressInput({ onChange }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Load districts when province changes
+  // Tải danh sách quận/huyện khi tỉnh thay đổi
   useEffect(() => {
     if (!selectedProvince) { setDistricts([]); setSelectedDistrict(null); setWards([]); setSelectedWard(null); return; }
     fetch(`https://provinces.open-api.vn/api/p/${selectedProvince.code}?depth=2`)
@@ -63,7 +69,7 @@ export default function VietnamAddressInput({ onChange }: Props) {
     setSelectedWard(null);
   }, [selectedProvince]);
 
-  // Load wards when district changes
+  // Tải danh sách phường/xã khi quận/huyện thay đổi
   useEffect(() => {
     if (!selectedDistrict) { setWards([]); setSelectedWard(null); return; }
     fetch(`https://provinces.open-api.vn/api/d/${selectedDistrict.code}?depth=2`)
@@ -73,7 +79,7 @@ export default function VietnamAddressInput({ onChange }: Props) {
     setSelectedWard(null);
   }, [selectedDistrict]);
 
-  // Emit combined address whenever any part changes
+  // Phát sự kiện địa chỉ đầy đủ mỗi khi bất kỳ thành phần nào thay đổi
   const buildAddress = useCallback((
     prov: Province | null,
     dist: District | null,
@@ -81,8 +87,29 @@ export default function VietnamAddressInput({ onChange }: Props) {
     str: string
   ) => {
     const parts = [str, ward?.name, dist?.name, prov?.name].filter(Boolean);
-    onChange(parts.join(", "));
-  }, [onChange]);
+    const address = parts.join(", ");
+    onChange(address);
+
+    // Auto-geocode khi có ít nhất tỉnh + quận
+    if (onGeocoded && prov && dist) {
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+      geocodeTimerRef.current = setTimeout(async () => {
+        setGeocodeStatus("loading");
+        try {
+          const res = await fetch(`/api/geocode?address=${encodeURIComponent(address)}`);
+          if (res.ok) {
+            const { lat, lng } = await res.json();
+            onGeocoded(lat, lng);
+            setGeocodeStatus("done");
+          } else {
+            setGeocodeStatus("error");
+          }
+        } catch {
+          setGeocodeStatus("error");
+        }
+      }, 800);
+    }
+  }, [onChange, onGeocoded]);
 
   const filteredProvinces = provinceQuery.trim()
     ? allProvinces.filter(p =>
@@ -94,6 +121,7 @@ export default function VietnamAddressInput({ onChange }: Props) {
     setSelectedProvince(p);
     setProvinceQuery(p.name);
     setShowSuggestions(false);
+    setGeocodeStatus("idle");
     buildAddress(p, null, null, street);
   }
 
@@ -106,6 +134,7 @@ export default function VietnamAddressInput({ onChange }: Props) {
       setSelectedDistrict(null);
       setWards([]);
       setSelectedWard(null);
+      setGeocodeStatus("idle");
       buildAddress(null, null, null, street);
     }
   }
@@ -113,6 +142,7 @@ export default function VietnamAddressInput({ onChange }: Props) {
   function handleDistrictChange(code: string) {
     const d = districts.find(x => x.code === +code) ?? null;
     setSelectedDistrict(d);
+    setGeocodeStatus("idle");
     buildAddress(selectedProvince, d, null, street);
   }
 
@@ -183,10 +213,25 @@ export default function VietnamAddressInput({ onChange }: Props) {
       {/* Street */}
       <input
         className={INPUT}
-        placeholder="Số nhà, tên đường *"
+        placeholder={streetPlaceholder}
         value={street}
         onChange={e => handleStreetChange(e.target.value)}
       />
+
+      {/* Geocode status indicator */}
+      {onGeocoded && geocodeStatus !== "idle" && (
+        <div className={`text-xs flex items-center gap-1.5 ${
+          geocodeStatus === "loading" ? "text-gray-400" :
+          geocodeStatus === "done"    ? "text-emerald-600" :
+                                        "text-red-500"
+        }`}>
+          {geocodeStatus === "loading" && (
+            <><span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-emerald-500 rounded-full animate-spin" />Đang lấy tọa độ...</>
+          )}
+          {geocodeStatus === "done" && <>✓ Đã lấy tọa độ tự động</>}
+          {geocodeStatus === "error" && <>⚠ Không tìm thấy tọa độ — vui lòng kiểm tra địa chỉ</>}
+        </div>
+      )}
     </div>
   );
 }

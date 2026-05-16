@@ -10,12 +10,12 @@ export async function GET(req: NextRequest) {
     const status = (searchParams.get("status") || "OPEN") as "OPEN" | "CLOSED" | "EXPIRED";
     const facilityIdParam = searchParams.get("facilityId");
 
-    // Auto-expire posts where matchDate has passed (Vietnam time UTC+7)
+    // Tự động hết hạn các bài đăng đã qua ngày thi đấu (giờ Việt Nam UTC+7)
     const nowVN = new Date(new Date().getTime() + 7 * 60 * 60 * 1000);
     const todayDateStr = nowVN.toISOString().split("T")[0];
     const currentTimeStr = nowVN.toISOString().slice(11, 16);
 
-    // Expire posts from before today
+    // Hết hạn các bài đăng có ngày thi đấu trước hôm nay
     await prisma.matchPost.updateMany({
       where: {
         status: "OPEN",
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       data: { status: "EXPIRED" },
     });
 
-    // Expire today's posts where endTime has passed
+    // Hết hạn các bài đăng hôm nay đã quá giờ kết thúc
     const currentEndTime = new Date(`1970-01-01T${currentTimeStr}:00.000Z`);
     await prisma.matchPost.updateMany({
       where: {
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(
-      posts.map((p) => ({
+      posts.map((p: any) => ({
         id: p.id,
         title: p.title,
         description: p.description,
@@ -68,6 +68,8 @@ export async function GET(req: NextRequest) {
         courtName: p.courtName ?? null,
         pricePerPerson: p.pricePerPerson ? Number(p.pricePerPerson) : null,
         totalPrice: p.totalPrice ? Number(p.totalPrice) : null,
+        qrCodeUrl: p.qrCodeUrl ?? null,
+        isLocked: p.isLocked ?? false,
       }))
     );
   } catch (error) {

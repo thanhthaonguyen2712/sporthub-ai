@@ -19,8 +19,8 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user) return null;
-
         if (user.isLocked) return null;
+        if (!user.password) return null; // Tài khoản Google, không có mật khẩu
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;

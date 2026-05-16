@@ -188,7 +188,7 @@ export default function BookingSuccessPage() {
     );
   }
 
-  // step === "ask"
+  // Bước hỏi tìm đồng đội sau khi đặt sân
   return (
     <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
       <Navbar />

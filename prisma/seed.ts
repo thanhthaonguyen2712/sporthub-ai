@@ -3,6 +3,56 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// ── Geocoding helpers ─────────────────────────────────────────────────────────
+function stripAdminPrefixes(text: string): string {
+  return text
+    .replace(/^(Thành phố|Thành Phố|TP\.|TP |Tỉnh|Quận|Huyện|Thị xã|Thị Xã|Thị trấn|Thị Trấn|Phường|Xã)\s+/gi, "")
+    .trim();
+}
+
+async function nominatimSearch(query: string): Promise<{ lat: number; lng: number } | null> {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=vn`,
+    { headers: { "Accept-Language": "vi", "User-Agent": "SportHubAI/1.0 (seed)" } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json() as Array<{ lat: string; lon: string }>;
+  if (Array.isArray(data) && data.length > 0) return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+  return null;
+}
+
+async function geocodeFacilityAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const simplified = address.split(", ").map(stripAdminPrefixes).filter(Boolean).join(", ");
+  const parts = simplified.split(", ").filter(Boolean);
+  const candidates = [
+    simplified + ", Việt Nam",
+    parts.length >= 3 ? parts.slice(1).join(", ") + ", Việt Nam" : "",
+    parts.length >= 2 ? parts.slice(-2).join(", ") + ", Việt Nam" : "",
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const result = await nominatimSearch(candidate);
+    if (result) return result;
+    await new Promise(r => setTimeout(r, 300));
+  }
+  return null;
+}
+
+async function geocodeAllFacilities() {
+  const facilities = await prisma.facility.findMany({ select: { id: true, name: true, address: true } });
+  console.log(`\n📍 Geocoding ${facilities.length} cơ sở sân...`);
+  for (const f of facilities) {
+    await new Promise(r => setTimeout(r, 1100)); // Nominatim rate limit
+    const coords = await geocodeFacilityAddress(f.address);
+    if (coords) {
+      await prisma.facility.update({ where: { id: f.id }, data: { latitude: coords.lat, longitude: coords.lng } });
+      console.log(`  ✓ ${f.name} → (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)})`);
+    } else {
+      console.log(`  ✗ ${f.name} — không tìm thấy tọa độ`);
+    }
+  }
+  console.log("✅ Geocoding hoàn tất");
+}
+
 async function main() {
   console.log("🌱 Bắt đầu seed data...");
 
@@ -42,35 +92,7 @@ async function main() {
   // ===================== 2. USERS =====================
   console.log("👤 Tạo users...");
 
-  const hashedPassword      = await bcrypt.hash("123456", 10);
-  const hashedAdminPassword = await bcrypt.hash("sporthubAiadmin58!", 10);
-
-  // ── Tài khoản admin hệ thống cố định ──
-  await prisma.user.upsert({
-    where: { email: "Adminsporthub58@gmail.com" },
-    update: { password: hashedAdminPassword },
-    create: {
-      email:    "Adminsporthub58@gmail.com",
-      phone:    "0900000000",
-      fullName: "Admin SportHub",
-      password: hashedAdminPassword,
-      role:     "ADMIN",
-      wallet:   { create: { balance: 0 } },
-    },
-  });
-
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@sporthub.vn" },
-    update: {},
-    create: {
-      email: "admin@sporthub.vn",
-      phone: "0900000001",
-      fullName: "Admin Test",
-      password: hashedPassword,
-      role: "ADMIN",
-      wallet: { create: { balance: 0 } },
-    },
-  });
+  const hashedPassword = await bcrypt.hash("123456", 10);
 
   const owner = await prisma.user.upsert({
     where: { email: "owner@sporthub.vn" },
@@ -111,20 +133,20 @@ async function main() {
     },
   });
 
-  console.log("✅ Tạo 4 users (admin, owner, staff, customer)");
+  console.log("✅ Tạo users (owner, staff, customer)");
 
   // ===================== 3. FACILITIES =====================
   console.log("🏟️ Tạo cơ sở sân...");
 
   const facility1 = await prisma.facility.upsert({
     where: { id: 1 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "Sân thể thao Hòa Xuân",
       address: "123 Hòa Xuân, Cẩm Lệ, Đà Nẵng",
       description: "Cụm sân thể thao hiện đại tại Hòa Xuân với đầy đủ tiện nghi",
-      latitude: 16.0021,
-      longitude: 108.2141,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -138,13 +160,13 @@ async function main() {
 
   const facility2 = await prisma.facility.upsert({
     where: { id: 2 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "SportHub Ngũ Hành Sơn",
       address: "456 Trường Sa, Ngũ Hành Sơn, Đà Nẵng",
       description: "Sân Pickleball & Tennis chuẩn quốc tế gần biển Mỹ Khê",
-      latitude: 16.0472,
-      longitude: 108.2526,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -158,13 +180,13 @@ async function main() {
 
   const facility3 = await prisma.facility.upsert({
     where: { id: 3 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "Arena Sport Liên Chiểu",
-      address: "789 Nguyễn Lương Bằng, Liên Chiểu, Đà Nẵng",
+      address: "768 Nguyễn Lương Bằng, Liên Chiểu, Đà Nẵng",
       description: "Cụm sân bóng đá và bóng rổ chuẩn thi đấu tại Liên Chiểu",
-      latitude: 16.0820,
-      longitude: 108.1503,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -178,13 +200,13 @@ async function main() {
 
   const facility4 = await prisma.facility.upsert({
     where: { id: 4 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "Cầu lông Thanh Khê",
       address: "45 Điện Biên Phủ, Thanh Khê, Đà Nẵng",
       description: "Hệ thống 8 sân cầu lông trong nhà, đầy đủ ánh sáng và điều hòa",
-      latitude: 16.0678,
-      longitude: 108.2012,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -197,13 +219,13 @@ async function main() {
 
   const facility5 = await prisma.facility.upsert({
     where: { id: 5 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "Green Court Hải Châu",
       address: "12 Lý Tự Trọng, Hải Châu, Đà Nẵng",
       description: "Sân Tennis và Pickleball cao cấp ngay trung tâm thành phố",
-      latitude: 16.0544,
-      longitude: 108.2242,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -217,13 +239,13 @@ async function main() {
 
   const facility6 = await prisma.facility.upsert({
     where: { id: 6 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "Hoà Khánh Sport Center",
       address: "234 Hoàng Văn Thái, Liên Chiểu, Đà Nẵng",
       description: "Trung tâm thể thao đa năng phục vụ cộng đồng khu vực Hoà Khánh",
-      latitude: 16.0923,
-      longitude: 108.1687,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -238,13 +260,13 @@ async function main() {
 
   const facility7 = await prisma.facility.upsert({
     where: { id: 7 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "Pickleball Sơn Trà",
       address: "67 Phạm Văn Đồng, Sơn Trà, Đà Nẵng",
       description: "Sân Pickleball chuẩn quốc tế view biển Sơn Trà tuyệt đẹp",
-      latitude: 16.0715,
-      longitude: 108.2389,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -257,13 +279,13 @@ async function main() {
 
   const facility8 = await prisma.facility.upsert({
     where: { id: 8 },
-    update: {},
+    update: { latitude: null, longitude: null },
     create: {
       name: "Vũng Thùng Basketball Arena",
       address: "89 Võ Nguyên Giáp, Sơn Trà, Đà Nẵng",
       description: "Sân bóng rổ trong nhà và ngoài trời chuẩn thi đấu tại Mỹ Khê",
-      latitude: 16.0634,
-      longitude: 108.2467,
+      latitude: null,
+      longitude: null,
       isActive: true,
       ownerId: owner.id,
       facilitySports: {
@@ -276,6 +298,9 @@ async function main() {
   });
 
   console.log("✅ Tạo 8 cơ sở sân");
+
+  // Geocode tất cả facilities sau khi tạo xong
+  await geocodeAllFacilities();
 
   // ===================== 4. COURTS =====================
   console.log("🏸 Tạo sân con...");
@@ -470,7 +495,7 @@ await prisma.voucher.upsert({
 
   console.log("\n🎉 Seed data hoàn thành!");
   console.log("📋 Tài khoản test:");
-  console.log("   Admin:    admin@sporthub.vn / 123456");
+  console.log("   (admin removed)");
   console.log("   Owner:    owner@sporthub.vn / 123456");
   console.log("   Staff:    staff@sporthub.vn / 123456");
   console.log("   Customer: customer@sporthub.vn / 123456");

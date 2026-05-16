@@ -31,8 +31,7 @@ export default function LoginPage() {
     } else {
       const session = await getSession();
       const role = (session?.user as any)?.role;
-      if (role === "ADMIN") router.push("/admin/dashboard");
-      else if (role === "OWNER") router.push("/owner/dashboard");
+      if (role === "OWNER") router.push("/owner/dashboard");
       else if (role === "STAFF" || role === "WAREHOUSE_MANAGER") router.push("/staff/dashboard");
       else router.push("/");
       router.refresh();
@@ -102,7 +101,8 @@ export default function LoginPage() {
               {t("forgotPassword")}
             </Link>
           </p>
-          <p className="text-center text-gray-600 text-sm mt-2">
+
+          <p className="text-center text-gray-600 text-sm mt-4">
             {t("noAccount")}{" "}
             <Link href="/register" className="text-emerald-600 hover:text-emerald-700 font-medium ml-1">
               {t("registerNow")}

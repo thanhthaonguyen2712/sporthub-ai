@@ -91,6 +91,14 @@ export async function POST(req: NextRequest) {
   );
   const finalTotal = Number(totalPrice) + serviceFee;
 
+  // Lấy facilityId và ownerId từ court
+  const court = await prisma.court.findUnique({
+    where: { id: courtId },
+    select: { facilityId: true, facility: { select: { ownerId: true } } },
+  });
+  const facilityId = court?.facilityId ?? null;
+  const ownerId = court?.facility?.ownerId ?? null;
+
   const result = await prisma.$transaction(async (tx) => {
     const booking = await tx.booking.create({
       data: {
@@ -140,6 +148,29 @@ export async function POST(req: NextRequest) {
           type: "SOLD",
           quantity: s.quantity,
           note: `Hóa đơn #${invoice.id}`,
+        },
+      });
+    }
+
+    // Ghi doanh thu vào ví kinh doanh chủ sân
+    if (ownerId) {
+      let bizWallet = await tx.businessWallet.findUnique({ where: { userId: ownerId } });
+      if (!bizWallet) {
+        bizWallet = await tx.businessWallet.create({
+          data: { userId: ownerId, balance: 0, status: "ACTIVE" },
+        });
+      }
+      await tx.businessWallet.update({
+        where: { id: bizWallet.id },
+        data: { balance: { increment: finalTotal } },
+      });
+      await tx.businessWalletTransaction.create({
+        data: {
+          walletId: bizWallet.id,
+          amount: finalTotal,
+          type: "DEPOSIT",
+          description: `Thu tiền walk-in #${booking.id} (HĐ #${invoice.id})`,
+          facilityId,
         },
       });
     }

@@ -8,8 +8,7 @@ export default withAuth(
 
     if (
       pathname.startsWith("/owner") &&
-      token?.role !== "OWNER" &&
-      token?.role !== "ADMIN"
+      token?.role !== "OWNER"
     ) {
       return NextResponse.redirect(new URL("/", req.url));
     }
@@ -17,13 +16,8 @@ export default withAuth(
     if (
       pathname.startsWith("/staff") &&
       token?.role !== "STAFF" &&
-      token?.role !== "WAREHOUSE_MANAGER" &&
-      token?.role !== "ADMIN"
+      token?.role !== "WAREHOUSE_MANAGER"
     ) {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
-
-    if (pathname.startsWith("/admin") && token?.role !== "ADMIN") {
       return NextResponse.redirect(new URL("/", req.url));
     }
 
@@ -48,6 +42,5 @@ export const config = {
     "/bookings/:path*",
     "/owner/:path*",
     "/staff/:path*",
-    "/admin/:path*",
   ],
 };

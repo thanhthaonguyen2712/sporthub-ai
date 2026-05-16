@@ -5,6 +5,29 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+const PASSWORD_RULES = [
+  { id: "length",  label: "Ít nhất 8 ký tự",                  test: (p: string) => p.length >= 8 },
+  { id: "upper",   label: "Có ít nhất 1 chữ hoa (A-Z)",        test: (p: string) => /[A-Z]/.test(p) },
+  { id: "lower",   label: "Có ít nhất 1 chữ thường (a-z)",     test: (p: string) => /[a-z]/.test(p) },
+  { id: "special", label: "Có ít nhất 1 ký tự đặc biệt (!@#…)", test: (p: string) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(p) },
+];
+
+function PasswordRules({ password }: { password: string }) {
+  if (!password) return null;
+  return (
+    <ul className="mt-2 space-y-1">
+      {PASSWORD_RULES.map((r) => {
+        const ok = r.test(password);
+        return (
+          <li key={r.id} className={`flex items-center gap-1.5 text-xs ${ok ? "text-emerald-600" : "text-red-500"}`}>
+            <span>{ok ? "✓" : "✗"}</span> {r.label}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const t = useTranslations("auth");
@@ -33,6 +56,8 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const failedRules = PASSWORD_RULES.filter((r) => !r.test(form.password));
+    if (failedRules.length > 0) { setError("Mật khẩu chưa đáp ứng yêu cầu bảo mật bên dưới."); return; }
     if (form.password !== form.confirmPassword) { setError(t("passwordMismatch")); return; }
 
     setLoading(true);
@@ -135,6 +160,7 @@ export default function RegisterPage() {
                   required
                   className="w-full bg-white border border-gray-300 text-black placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-400 transition-all"
                 />
+                {field.key === "password" && <PasswordRules password={form.password} />}
               </div>
             ))}
 
@@ -144,7 +170,7 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          <p className="text-center text-gray-600 text-sm mt-6">
+          <p className="text-center text-gray-600 text-sm mt-5">
             {t("hasAccount")}{" "}
             <Link href="/login" className="text-emerald-600 hover:text-emerald-700 font-medium">
               {t("loginNow")}

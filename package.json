@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "ts-node --project tsconfig.seed.json prisma/seed.ts",
-    "create-admin": "ts-node --project tsconfig.seed.json prisma/create-admin.ts"
+    "seed:history": "ts-node --project tsconfig.seed.json prisma/seed-history.ts",
+    "seed:hoamy": "ts-node --project tsconfig.seed.json prisma/seed-hoamy.ts",
+    "seed:cashflow": "ts-node --project tsconfig.seed.json prisma/seed-cashflow.ts",
+    "seed:thanhthao": "ts-node --project tsconfig.seed.json prisma/seed-thanhthao.ts",
+    "create-admin": "ts-node --project tsconfig.seed.json prisma/create-admin.ts",
+    "sync:wallets": "ts-node --project tsconfig.seed.json prisma/sync-staff-wallets.ts"
   },
   "prisma": {
     "seed": "ts-node --project tsconfig.seed.json prisma/seed.ts"
@@ -49,6 +54,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "prisma-erd-generator": "^2.4.2",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5"

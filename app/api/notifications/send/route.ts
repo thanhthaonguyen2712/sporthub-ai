@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
 
     const role = (session.user as any).role;
-    if (!["ADMIN", "OWNER"].includes(role)) {
+    if (role !== "OWNER") {
       return NextResponse.json({ error: "Không có quyền gửi thông báo" }, { status: 403 });
     }
 

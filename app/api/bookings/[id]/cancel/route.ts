@@ -20,7 +20,10 @@ export async function POST(
     // Tìm booking
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { invoice: true },
+      include: {
+        invoice: true,
+        court: { select: { facilityId: true, facility: { select: { ownerId: true } } } },
+      },
     });
 
     if (!booking) {
@@ -55,6 +58,9 @@ export async function POST(
     // Hủy + hoàn tiền (transaction)
     const refundAmount = Number(booking.totalPrice);
 
+    const facilityId = booking.court?.facilityId ?? null;
+    const ownerId = booking.court?.facility?.ownerId ?? null;
+
     await prisma.$transaction(async (tx) => {
       // Đổi status booking
       await tx.booking.update({
@@ -62,7 +68,15 @@ export async function POST(
         data: { status: "CANCELLED", paymentStatus: "UNPAID" },
       });
 
-      // Hoàn tiền về ví nếu đã thanh toán bằng ví
+      // Cập nhật trạng thái hóa đơn → CANCELLED
+      if (booking.invoice) {
+        await tx.invoice.update({
+          where: { id: booking.invoice.id },
+          data: { status: "CANCELLED" },
+        });
+      }
+
+      // Hoàn tiền về ví khách nếu đã thanh toán bằng ví
       if (booking.paymentStatus === "PAID") {
         const wallet = await tx.wallet.findUnique({
           where: { userId: Number((session.user as any).id) },
@@ -78,6 +92,25 @@ export async function POST(
               amount: refundAmount,
               type: "REFUND",
               description: `Hoàn tiền hủy sân #${bookingId}`,
+            },
+          });
+        }
+
+        // Ghi hoàn tiền vào ví kinh doanh của chủ sân
+        if (ownerId) {
+          let bizWallet = await tx.businessWallet.findUnique({ where: { userId: ownerId } });
+          if (!bizWallet) {
+            bizWallet = await tx.businessWallet.create({
+              data: { userId: ownerId, balance: 0, status: "ACTIVE" },
+            });
+          }
+          await tx.businessWalletTransaction.create({
+            data: {
+              walletId: bizWallet.id,
+              amount: refundAmount,
+              type: "REFUND",
+              description: `Hoàn tiền hủy đặt sân #${bookingId}`,
+              facilityId,
             },
           });
         }

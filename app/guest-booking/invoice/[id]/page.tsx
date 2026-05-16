@@ -94,7 +94,7 @@ export default function GuestInvoicePage() {
     if (phone) fetchBooking(phone);
   }, [phone, fetchBooking]);
 
-  // Countdown timer
+  // Đồng hồ đếm ngược thời gian hết hạn đơn
   useEffect(() => {
     if (!booking) return;
     const timer = setInterval(() => {

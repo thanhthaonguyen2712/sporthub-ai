@@ -35,6 +35,7 @@ export async function GET(
         owner: {
           select: { fullName: true, phone: true },
         },
+        _count: { select: { courts: true } },
       },
     });
 

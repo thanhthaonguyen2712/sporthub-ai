@@ -101,6 +101,25 @@ export default function GuestBookingPage() {
   const [success, setSuccess] = useState(false);
   const [bookingId, setBookingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucherMsg, setVoucherMsg] = useState("");
+  const [discount, setDiscount] = useState(0);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+
+  async function applyVoucher() {
+    if (!voucherCode.trim() || !selectedSlot) return;
+    setVoucherLoading(true); setVoucherMsg("");
+    const res = await fetch(`/api/vouchers/check?code=${encodeURIComponent(voucherCode.trim())}&total=${selectedSlot.price}`);
+    const data = await res.json();
+    setVoucherLoading(false);
+    if (res.ok) {
+      setDiscount(data.discount);
+      setVoucherMsg(`Áp dụng thành công: ${data.description}`);
+    } else {
+      setDiscount(0);
+      setVoucherMsg(data.error || "Voucher không hợp lệ");
+    }
+  }
 
   useEffect(() => {
     fetch("/api/facilities")
@@ -124,6 +143,7 @@ export default function GuestBookingPage() {
   useEffect(() => {
     setSelectedSlot(null);
     setBookedSlots([]);
+    setDiscount(0); setVoucherMsg(""); setVoucherCode("");
     if (!selectedCourt || !selectedDate) return;
     fetch(`/api/guest-bookings/slots?courtId=${selectedCourt.id}&date=${selectedDate}`)
       .then((r) => r.json())
@@ -170,6 +190,7 @@ export default function GuestBookingPage() {
         startTime: selectedSlot.time,
         endTime: selectedSlot.endTime,
         totalPrice: selectedSlot.price,
+        voucherCode: voucherCode.trim() || undefined,
       }),
     });
     const data = await res.json();
@@ -329,12 +350,39 @@ export default function GuestBookingPage() {
                 />
               </div>
 
+              {/* Voucher */}
+              <div className="mt-4 p-3 bg-white rounded-xl border border-gray-200">
+                <p className="text-xs font-semibold text-gray-700 mb-2">{t("voucher")}</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={voucherCode}
+                    onChange={e => { setVoucherCode(e.target.value.toUpperCase()); setDiscount(0); setVoucherMsg(""); }}
+                    placeholder={t("voucherPlaceholder")}
+                    className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-emerald-400"
+                  />
+                  <button onClick={applyVoucher} disabled={voucherLoading || !voucherCode.trim()}
+                    className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+                    {voucherLoading ? "..." : t("applyVoucher")}
+                  </button>
+                </div>
+                {voucherMsg && (
+                  <p className={`text-xs mt-1.5 ${discount > 0 ? "text-emerald-600" : "text-red-500"}`}>{voucherMsg}</p>
+                )}
+              </div>
+
               {/* Tổng kết */}
-              <div className="mt-4 p-4 bg-white rounded-xl border border-gray-200">
+              <div className="mt-3 p-4 bg-white rounded-xl border border-gray-200">
                 <p className="text-sm text-gray-600">{t("court")}: <span className="font-medium text-black">{selectedCourt?.name}</span></p>
                 <p className="text-sm text-gray-600">{t("date")}: <span className="font-medium text-black">{new Date(selectedDate).toLocaleDateString("vi-VN")}</span></p>
                 <p className="text-sm text-gray-600">{t("time")}: <span className="font-medium text-black">{selectedSlot.label}</span></p>
-                <p className="text-sm text-gray-600 mt-1">{t("payAtVenue")}: <span className="font-semibold text-emerald-600 text-base">{selectedSlot.price.toLocaleString("vi-VN")}đ</span></p>
+                {discount > 0 && (
+                  <>
+                    <p className="text-sm text-gray-500 mt-1">Giá gốc: <span className="line-through">{selectedSlot.price.toLocaleString("vi-VN")}đ</span></p>
+                    <p className="text-sm text-emerald-600">Giảm: -{discount.toLocaleString("vi-VN")}đ</p>
+                  </>
+                )}
+                <p className="text-sm text-gray-600 mt-1">{t("payAtVenue")}: <span className="font-semibold text-emerald-600 text-base">{Math.max(0, selectedSlot.price - discount).toLocaleString("vi-VN")}đ</span></p>
               </div>
             </div>
           )}

@@ -30,7 +30,7 @@ export default function FaceCapture({ mode, savedDescriptor, onSuccess, onCancel
   const [message, setMessage] = useState("Đang tải model nhận diện...");
   const [faceApiRef, setFaceApiRef] = useState<Awaited<ReturnType<typeof loadFaceApi>> | null>(null);
 
-  // Load models + camera
+  // Tải model nhận diện + khởi động camera
   useEffect(() => {
     let cancelled = false;
 

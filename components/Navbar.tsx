@@ -5,20 +5,18 @@ import Link from "next/link";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import TeammateModal from "./TeammateModal";
 
 export default function Navbar() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [teammateOpen, setTeammateOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("nav");
 
-  // Guest booking lookup state
+  // State cho tra cứu đặt sân khách vãng lai
   const [lookupOpen, setLookupOpen] = useState(false);
   const [guestPhone, setGuestPhone] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -121,13 +119,13 @@ export default function Navbar() {
             <>
               {/* Tìm đồng đội — chỉ cho khách hàng */}
               {(session.user as any)?.role === "CUSTOMER" && (
-                <button
-                  onClick={() => setTeammateOpen(true)}
+                <Link
+                  href="/match-posts"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-colors"
                 >
                   <img src="/group.png" alt="group" className="w-5 h-5 flex-shrink-0" />
                   <span>{t("findTeammate")}</span>
-                </button>
+                </Link>
               )}
 
               {/* Chuông thông báo */}
@@ -217,16 +215,11 @@ export default function Navbar() {
                         {(session.user as any)?.role || "CUSTOMER"}
                       </span>
                     </div>
-                    {/* Profile/bookings chỉ cho khách hàng */}
+                    {/* Profile chỉ cho khách hàng */}
                     {(session.user as any)?.role === "CUSTOMER" && (
-                      <>
-                        <Link href="/profile" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
-                          {t("profile")}
-                        </Link>
-                        <Link href="/profile?tab=bookings" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
-                          {t("bookings")}
-                        </Link>
-                      </>
+                      <Link href="/profile" className="block px-4 py-2.5 text-slate-300 hover:bg-slate-700 text-sm transition-colors" onClick={() => setMenuOpen(false)}>
+                        {t("profile")}
+                      </Link>
                     )}
                     {(session.user as any)?.role === "OWNER" && (
                       <>
@@ -316,12 +309,6 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
-    {teammateOpen && (
-      <TeammateModal
-        onClose={() => setTeammateOpen(false)}
-        currentUserId={session ? Number((session.user as any).id) : undefined}
-      />
-    )}
-    </>
+</>
   );
 }

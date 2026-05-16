@@ -27,7 +27,7 @@ export async function GET() {
   return NextResponse.json(record || null);
 }
 
-// Check-in
+// Chấm công vào ca (check-in)
 export async function POST(req: NextRequest) {
   void req;
   const session = await getServerSession(authOptions);
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(record, { status: 201 });
 }
 
-// Check-out
+// Chấm công ra ca (check-out)
 export async function PUT(req: NextRequest) {
   void req;
   const session = await getServerSession(authOptions);

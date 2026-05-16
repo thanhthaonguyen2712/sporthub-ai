@@ -413,12 +413,12 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
   const [services, setServices] = useState<Service[]>([]);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedSport, setSelectedSport] = useState<number | null>(null);
-  // courtId → booked time strings
+  // courtId → danh sách chuỗi giờ đã đặt
   const [bookedMap, setBookedMap] = useState<Record<number, string[]>>({});
-  // slot selection
+  // Chọn sân và slot giờ
   const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
-  // other form
+  // Thông tin khách hàng và form đặt sân
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
@@ -427,7 +427,7 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
   const [success, setSuccess] = useState<{bookingId:number;invoiceId:number}|null>(null);
   const [error, setError] = useState("");
 
-  // Load courts + services
+  // Tải danh sách sân và dịch vụ
   useEffect(() => {
     fetch(`/api/facilities/${facilityId}`).then(r=>r.json()).then(d=>setCourts(d.courts||[]));
     fetch(`/api/staff/inventory`).then(r=>r.json()).then(d=>setServices(d.services||[]));
@@ -482,7 +482,7 @@ function CreateInvoiceTab({ facilityId }: { facilityId: number }) {
   const serviceFee = selectedServices.reduce((sum,s)=>sum+s.quantity*s.price,0);
   const total = courtPrice + serviceFee;
 
-  // Sport groups for filter
+  // Nhóm môn thể thao để lọc sân
   const sports = Array.from(new Map(
     courts.filter((c:any)=>c.isActive!==false).map((c:any)=>[c.category?.id, c.category])
   ).values()).filter(Boolean);
@@ -1709,6 +1709,240 @@ function ReportTab() {
   );
 }
 
+// ─── Wallet Tab ───────────────────────────────────────────────────────────────
+interface WalletTx { id: number; amount: number; type: string; description: string | null; createdAt: string }
+interface WalletData { balance: number; status: string; transactions: WalletTx[] }
+interface BankAccount { id: number; bankName: string; accountNumber: string; accountName: string; isDefault: boolean }
+
+const TX_COLOR: Record<string, string> = { DEPOSIT: "text-emerald-600", WITHDRAW: "text-red-500", REFUND: "text-blue-500", PAYMENT: "text-orange-500" };
+const TX_LABEL: Record<string, string> = { DEPOSIT: "Nhận lương", WITHDRAW: "Rút tiền", REFUND: "Hoàn tiền", PAYMENT: "Thanh toán" };
+
+const VN_BANKS_STAFF = [
+  { bin: "970436", name: "Vietcombank (VCB)" },
+  { bin: "970422", name: "MB Bank" },
+  { bin: "970407", name: "Techcombank (TCB)" },
+  { bin: "970418", name: "BIDV" },
+  { bin: "970405", name: "Agribank" },
+  { bin: "970416", name: "ACB" },
+  { bin: "970432", name: "VPBank" },
+  { bin: "970423", name: "TPBank" },
+  { bin: "970403", name: "Sacombank" },
+  { bin: "970415", name: "VietinBank" },
+  { bin: "970426", name: "MSB" },
+  { bin: "970431", name: "Eximbank" },
+  { bin: "970448", name: "OCB" },
+];
+
+function WalletTab() {
+  const [data, setData] = useState<WalletData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [view, setView] = useState<"main" | "withdraw" | "addBank">("main");
+  const [withdrawForm, setWithdrawForm] = useState({ amount: "", bankAccountId: "" });
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState("");
+  const [bankForm, setBankForm] = useState({ bankBin: "", accountNumber: "", accountName: "", isDefault: true });
+  const [savingBank, setSavingBank] = useState(false);
+
+  const loadWallet = useCallback(async () => {
+    const res = await fetch("/api/staff/wallet");
+    const d = await res.json();
+    setData(d);
+  }, []);
+
+  const loadBanks = useCallback(async () => {
+    const res = await fetch("/api/staff/bank-accounts");
+    const d = await res.json();
+    setBankAccounts(Array.isArray(d) ? d : []);
+  }, []);
+
+  useEffect(() => {
+    Promise.all([loadWallet(), loadBanks()]).finally(() => setLoading(false));
+  }, [loadWallet, loadBanks]);
+
+  async function doWithdraw() {
+    setWithdrawError("");
+    const amount = Number(withdrawForm.amount) * 1000;
+    if (!amount || amount < 50000) { setWithdrawError("Số tiền tối thiểu là 50.000đ"); return; }
+    if (!withdrawForm.bankAccountId) { setWithdrawError("Vui lòng chọn tài khoản ngân hàng"); return; }
+    setWithdrawing(true);
+    const res = await fetch("/api/staff/wallet/withdraw", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, bankAccountId: Number(withdrawForm.bankAccountId) }),
+    });
+    const d = await res.json();
+    setWithdrawing(false);
+    if (!res.ok) { setWithdrawError(d.error); return; }
+    setWithdrawForm({ amount: "", bankAccountId: "" });
+    setView("main");
+    await loadWallet();
+  }
+
+  async function addBankAccount() {
+    if (!bankForm.bankBin || !bankForm.accountNumber || !bankForm.accountName) { alert("Vui lòng điền đầy đủ"); return; }
+    setSavingBank(true);
+    const bank = VN_BANKS_STAFF.find(b => b.bin === bankForm.bankBin);
+    const res = await fetch("/api/staff/bank-accounts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bankBin: bankForm.bankBin, bankLabel: bank?.name || bankForm.bankBin, accountNumber: bankForm.accountNumber, accountName: bankForm.accountName, isDefault: bankForm.isDefault }),
+    });
+    setSavingBank(false);
+    if (res.ok) {
+      setBankForm({ bankBin: "", accountNumber: "", accountName: "", isDefault: true });
+      setView("withdraw");
+      await loadBanks();
+    }
+  }
+
+  async function deleteBankAccount(id: number) {
+    if (!confirm("Xóa tài khoản ngân hàng này?")) return;
+    await fetch("/api/staff/bank-accounts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    await loadBanks();
+  }
+
+  function getBankLabel(bankName: string) {
+    const [, label] = bankName.split("|");
+    return label || bankName;
+  }
+
+  if (loading) return <div className="text-center py-16 text-gray-400 text-sm">Đang tải...</div>;
+  if (!data) return <div className="text-center py-16 text-gray-400 text-sm">Không thể tải ví</div>;
+
+  // ── Form thêm ngân hàng ──
+  if (view === "addBank") return (
+    <div>
+      <button onClick={() => setView("withdraw")} className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1">← Quay lại</button>
+      <div className={CARD} style={BG}>
+        <p className="font-semibold text-black mb-4">Thêm tài khoản ngân hàng</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Ngân hàng *</label>
+            <select className={INPUT} value={bankForm.bankBin} onChange={e => setBankForm(f => ({ ...f, bankBin: e.target.value }))}>
+              <option value="">-- Chọn ngân hàng --</option>
+              {VN_BANKS_STAFF.map(b => <option key={b.bin} value={b.bin}>{b.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Số tài khoản *</label>
+            <input className={INPUT} placeholder="VD: 1234567890" value={bankForm.accountNumber} onChange={e => setBankForm(f => ({ ...f, accountNumber: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Tên chủ tài khoản *</label>
+            <input className={INPUT} placeholder="VD: NGUYEN VAN A" value={bankForm.accountName} onChange={e => setBankForm(f => ({ ...f, accountName: e.target.value.toUpperCase() }))} />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={bankForm.isDefault} onChange={e => setBankForm(f => ({ ...f, isDefault: e.target.checked }))} />
+            Đặt làm tài khoản mặc định
+          </label>
+          <button onClick={addBankAccount} disabled={savingBank} className={BTN_G + " w-full"}>
+            {savingBank ? "Đang lưu..." : "Lưu tài khoản"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Form rút tiền ──
+  if (view === "withdraw") return (
+    <div>
+      <button onClick={() => setView("main")} className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1">← Quay lại</button>
+      <div className={CARD} style={{ background: "linear-gradient(135deg, #d1fae5, #a7f3d0)" }}>
+        <p className="text-xs text-emerald-700 font-medium">Số dư hiện tại</p>
+        <p className="text-3xl font-bold text-emerald-700 tabular-nums">{data.balance.toLocaleString("vi-VN")}đ</p>
+      </div>
+
+      <div className={CARD} style={BG}>
+        <p className="font-semibold text-black mb-4">Rút tiền về ngân hàng</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Số tiền rút (nghìn đồng) — tối thiểu 50k</label>
+            <input className={INPUT} type="number" min="50" placeholder="VD: 500 = 500.000đ"
+              value={withdrawForm.amount} onChange={e => setWithdrawForm(f => ({ ...f, amount: e.target.value }))} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-gray-500">Tài khoản ngân hàng nhận</label>
+              <button onClick={() => setView("addBank")} className="text-xs text-emerald-600 hover:underline">+ Thêm tài khoản</button>
+            </div>
+            {bankAccounts.length === 0 ? (
+              <div className="text-sm text-orange-500 bg-orange-50 rounded-xl p-3">
+                Chưa có tài khoản ngân hàng.{" "}
+                <button onClick={() => setView("addBank")} className="underline font-medium">Thêm ngay</button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {bankAccounts.map(acc => {
+                  const selected = withdrawForm.bankAccountId === String(acc.id);
+                  return (
+                    <div key={acc.id}
+                      onClick={() => setWithdrawForm(f => ({ ...f, bankAccountId: String(acc.id) }))}
+                      className={`flex items-center justify-between rounded-xl px-4 py-3 border cursor-pointer transition-all ${selected ? "border-emerald-400 bg-emerald-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{getBankLabel(acc.bankName)}</p>
+                        <p className="text-xs text-gray-500">{acc.accountNumber} — {acc.accountName}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {acc.isDefault && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Mặc định</span>}
+                        <button onClick={e => { e.stopPropagation(); deleteBankAccount(acc.id); }} className="text-red-400 hover:text-red-600 text-xs">Xóa</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {withdrawError && <p className="text-sm text-red-500">{withdrawError}</p>}
+          <button onClick={doWithdraw} disabled={withdrawing || bankAccounts.length === 0} className={BTN_G + " w-full"}>
+            {withdrawing ? "Đang xử lý..." : "Xác nhận rút tiền"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Màn hình chính ──
+  return (
+    <div>
+      {/* Số dư + nút rút */}
+      <div className={CARD} style={{ background: "linear-gradient(135deg, #d1fae5, #a7f3d0)" }}>
+        <p className="text-xs text-emerald-700 font-medium mb-1">Số dư ví SportHub</p>
+        <p className="text-4xl font-bold text-emerald-700 tabular-nums">{data.balance.toLocaleString("vi-VN")}đ</p>
+        <p className="text-xs text-emerald-600 mt-2">
+          Trạng thái: <span className="font-semibold">{data.status === "ACTIVE" ? "Hoạt động" : "Tạm khóa"}</span>
+        </p>
+        <p className="text-xs text-emerald-600 mt-1 mb-3">Lương được chủ sân chuyển vào ví này theo kỳ thanh toán.</p>
+        {data.status === "ACTIVE" && (
+          <button onClick={() => setView("withdraw")} className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+            Rút tiền về ngân hàng
+          </button>
+        )}
+      </div>
+
+      {/* Lịch sử giao dịch */}
+      <div className={CARD} style={BG}>
+        <p className="font-semibold text-black mb-3">Lịch sử giao dịch</p>
+        {data.transactions.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">Chưa có giao dịch nào</p>
+        ) : (
+          <div className="space-y-2">
+            {data.transactions.map(tx => (
+              <div key={tx.id} className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-gray-100">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{tx.description ?? TX_LABEL[tx.type] ?? tx.type}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{new Date(tx.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                </div>
+                <span className={`text-sm font-bold shrink-0 ml-3 ${TX_COLOR[tx.type] ?? "text-gray-600"}`}>
+                  {tx.type === "WITHDRAW" || tx.type === "PAYMENT" ? "-" : "+"}{tx.amount.toLocaleString("vi-VN")}đ
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function StaffDashboard() {
   const { data: session, status } = useSession();
@@ -1790,6 +2024,7 @@ export default function StaffDashboard() {
   const TABS = [
     { id: "attendance", label: "Chấm công",    icon: "" },
     { id: "shifts",     label: "Ca làm",       icon: "" },
+    { id: "wallet",     label: "Ví SportHub",  icon: "💳" },
     ...(hasCheckedIn ? [
       { id: "pos",      label: "Bán hàng",     icon: "" },
       { id: "bookings", label: "Lịch hôm nay", icon: "" },
@@ -1890,6 +2125,7 @@ export default function StaffDashboard() {
         <div>
           {activeTab === "attendance" && <AttendanceTab info={info} onRefresh={loadInfo} />}
           {activeTab === "shifts"     && <ShiftsTab />}
+          {activeTab === "wallet"     && <WalletTab />}
           {activeTab === "pos"        && facility && <POSTab />}
           {activeTab === "bookings"   && facility && <TodayBookingsTab facilityId={facility.id} />}
           {activeTab === "invoice"    && facility && <CreateInvoiceTab facilityId={facility.id} />}

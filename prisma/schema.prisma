@@ -3,6 +3,11 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "./ERD.svg"
+}
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
@@ -10,10 +15,9 @@ datasource db {
 // ===================== ENUMS =====================
 
 enum Role {
-  ADMIN
   OWNER
   STAFF
-  WAREHOUSE_MANAGER  
+  WAREHOUSE_MANAGER
   CUSTOMER
 }
 
@@ -29,6 +33,7 @@ enum BookingStatus {
   CANCELLED  // Đã hủy
   COMPLETED  // Hoàn thành
   NO_SHOW    // Khách không đến
+  
 }
 
 enum PaymentStatus {
@@ -61,6 +66,11 @@ enum TransactionType {
   WITHDRAW // Rút tiền về ngân hàng
 }
 
+enum InvoiceStatus {
+  ACTIVE    // Hóa đơn hợp lệ
+  CANCELLED // Hóa đơn đã hủy
+}
+
 enum MatchLevel {
   BEGINNER     // Người mới
   INTERMEDIATE // Trung bình
@@ -71,6 +81,12 @@ enum MatchStatus {
   OPEN    // Đang tìm người
   CLOSED  // Đã đủ người
   EXPIRED // Đã hết hạn
+}
+
+enum MatchJoinStatus {
+  PENDING   // Chờ chủ bài duyệt
+  APPROVED  // Đã được duyệt
+  REJECTED  // Bị từ chối
 }
 
 enum AttendanceStatus {
@@ -178,6 +194,7 @@ model User {
   bookings        Booking[]         @relation("CustomerBookings")
   invoices        Invoice[]         @relation("StaffInvoices")
   matchPosts      MatchPost[]       @relation("CreatorMatchPosts")
+  matchJoinRequests MatchJoinRequest[]
   attendances     StaffAttendance[]
   reviews         Review[]
   vouchers        Voucher[]         @relation("OwnerVouchers")
@@ -276,6 +293,8 @@ model Facility {
   directSales     DirectSale[]
   workShifts      WorkShift[]
   wageHistories   StaffWageHistory[] @relation("FacilityWageHistories")
+  vouchers        Voucher[]
+  bizTransactions BusinessWalletTransaction[] @relation("FacilityBizTxs")
 
   @@map("facilities")
 }
@@ -293,18 +312,21 @@ model FacilitySport {
 
 // 6. SÂN CON
 model Court {
-  id         Int           @id @default(autoincrement())
-  name       String
-  isActive   Boolean       @default(true) @map("is_active")
-  facilityId Int           @map("facility_id")
-  facility   Facility      @relation(fields: [facilityId], references: [id], onDelete: Cascade)
-  categoryId Int           @map("category_id")
-  category   SportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id                Int           @id @default(autoincrement())
+  name              String
+  isActive          Boolean       @default(true) @map("is_active")
+  facilityId        Int           @map("facility_id")
+  facility          Facility      @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  categoryId        Int           @map("category_id")
+  category          SportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  openTime          DateTime?     @map("open_time") @db.Time
+  closeTime         DateTime?     @map("close_time") @db.Time
+  minRentalMinutes  Int           @default(60) @map("min_rental_minutes")
 
-  pricingRules CourtPricingRule[]
-  bookings     Booking[]
+  pricingRules  CourtPricingRule[]
+  bookings      Booking[]
   guestBookings GuestBooking[]
-  locks        CourtLock[]
+  locks         CourtLock[]
 
   @@map("courts")
 }
@@ -422,6 +444,7 @@ model Invoice {
   discountAmount Decimal       @default(0) @map("discount_amount") @db.Decimal(10, 2)
   finalTotal     Decimal       @map("final_total") @db.Decimal(10, 2)
   paymentMethod  PaymentMethod @map("payment_method")
+  status         InvoiceStatus @default(ACTIVE)
   createdAt      DateTime      @default(now()) @map("created_at")
   bookingId      Int           @unique @map("booking_id")
   booking        Booking       @relation(fields: [bookingId], references: [id])
@@ -470,8 +493,31 @@ model MatchPost {
   courtName       String?       @map("court_name")
   pricePerPerson  Decimal?      @map("price_per_person") @db.Decimal(10, 2)
   totalPrice      Decimal?      @map("total_price") @db.Decimal(10, 2)
+  qrCodeUrl       String?       @map("qr_code_url") @db.Text
+  isLocked        Boolean       @default(false) @map("is_locked")
+
+  joinRequests    MatchJoinRequest[]
 
   @@map("match_posts")
+}
+
+// 15b. YÊU CẦU THAM GIA GHÉP TRẬN
+model MatchJoinRequest {
+  id              Int             @id @default(autoincrement())
+  matchPostId     Int             @map("match_post_id")
+  userId          Int?            @map("user_id")
+  guestName       String?         @map("guest_name")
+  guestEmail      String?         @map("guest_email")
+  guestPhone      String?         @map("guest_phone")
+  paymentProofUrl String?         @map("payment_proof_url") @db.Text
+  status          MatchJoinStatus @default(PENDING)
+  note            String?         @db.Text
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  matchPost       MatchPost       @relation(fields: [matchPostId], references: [id], onDelete: Cascade)
+  user            User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("match_join_requests")
 }
 
 // 16. ĐÁNH GIÁ SÂN
@@ -492,6 +538,7 @@ model Review {
 model Voucher {
   id            Int          @id @default(autoincrement())
   code          String       @unique
+  name          String?
   discountType  DiscountType @map("discount_type")
   discountValue Decimal      @map("discount_value") @db.Decimal(10, 2)
   minOrderValue Decimal      @default(0) @map("min_order_value") @db.Decimal(10, 2)
@@ -500,11 +547,15 @@ model Voucher {
   endDate       DateTime     @map("end_date") @db.DateTime(0)
   usageLimit    Int          @default(1) @map("usage_limit")
   usedCount     Int          @default(0) @map("used_count")
-  isActive      Boolean      @default(true) @map("is_active")
+  isActive                Boolean         @default(true) @map("is_active")
+  requiredMembershipTier  MembershipTier? @map("required_membership_tier")
   ownerId       Int          @map("owner_id")
   owner         User         @relation("OwnerVouchers", fields: [ownerId], references: [id])
+  facilityId    Int?         @map("facility_id")
+  facility      Facility?    @relation(fields: [facilityId], references: [id], onDelete: SetNull)
 
-  bookings Booking[]
+  bookings      Booking[]
+  guestBookings GuestBooking[]
 
   @@map("vouchers")
 }
@@ -525,23 +576,28 @@ model FacilityStaff {
 
 // 19. KHÁCH VÃNG LAI ĐẶT SÂN
 model GuestBooking {
-  id          Int                @id @default(autoincrement())
-  guestName   String             @map("guest_name")
-  guestPhone  String             @map("guest_phone")
-  guestEmail  String?            @map("guest_email")
-  courtId     Int                @map("court_id")
-  bookingDate DateTime           @map("booking_date") @db.Date
-  startTime   DateTime           @map("start_time") @db.Time
-  endTime     DateTime           @map("end_time") @db.Time
-  totalPrice  Decimal            @map("total_price") @db.Decimal(10, 2)
-  status      GuestBookingStatus @default(PENDING)
-  otpCode     String?            @map("otp_code")
-  otpExpiry   DateTime?          @map("otp_expiry")
-  expiredAt   DateTime           @map("expired_at")
-  paymentQr   String?            @map("payment_qr") @db.Text
-  createdAt   DateTime           @default(now()) @map("created_at")
+  id             Int                @id @default(autoincrement())
+  guestName      String             @map("guest_name")
+  guestPhone     String             @map("guest_phone")
+  guestEmail     String?            @map("guest_email")
+  courtId        Int                @map("court_id")
+  bookingDate    DateTime           @map("booking_date") @db.Date
+  startTime      DateTime           @map("start_time") @db.Time
+  endTime        DateTime           @map("end_time") @db.Time
+  totalPrice     Decimal            @map("total_price") @db.Decimal(10, 2)
+  discountAmount Decimal            @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  status         GuestBookingStatus @default(PENDING)
+  otpCode        String?            @map("otp_code")
+  otpExpiry      DateTime?          @map("otp_expiry")
+  expiredAt      DateTime           @map("expired_at")
+  paymentQr      String?            @map("payment_qr") @db.Text
+  guestBankName  String?            @map("guest_bank_name")
+  guestBankAccount String?          @map("guest_bank_account")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  voucherId      Int?               @map("voucher_id")
+  voucher        Voucher?           @relation(fields: [voucherId], references: [id])
 
-  court       Court              @relation(fields: [courtId], references: [id])
+  court          Court              @relation(fields: [courtId], references: [id])
 
   @@map("guest_bookings")
 }
@@ -851,6 +907,8 @@ model BusinessWalletTransaction {
   createdAt   DateTime        @default(now()) @map("created_at")
   walletId    Int             @map("wallet_id")
   wallet      BusinessWallet  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  facilityId  Int?            @map("facility_id")
+  facility    Facility?       @relation("FacilityBizTxs", fields: [facilityId], references: [id], onDelete: SetNull)
 
   @@map("business_wallets_transactions")
 }

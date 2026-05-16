@@ -21,6 +21,23 @@ interface Booking {
   };
 }
 
+interface MatchJoinResult {
+  id: number;
+  guestName: string;
+  guestPhone: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt: string;
+  matchPost: {
+    title: string;
+    matchDate: string;
+    startTime: string;
+    endTime: string;
+    facility: { name: string; address: string };
+    sport: { name: string };
+    pricePerPerson: number | null;
+  };
+}
+
 function formatTime(iso: string) {
   return new Date(iso).toISOString().substring(11, 16);
 }
@@ -41,18 +58,29 @@ export default function GuestLookupPage() {
 
   const [phone, setPhone] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [matchJoins, setMatchJoins] = useState<MatchJoinResult[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const JOIN_STATUS: Record<string, { label: string; color: string }> = {
+    PENDING: { label: "Chờ duyệt", color: "text-yellow-600 bg-yellow-50 border-yellow-200" },
+    APPROVED: { label: "Đã được duyệt", color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+    REJECTED: { label: "Bị từ chối", color: "text-red-600 bg-red-50 border-red-200" },
+  };
 
   async function handleSearch() {
     if (!phone) return;
     setLoading(true);
-    const res = await fetch(`/api/guest-bookings/lookup?phone=${encodeURIComponent(phone)}`);
-    const data = await res.json();
+    const [bookingRes, joinRes] = await Promise.all([
+      fetch(`/api/guest-bookings/lookup?phone=${encodeURIComponent(phone)}`),
+      fetch(`/api/match-join-requests/lookup?phone=${encodeURIComponent(phone)}`),
+    ]);
+    const bookingData = await bookingRes.json();
+    const joinData = await joinRes.json();
     setLoading(false);
     setSearched(true);
-    if (res.ok) setBookings(data);
-    else setBookings([]);
+    setBookings(bookingRes.ok && Array.isArray(bookingData) ? bookingData : []);
+    setMatchJoins(joinRes.ok && Array.isArray(joinData) ? joinData : []);
   }
 
   return (
@@ -85,13 +113,44 @@ export default function GuestLookupPage() {
           </div>
         </div>
 
-        {searched && bookings.length === 0 && (
+        {searched && bookings.length === 0 && matchJoins.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             <div className="text-4xl mb-3">📭</div>
             <p>{t("noBookings")}</p>
             <Link href="/guest-booking" className="text-emerald-600 hover:underline text-sm mt-2 inline-block">
               {t("bookNow")}
             </Link>
+          </div>
+        )}
+
+        {/* Ghép trận kết quả */}
+        {matchJoins.length > 0 && (
+          <div className="space-y-4 mb-6">
+            <p className="text-sm text-gray-600 font-medium">Yêu cầu ghép trận ({matchJoins.length})</p>
+            {matchJoins.map((jn) => {
+              const s = JOIN_STATUS[jn.status] || { label: jn.status, color: "text-gray-600 bg-gray-50 border-gray-200" };
+              return (
+                <div key={jn.id} className="border border-gray-300 rounded-2xl p-5" style={{ background: "#E0EEE0" }}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-black">{jn.matchPost.facility.name}</p>
+                      <p className="text-sm text-gray-500">{jn.matchPost.facility.address}</p>
+                    </div>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${s.color}`}>{s.label}</span>
+                  </div>
+                  <div className="bg-white rounded-xl p-4 space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-gray-500">Trận</span><span className="font-medium">{jn.matchPost.title}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Môn</span><span className="font-medium">{jn.matchPost.sport.name}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Ngày</span><span className="font-medium">{new Date(jn.matchPost.matchDate).toLocaleDateString("vi-VN")}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Giờ</span><span className="font-medium">{jn.matchPost.startTime}–{jn.matchPost.endTime}</span></div>
+                    {jn.matchPost.pricePerPerson && (
+                      <div className="flex justify-between"><span className="text-gray-500">Phí</span><span className="font-semibold text-emerald-600">{jn.matchPost.pricePerPerson.toLocaleString("vi-VN")}đ</span></div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">Mã yêu cầu: #{jn.id}</p>
+                </div>
+              );
+            })}
           </div>
         )}
 

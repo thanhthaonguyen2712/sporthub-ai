@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     endDate.setMonth(endDate.getMonth() + 1);
 
     await prisma.$transaction(async (tx) => {
-      // Upsert membership
+      // Tạo mới hoặc cập nhật gói thành viên
       await tx.membership.upsert({
         where: { userId },
         create: { userId, tier: tier as any, status: "ACTIVE", startDate, endDate },

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const responseCode = searchParams.get("vnp_ResponseCode");
   const bookingEncoded = searchParams.get("booking");
 
-  // Verify signature
+  // Xác minh chữ ký VNPay
   const secretKey = process.env.VNPAY_HASH_SECRET!;
   const sortedParams = Object.keys(vnpParams).sort().reduce((result: Record<string, string>, key) => {
     result[key] = vnpParams[key];
@@ -35,8 +35,40 @@ export async function GET(req: NextRequest) {
   if (responseCode === "00" && bookingEncoded) {
     try {
      const bookingData = JSON.parse(Buffer.from(bookingEncoded, "base64").toString());
-     const { courtId, bookingDate, startTime, endTime, totalPrice, serviceIds, userId, isTopup } = bookingData;
-    // Nếu là nạp tiền ví
+     const { courtId, bookingDate, startTime, endTime, totalPrice, serviceIds, userId, isTopup, isBusinessTopup } = bookingData;
+    // Nếu là nạp tiền ví kinh doanh
+        if (isTopup && isBusinessTopup) {
+    const topupAmount = Number(vnpParams["vnp_Amount"]) / 100;
+    let bizWallet = await prisma.businessWallet.findUnique({ where: { userId: Number(userId) } });
+    if (!bizWallet) {
+      bizWallet = await prisma.businessWallet.create({ data: { userId: Number(userId), balance: 0, status: "ACTIVE" } });
+    }
+    await prisma.$transaction([
+      prisma.businessWallet.update({
+        where: { id: bizWallet.id },
+        data: { balance: { increment: topupAmount } },
+      }),
+      prisma.businessWalletTransaction.create({
+        data: {
+          walletId: bizWallet.id,
+          amount: topupAmount,
+          type: "DEPOSIT",
+          description: "Nạp tiền ví kinh doanh qua VNPay",
+        },
+      }),
+    ]);
+    prisma.notification.create({
+      data: {
+        userId: Number(userId),
+        title: "Nạp tiền ví kinh doanh thành công",
+        content: `Đã nạp ${topupAmount.toLocaleString("vi-VN")}đ vào ví kinh doanh qua VNPay.`,
+        type: "PAYMENT",
+        link: "/profile?tab=wallet",
+      },
+    }).catch(() => {});
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/profile?tab=wallet&topup=success`);
+        }
+    // Nếu là nạp tiền ví cá nhân
         if (isTopup) {
     const topupAmount = Number(vnpParams["vnp_Amount"]) / 100;
     const wallet = await prisma.wallet.findUnique({ where: { userId: Number(userId) } });

@@ -314,7 +314,7 @@ export default function BookingPage() {
       );
     }
 
-    // teammateStep === "ask"
+    // Bước hỏi tìm đồng đội
     return (
       <div className="min-h-screen" style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(to right, #DDEFBB, #FFEEEE)" }}>
         <Navbar />

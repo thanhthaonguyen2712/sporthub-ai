@@ -20,29 +20,38 @@ export async function POST(req: NextRequest) {
 
   const amount = Number(record.finalSalary);
 
-  const ownerWallet = await prisma.wallet.findUnique({ where: { userId: ownerId } });
-  if (!ownerWallet || Number(ownerWallet.balance) < amount) {
-    return NextResponse.json({ error: "Số dư ví không đủ để thanh toán lương" }, { status: 400 });
+  // Mặc định dùng ví kinh doanh để trả lương
+  let businessWallet = await prisma.businessWallet.findUnique({ where: { userId: ownerId } });
+  if (!businessWallet) {
+    businessWallet = await prisma.businessWallet.create({
+      data: { userId: ownerId, balance: 0, status: "ACTIVE" },
+    });
+  }
+  if (Number(businessWallet.balance) < amount) {
+    return NextResponse.json({ error: "Số dư ví kinh doanh không đủ để thanh toán lương" }, { status: 400 });
   }
 
+  // Staff nhận lương vào ví cá nhân
   let staffWallet = await prisma.wallet.findUnique({ where: { userId: record.staffId } });
   if (!staffWallet) {
     staffWallet = await prisma.wallet.create({ data: { userId: record.staffId } });
   }
 
   await prisma.$transaction([
-    prisma.wallet.update({
-      where: { id: ownerWallet.id },
+    // Trừ ví kinh doanh của owner
+    prisma.businessWallet.update({
+      where: { id: businessWallet.id },
       data: { balance: { decrement: amount } },
     }),
-    prisma.walletTransaction.create({
+    prisma.businessWalletTransaction.create({
       data: {
-        walletId: ownerWallet.id,
+        walletId: businessWallet.id,
         amount,
-        type: "PAYMENT",
+        type: "WITHDRAW",
         description: `Trả lương tháng ${record.month}/${record.year} cho ${record.staff.fullName}`,
       },
     }),
+    // Cộng vào ví cá nhân của nhân viên
     prisma.wallet.update({
       where: { id: staffWallet.id },
       data: { balance: { increment: amount } },

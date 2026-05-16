@@ -20,24 +20,37 @@ export async function GET(req: NextRequest) {
     where,
     include: {
       user: {
-        select: { id: true, fullName: true, email: true, phone: true, role: true, isLocked: true, createdAt: true },
+        select: { id: true, fullName: true, email: true, phone: true, role: true, isLocked: true, createdAt: true, wallet: { select: { balance: true, status: true } } },
       },
       facility: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  // Lấy wage config cho từng nhân viên
+  // Lấy wage config cho từng nhân viên (luôn load, không phụ thuộc vào facilityId filter)
   const userIds = staff.map(s => s.user.id);
-  const wageConfigs = facilityId
+  const facilityIds = [...new Set(staff.map(s => s.facilityId))];
+  const wageConfigs = userIds.length > 0
     ? await prisma.staffWageConfig.findMany({
-        where: { facilityId: Number(facilityId), staffId: { in: userIds } },
+        where: {
+          staffId: { in: userIds },
+          facilityId: facilityId ? Number(facilityId) : { in: facilityIds },
+        },
+      })
+    : [];
+
+  // Lịch sử thay đổi lương/phân loại cho từng nhân viên
+  const wageHistories = userIds.length > 0
+    ? await prisma.staffWageHistory.findMany({
+        where: { staffId: { in: userIds }, facilityId: facilityId ? Number(facilityId) : { in: facilityIds } },
+        orderBy: { changedAt: "desc" },
       })
     : [];
 
   return NextResponse.json(
     staff.map((s) => {
       const cfg = wageConfigs.find(w => w.staffId === s.user.id);
+      const history = wageHistories.filter(h => h.staffId === s.user.id);
       return {
         staffRecordId: s.id,
         facilityId: s.facilityId,
@@ -46,6 +59,19 @@ export async function GET(req: NextRequest) {
         joinedAt: s.createdAt,
         user: s.user,
         wageConfig: cfg ? { wageType: cfg.wageType, wageRate: Number(cfg.wageRate) } : null,
+        wageHistory: history.map(h => ({
+          id: h.id,
+          oldRole: h.oldRole,
+          newRole: h.newRole,
+          oldWageType: h.oldWageType,
+          newWageType: h.newWageType,
+          oldWageRate: h.oldWageRate != null ? Number(h.oldWageRate) : null,
+          newWageRate: h.newWageRate != null ? Number(h.newWageRate) : null,
+          effectiveFrom: h.effectiveFrom.toISOString(),
+          isApplied: h.isApplied,
+          appliedAt: h.appliedAt?.toISOString() ?? null,
+          changedAt: h.changedAt.toISOString(),
+        })),
       };
     })
   );
